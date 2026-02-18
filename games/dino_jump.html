@@ -134,6 +134,39 @@
             color: #555;
             font-size: 12px;
         }
+
+        /* --- MOBILE RESPONSIVE --- */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 24px;
+                /* Smaller title */
+            }
+
+            button {
+                padding: 10px 20px;
+                font-size: 12px;
+            }
+
+            .shop-item {
+                width: 90%;
+                /* Fluid width */
+                max-width: 400px;
+                flex-direction: column;
+                /* Stack items */
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .shop-item button {
+                width: 100%;
+                margin: 0;
+            }
+
+            .hud-top {
+                padding: 20px;
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 
