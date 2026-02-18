@@ -299,7 +299,10 @@
 
         window.addEventListener('keydown', e => {
             if (e.code === 'Space' || e.code === 'Enter') {
-                if (state !== 'PLAYING') startGame();
+                if (state === 'LOBBY' || state === 'GAMEOVER') {
+                    GameJuice.initAudio();
+                    startGame();
+                }
             }
         });
 

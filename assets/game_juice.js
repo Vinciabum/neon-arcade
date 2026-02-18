@@ -105,12 +105,73 @@ const GameJuice = {
     /**
     * Sound Manager (Web Audio API Synth)
     */
+    audioCtx: null,
+    bgmNodes: [],
+
     initAudio: function () {
         if (!this.audioCtx) {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             this.audioCtx = new AudioContext();
         }
-        if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+        if (this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+        }
+    },
+
+    // Call this on "Click" or "Touch" execution to unlock browser audio
+    unlockAudio: function () {
+        if (!this.audioCtx) this.initAudio();
+        if (this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume().then(() => {
+                console.log("AudioContext unlocked!");
+            });
+        }
+        // Play silent sound to trigger
+        const buffer = this.audioCtx.createBuffer(1, 1, 22050);
+        const source = this.audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this.audioCtx.destination);
+        source.start(0);
+    },
+
+    playBGM: function () {
+        if (!this.audioCtx) this.initAudio();
+        this.stopBGM(); // Stop existing
+
+        const ctx = this.audioCtx;
+        const t = ctx.currentTime;
+
+        // Simple Bassline Loop
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(110, t); // A2
+
+        // Arpeggiator LFO effect
+        const lfo = ctx.createOscillator();
+        lfo.type = 'square';
+        lfo.frequency.value = 4; // 4 Hz
+        const lfoGain = ctx.createGain();
+        lfoGain.gain.value = 500;
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+        lfo.start(t);
+
+        gain.gain.setValueAtTime(0.05, t); // Low volume
+
+        osc.start(t);
+        this.bgmNodes.push(osc, gain, lfo, lfoGain);
+    },
+
+    stopBGM: function () {
+        this.bgmNodes.forEach(n => {
+            if (n.stop) n.stop();
+            n.disconnect();
+        });
+        this.bgmNodes = [];
     },
 
     playSound: function (type) {
@@ -179,6 +240,13 @@ const GameJuice = {
         }
     }
 };
+
+// Global Unlockers
+['click', 'touchstart', 'keydown'].forEach(evt => {
+    window.addEventListener(evt, () => {
+        if (GameJuice) GameJuice.unlockAudio();
+    }, { once: true });
+});
 
 // Expose globally
 window.GameJuice = GameJuice;

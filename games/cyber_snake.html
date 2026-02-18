@@ -266,7 +266,10 @@
         // Input
         document.addEventListener('keydown', e => {
             if (state === 'LOBBY' || state === 'GAMEOVER') {
-                if (e.code === 'Space' || e.code === 'Enter') startGame();
+                if (e.code === 'Space' || e.code === 'Enter') {
+                    GameJuice.initAudio();
+                    startGame();
+                }
                 return;
             }
             // Prevent reverse interaction

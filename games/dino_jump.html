@@ -268,7 +268,10 @@
                 else if (!document.getElementById('gameOverScreen').classList.contains('hidden')) location.reload();
             }
             if (e.code === 'Enter') {
-                if (!gameRunning) startGame();
+                if (!gameRunning) {
+                    GameJuice.initAudio();
+                    startGame();
+                }
                 // Fix: Do not restart keydown logic if already running
             }
         });

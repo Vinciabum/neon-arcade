@@ -292,10 +292,14 @@
         }, { passive: false });
 
         // Start Key Logic
-        window.addEventListener('keydown', e => {
-            if (e.code === 'Space' || e.code === 'Enter') {
-                if (state !== 'PLAYING') startGame();
-                else if (state === 'PLAYING' && ball.vx === 0 && ball.vy === 0) launchBall();
+        document.addEventListener('keydown', e => {
+            if (state === 'LOBBY' || state === 'GAMEOVER') {
+                if (e.code === 'Space' || e.code === 'Enter') {
+                    GameJuice.initAudio();
+                    startGame();
+                }
+            } else if (state === 'PLAYING' && ball.vx === 0 && ball.vy === 0) {
+                launchBall();
             }
         });
 
