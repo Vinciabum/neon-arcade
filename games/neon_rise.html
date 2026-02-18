@@ -196,48 +196,49 @@
 
             // Platform Collision (only when falling)
             if (player.vy > 0) {
-                platforms.forEach(p => {
-                    if (
-                        player.x + player.w > p.x &&
-                        player.x < p.x + p.w &&
-                        player.y + player.h > p.y &&
-                        player.y + player.h < p.y + p.h + 15 // Tolerance
-                    ) {
-                        player.vy = -12; // JUMP
-                        createExplosion(player.x + player.w / 2, player.y + player.h, '#0ff');
-                    }
-                });
-            }
-
-            // Cleanup & Spawn Platforms
-            platforms.forEach((p, i) => {
-                if (p.y > h) {
-                    platforms.splice(i, 1);
-                    // Spawn new one on top
-                    // Find highest platform
-                    let minY = h;
-                    platforms.forEach(plat => { if (plat.y < minY) minY = plat.y; });
-
-                    platforms.push({
-                        x: Math.random() * (w - 150),
-                        y: minY - 100 - Math.random() * 50,
-                        w: 80 + Math.random() * 60,
-                        h: 20,
-                        type: 'normal'
-                    });
+                if (
+                    player.x + player.w > p.x &&
+                    player.x < p.x + p.w &&
+                    player.y + player.h > p.y &&
+                    player.y + player.h < p.y + p.h + 15 // Tolerance
+                ) {
+                    player.vy = -12; // JUMP
+                    GameJuice.playSound('jump');
+                    createExplosion(player.x + player.w / 2, player.y + player.h, '#0ff');
                 }
             });
+        }
 
-            // Death
-            if (player.y > h) {
-                gameOver();
+        // Cleanup & Spawn Platforms
+        platforms.forEach((p, i) => {
+            if (p.y > h) {
+                platforms.splice(i, 1);
+                // Spawn new one on top
+                // Find highest platform
+                let minY = h;
+                platforms.forEach(plat => { if (plat.y < minY) minY = plat.y; });
+
+                platforms.push({
+                    x: Math.random() * (w - 150),
+                    y: minY - 100 - Math.random() * 50,
+                    w: 80 + Math.random() * 60,
+                    h: 20,
+                    type: 'normal'
+                });
             }
+        });
 
-            // Particles
-            particles.forEach((p, i) => {
-                p.x += p.vx; p.y += p.vy; p.life -= 0.05;
-                if (p.life <= 0) particles.splice(i, 1);
-            });
+        // Death
+        if (player.y > h) {
+            GameJuice.playSound('lose');
+            gameOver();
+        }
+
+        // Particles
+        particles.forEach((p, i) => {
+            p.x += p.vx; p.y += p.vy; p.life -= 0.05;
+            if (p.life <= 0) particles.splice(i, 1);
+        });
         }
 
         function gameOver() {

@@ -499,6 +499,7 @@
                         GameJuice.createExplosion(e.x, e.y, '#00ffff', 15, particles); // Blue explosion
                         GameJuice.shake(5, 200);
                         GameJuice.flash('cyan', 100);
+                        GameJuice.playSound('explode');
 
                         enemies.splice(i, 1);
 
@@ -509,6 +510,7 @@
                         setTimeout(() => { overlay.style.opacity = 0; overlay.style.background = 'red'; }, 200);
                     } else {
                         // Death
+                        GameJuice.playSound('lose');
                         gameOver();
                     }
                 }

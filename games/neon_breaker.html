@@ -454,6 +454,7 @@
                             document.getElementById('scoreDisplay').innerText = score;
                             saveCoins(getCoins() + 5);
                             GameJuice.createExplosion(b.x + b.w / 2, b.y + b.h / 2, b.color, 8, particles);
+                            GameJuice.playSound('explode');
 
                             // Reflect
                             // Determine side - Simplified: just flip VY mostly

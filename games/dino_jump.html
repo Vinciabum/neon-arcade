@@ -257,6 +257,7 @@
 
                 // Jump Dust
                 GameJuice.createExplosion(dino.x + 30, dino.y + 60, '#fff', 5, dustParticles);
+                GameJuice.playSound('jump');
             }
         };
 
@@ -349,7 +350,10 @@
                     ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
                 }
 
-                if (aabb(dino, obs)) gameOver();
+                if (aabb(dino, obs)) {
+                    GameJuice.playSound('lose');
+                    gameOver();
+                }
                 if (obs.x + obs.w < 0) obstacles.splice(i, 1);
             });
 
@@ -376,6 +380,7 @@
                     egg.collected = true;
                     collectCoin(egg.x, egg.y);
                     eggs.splice(i, 1);
+                    GameJuice.playSound('coin');
                 }
 
                 if (egg.x < -50) eggs.splice(i, 1);

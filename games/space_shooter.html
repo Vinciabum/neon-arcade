@@ -397,6 +397,7 @@
                     } else {
                         bullets.push({ x: player.x + player.w / 2 - 2, y: player.y, w: 4, h: 10 });
                     }
+                    GameJuice.playSound('shoot');
                 }
 
                 // Spawn Enemies
@@ -446,6 +447,7 @@
                             GameJuice.createExplosion(e.x + e.w / 2, e.y + e.h / 2, '#ff0055', 10, particles);
                             score += 100;
                             document.getElementById('scoreDisplay').innerText = score;
+                            GameJuice.playSound('explode');
 
                             // Add Coin
                             saveCoins(getCoins() + 5);

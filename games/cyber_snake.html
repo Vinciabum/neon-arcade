@@ -386,12 +386,14 @@
 
                     // Wall Collision
                     if (head.x < 0 || head.x >= cols || head.y < 0 || head.y >= rows) {
+                        GameJuice.playSound('lose');
                         gameOver(); return;
                     }
 
                     // Self Collision
                     for (let s of snake) {
                         if (head.x === s.x && head.y === s.y) {
+                            GameJuice.playSound('lose');
                             gameOver(); return;
                         }
                     }
@@ -402,6 +404,7 @@
                     if (head.x === food.x && head.y === food.y) {
                         score += 10;
                         document.getElementById('scoreDisplay').innerText = score;
+                        GameJuice.playSound('coin');
                         // Coin Reward
                         const gain = gameData.goldSkin ? 2 : 1;
                         saveCoins(getCoins() + gain);
