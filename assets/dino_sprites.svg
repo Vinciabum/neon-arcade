@@ -1,0 +1,20 @@
+<svg width="200" height="40" viewBox="0 0 200 40" xmlns="http://www.w3.org/2000/svg">
+  <!-- Frame 1: Idle -->
+  <rect x="10" y="10" width="20" height="30" fill="#0f0" />
+  <rect x="15" y="15" width="5" height="5" fill="#000" />
+  
+  <!-- Frame 2: Run A -->
+  <rect x="50" y="10" width="20" height="30" fill="#0f0" />
+  <rect x="50" y="35" width="10" height="5" fill="#0f0" />
+
+  <!-- Frame 3: Run B -->
+  <rect x="90" y="10" width="20" height="30" fill="#0f0" />
+  <rect x="100" y="35" width="10" height="5" fill="#0f0" />
+
+  <!-- Frame 4: Jump -->
+  <rect x="130" y="5" width="20" height="30" fill="#0f0" />
+  
+  <!-- Frame 5: Dead -->
+  <rect x="170" y="20" width="30" height="20" fill="#555" />
+  <text x="175" y="35" font-family="monospace" font-size="10" fill="red">X_X</text>
+</svg>

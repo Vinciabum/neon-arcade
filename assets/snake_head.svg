@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+  <defs>
+    <filter id="neon-green" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <style>
+    .head { fill: #00ff00; filter: url(#neon-green); }
+    .eyes { fill: #000; }
+    .pattern { fill: #00cc00; }
+  </style>
+  <!-- Head Shape -->
+  <rect x="2" y="2" width="36" height="36" rx="8" ry="8" class="head" />
+  <!-- Tech Pattern -->
+  <path d="M10 2 L10 10 L2 10 M30 2 L30 10 L38 10" stroke="#003300" stroke-width="2" fill="none" />
+  <!-- Eyes -->
+  <rect x="8" y="12" width="8" height="8" class="eyes" />
+  <rect x="24" y="12" width="8" height="8" class="eyes" />
+</svg>

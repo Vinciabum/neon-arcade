@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Breaker</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #050510;
+            font-family: 'Orbitron', sans-serif;
+            touch-action: none;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-size: 3rem;
+            color: #ff00ff;
+            text-shadow: 0 0 20px #ff00ff;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        p {
+            color: #fff;
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #ff00ff, #aa00aa);
+            border: none;
+            padding: 15px 40px;
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: bold;
+            font-family: inherit;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 20px #ff00ff;
+            transition: 0.2s;
+            margin: 10px;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn:disabled {
+            filter: grayscale(1);
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        /* HUD - Top Padding 60px for Global Close Button */
+        .hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 60px 20px 20px 20px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            color: #fff;
+            font-size: 1.2rem;
+            text-shadow: 0 0 5px #fff;
+            z-index: 5;
+        }
+
+        .shop-item {
+            border: 2px solid #ff00ff;
+            padding: 20px;
+            border-radius: 15px;
+            background: rgba(20, 0, 20, 0.8);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .shop-title {
+            color: #00ccff;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .price {
+            color: #fff;
+            margin-bottom: 15px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Life Indicator in HUD */
+        .hearts {
+            color: #ff0055;
+            font-size: 1.4rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="hud" id="hud">
+        <div class="hearts" id="lifeDisplay">❤️❤️❤️</div>
+        <div>SCORE: <span id="scoreDisplay">0</span></div>
+        <div style="color: #ffd700;">COINS: <span id="coinDisplay">0</span></div>
+    </div>
+
+    <div id="ui-layer">
+        <!-- LOBBY SCREEN -->
+        <div id="lobbyScreen" class="screen">
+            <h1>NEON BREAKER</h1>
+            <p>Drag to Move • Clear the Bricks</p>
+
+            <!-- SHOP SECTION -->
+            <div id="shopSection">
+                <div class="shop-item">
+                    <div class="shop-title">WIDE PADDLE</div>
+                    <div class="price">400 COINS</div>
+                    <p style="font-size: 0.8rem; margin-bottom: 10px;">Increases Paddle Width (1.5x)</p>
+                    <button id="btnBuyPaddle" class="btn" onclick="buyUpgrade()">BUY UPGRADE</button>
+                    <div id="shopMsg" style="color: red; font-size: 0.8rem; height: 1rem;"></div>
+                </div>
+            </div>
+
+            <button class="btn" onclick="startGame()">START GAME</button>
+            <button class="btn" onclick="location.href='../index.html'"
+                style="background: #555; color: #fff; box-shadow: none;">HOME</button>
+        </div>
+
+        <!-- GAME OVER SCREEN -->
+        <div id="gameOverScreen" class="screen hidden">
+            <h1 style="color: #ff0055; text-shadow: 0 0 20px #ff0055;" id="goTitle">GAME OVER</h1>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <button class="btn" onclick="startGame()">RETRY</button>
+            <button class="btn" onclick="showLobby()">LOBBY</button>
+        </div>
+    </div>
+
+    <!-- Game Juice -->
+    <script src="../assets/game_juice.js"></script>
+
+    <script>
+        // --- 1. ASSETS ---
+        // Paddle: 80x20 default. We will scale this if needed, or just redraw with different width on canvas, 
+        // but using SVG implies we should likely keep aspect ratio or stretch the middle. 
+        // For simplicity with SVG images, we will just stretch the image width on drawImage.
+        const svgPaddle = `<svg width="80" height="20" viewBox="0 0 80 20" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="20" rx="10" fill="#00ccff" filter="drop-shadow(0 0 5px #00ccff)"/><rect x="30" y="5" width="20" height="10" rx="2" fill="#ffffff"/></svg>`;
+        const svgBall = `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="#ffffff" filter="drop-shadow(0 0 4px #ffffff)"/></svg>`;
+        const svgBrick = `<svg width="40" height="20" viewBox="0 0 40 20" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="20" rx="2" fill="#ff00ff" stroke="#ffffff" stroke-width="2"/></svg>`;
+
+        const paddleImg = new Image(); paddleImg.src = 'data:image/svg+xml;base64,' + btoa(svgPaddle);
+        const ballImg = new Image(); ballImg.src = 'data:image/svg+xml;base64,' + btoa(svgBall);
+        const brickImg = new Image(); brickImg.src = 'data:image/svg+xml;base64,' + btoa(svgBrick);
+
+        // --- 2. ECONOMY ---
+        function getCoins() { return parseInt(localStorage.getItem('neonCoins') || '0'); }
+        function saveCoins(amount) { localStorage.setItem('neonCoins', amount); updateUI(); }
+
+        let gameData = JSON.parse(localStorage.getItem('neonBreakerData')) || { widePaddle: false };
+        function saveGameData() { localStorage.setItem('neonBreakerData', JSON.stringify(gameData)); }
+
+        function buyUpgrade() {
+            const cost = 400;
+            const currentCoins = getCoins();
+            const msgEl = document.getElementById('shopMsg');
+
+            if (gameData.widePaddle) { msgEl.innerText = "ALREADY OWNED!"; return; }
+
+            if (currentCoins >= cost) {
+                saveCoins(currentCoins - cost);
+                gameData.widePaddle = true;
+                saveGameData();
+                updateShopUI();
+                msgEl.style.color = '#00ccff';
+                msgEl.innerText = "UPGRADE SUCCESSFUL!";
+            } else {
+                msgEl.style.color = '#ff0055';
+                msgEl.innerText = "NOT ENOUGH COINS!";
+            }
+        }
+
+        function updateShopUI() {
+            const btn = document.getElementById('btnBuyPaddle');
+            if (gameData.widePaddle) {
+                btn.innerText = "EQUIPPED";
+                btn.disabled = true;
+                btn.style.background = "#333";
+                btn.style.boxShadow = "none";
+            } else {
+                btn.innerText = "BUY (400)";
+                btn.disabled = false;
+            }
+        }
+        function updateUI() { document.getElementById('coinDisplay').innerText = getCoins(); }
+        function updateLives(lives) {
+            let s = '';
+            for (let i = 0; i < lives; i++) s += '❤️';
+            document.getElementById('lifeDisplay').innerText = s;
+        }
+
+        // --- 3. GAME LOGIC ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let w, h;
+        const resize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
+        window.addEventListener('resize', resize); resize();
+
+        let state = 'LOBBY';
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        let particles = [];
+
+        // Paddle
+        const paddle = { x: 0, y: 0, w: 80, h: 20 };
+        // Ball
+        const ball = { x: 0, y: 0, r: 8, vx: 0, vy: 0, speed: 6 };
+        // Bricks
+        let bricks = [];
+        const BRICK_W = 40;
+        const BRICK_H = 20;
+
+        // Controls
+        let isDragging = false;
+        function updatePaddlePos(cx) {
+            if (state !== 'PLAYING') return;
+            paddle.x = cx - paddle.w / 2;
+            if (paddle.x < 0) paddle.x = 0;
+            if (paddle.x > w - paddle.w) paddle.x = w - paddle.w;
+        }
+
+        // Touch Setup
+        if (typeof GameJuice !== 'undefined') {
+            GameJuice.setupTouchControls();
+        }
+
+        // Mouse/Touch Handlers
+        window.addEventListener('mousedown', () => isDragging = true);
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousemove', e => { if (isDragging || state === 'PLAYING') updatePaddlePos(e.clientX); });
+
+        window.addEventListener('touchstart', e => { isDragging = true; updatePaddlePos(e.touches[0].clientX); }, { passive: false });
+        window.addEventListener('touchend', () => isDragging = false);
+        window.addEventListener('touchmove', e => {
+            // e.preventDefault(); handled by GameJuice if imported, but safely here too
+            if (isDragging) updatePaddlePos(e.touches[0].clientX);
+        }, { passive: false });
+
+        // Start Key Logic
+        window.addEventListener('keydown', e => {
+            if (e.code === 'Space' || e.code === 'Enter') {
+                if (state !== 'PLAYING') startGame();
+                else if (state === 'PLAYING' && ball.vx === 0 && ball.vy === 0) launchBall();
+            }
+        });
+
+        function initLevel() {
+            bricks = [];
+            const cols = Math.floor(w / (BRICK_W + 10));
+            const startX = (w - (cols * (BRICK_W + 10))) / 2;
+
+            // Generate rows
+            const rows = 5 + (level % 3);
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    bricks.push({
+                        x: startX + c * (BRICK_W + 10),
+                        y: 80 + r * (BRICK_H + 10),
+                        w: BRICK_W,
+                        h: BRICK_H,
+                        active: true,
+                        color: `hsl(${c * 30}, 100%, 50%)`
+                    });
+                }
+            }
+        }
+
+        function resetBall() {
+            ball.x = paddle.x + paddle.w / 2;
+            ball.y = paddle.y - 20;
+            ball.vx = 0;
+            ball.vy = 0;  // Stuck to paddle until launch
+        }
+
+        function launchBall() {
+            ball.vx = (Math.random() - 0.5) * 8;
+            ball.vy = -ball.speed;
+        }
+
+        function startGame() {
+            state = 'PLAYING';
+            score = 0;
+            lives = 3;
+            level = 1;
+            ball.speed = 6;
+
+            paddle.w = gameData.widePaddle ? 120 : 80;
+            paddle.y = h - 50;
+            paddle.x = w / 2 - paddle.w / 2;
+
+            initLevel();
+            resetBall();
+            updateLives(lives);
+            document.getElementById('coinDisplay').innerText = getCoins();
+            document.getElementById('scoreDisplay').innerText = score;
+
+            document.getElementById('lobbyScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+
+            setTimeout(launchBall, 500); // Auto launch after delay
+        }
+
+        function showLobby() {
+            state = 'LOBBY';
+            document.getElementById('lobbyScreen').classList.remove('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            updateShopUI();
+            updateUI();
+        }
+
+        function gameOver() {
+            state = 'GAMEOVER';
+            document.getElementById('goTitle').innerText = "GAME OVER";
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+
+            GameJuice.shake(10, 400);
+            GameJuice.flash('rgba(255, 0, 85, 0.4)', 200);
+        }
+
+        function gameWin() {
+            // Next level
+            level++;
+            ball.speed += 1;
+            initLevel();
+            resetBall();
+
+            GameJuice.flash('rgba(255, 255, 255, 0.3)', 300);
+            setTimeout(launchBall, 500);
+        }
+
+        function loop() {
+            requestAnimationFrame(loop);
+
+            // Draw BG
+            ctx.fillStyle = '#050510';
+            ctx.fillRect(0, 0, w, h);
+
+            if (state === 'LOBBY') return;
+
+            // Logic
+            if (state === 'PLAYING') {
+
+                // Ball Movement
+                if (ball.vx !== 0 || ball.vy !== 0) {
+                    ball.x += ball.vx;
+                    ball.y += ball.vy;
+
+                    // Walls
+                    if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -1; }
+                    if (ball.x > w - ball.r) { ball.x = w - ball.r; ball.vx *= -1; }
+                    if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -1; }
+
+                    // Floor (Death)
+                    if (ball.y > h + ball.r) {
+                        lives--;
+                        updateLives(lives);
+                        GameJuice.shake(5, 200);
+                        GameJuice.flash('red', 100);
+
+                        if (lives <= 0) gameOver();
+                        else {
+                            resetBall();
+                            setTimeout(launchBall, 1000);
+                        }
+                    }
+
+                    // Paddle Collision (Circle vs Rect)
+                    // Simplified: Check standard rect bounds
+                    if (ball.y + ball.r >= paddle.y && ball.y - ball.r <= paddle.y + paddle.h &&
+                        ball.x + ball.r >= paddle.x && ball.x - ball.r <= paddle.x + paddle.w) {
+
+                        // Push out
+                        // If it came from top
+                        if (ball.vy > 0) {
+                            ball.y = paddle.y - ball.r;
+                            ball.vy *= -1;
+
+                            // Adjust Angle based on hit position
+                            const hitPoint = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
+                            ball.vx = hitPoint * (ball.speed * 1.5); // Spin effect
+
+                            // Enforce min Y velocity
+                            if (Math.abs(ball.vy) < 2) ball.vy = -2;
+                        }
+                    }
+
+                    // Brick Collision
+                    let activeBricks = 0;
+                    for (let b of bricks) {
+                        if (!b.active) continue;
+                        activeBricks++;
+
+                        if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
+                            ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
+
+                            b.active = false;
+                            score += 100;
+                            document.getElementById('scoreDisplay').innerText = score;
+                            saveCoins(getCoins() + 5);
+                            GameJuice.createExplosion(b.x + b.w / 2, b.y + b.h / 2, b.color, 8, particles);
+
+                            // Reflect
+                            // Determine side - Simplified: just flip VY mostly
+                            // If overlap X is small, flip VX. If overlap Y is small, flip VY.
+                            // Simple logic:
+                            const overlapX = (ball.r + b.w / 2) - Math.abs(ball.x - (b.x + b.w / 2));
+                            const overlapY = (ball.r + b.h / 2) - Math.abs(ball.y - (b.y + b.h / 2));
+
+                            if (overlapX < overlapY) ball.vx *= -1;
+                            else ball.vy *= -1;
+
+                            // Minimal Break to prevent multiple collisions in one frame?
+                            break;
+                        }
+                    }
+
+                    if (activeBricks === 0) gameWin();
+
+                    // Min Y enforcement
+                    if (Math.abs(ball.vy) < 1) ball.vy = (ball.vy >= 0 ? 1 : -1);
+                } else {
+                    // Ball Stick
+                    ball.x = paddle.x + paddle.w / 2;
+                    ball.y = paddle.y - 15;
+                }
+            }
+
+            // Draw Bricks
+            bricks.forEach(b => {
+                if (b.active) {
+                    ctx.drawImage(brickImg, b.x, b.y, b.w, b.h);
+                }
+            });
+
+            // Draw Paddle
+            // Stretch the 80px SVG to cover new width
+            ctx.drawImage(paddleImg, paddle.x, paddle.y, paddle.w, paddle.h);
+
+            // Draw Ball
+            ctx.drawImage(ballImg, ball.x - ball.r, ball.y - ball.r, ball.r * 2, ball.r * 2);
+
+            // Draw Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.05;
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 4, 4);
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+            ctx.globalAlpha = 1.0;
+        }
+
+        // Init
+        updateShopUI();
+        updateUI();
+        requestAnimationFrame(loop);
+    </script>
+</body>
+
+</html>

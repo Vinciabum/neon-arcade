@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Space Shooter</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Orbitron', sans-serif;
+            touch-action: none;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-size: 3rem;
+            color: #00f0ff;
+            text-shadow: 0 0 20px #00f0ff;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        p {
+            color: #fff;
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #00f0ff, #0088ff);
+            border: none;
+            padding: 15px 40px;
+            color: #000;
+            font-size: 1.5rem;
+            font-weight: bold;
+            font-family: inherit;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 20px #00f0ff;
+            transition: 0.2s;
+            margin: 10px;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn:disabled {
+            filter: grayscale(1);
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 60px 20px 20px 20px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            color: #fff;
+            font-size: 1.2rem;
+            text-shadow: 0 0 5px #fff;
+            z-index: 5;
+        }
+
+        .shop-item {
+            border: 2px solid #00f0ff;
+            padding: 20px;
+            border-radius: 15px;
+            background: rgba(0, 20, 40, 0.8);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .shop-title {
+            color: #ffd700;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .price {
+            color: #fff;
+            margin-bottom: 15px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="hud" id="hud">
+        <div>SCORE: <span id="scoreDisplay">0</span></div>
+        <div style="color: #ffd700;">COINS: <span id="coinDisplay">0</span></div>
+    </div>
+
+    <div id="ui-layer">
+        <!-- LOBBY SCREEN -->
+        <div id="lobbyScreen" class="screen">
+            <h1>NEON SHOOTER</h1>
+            <p>Drag to Move • Auto Fire</p>
+
+            <!-- SHOP SECTION -->
+            <div id="shopSection">
+                <div class="shop-item">
+                    <div class="shop-title">DOUBLE LASER</div>
+                    <div class="price">150 COINS</div>
+                    <button id="btnBuyLaser" class="btn" onclick="buyUpgrade()">BUY UPGRADE</button>
+                    <div id="shopMsg" style="color: red; font-size: 0.8rem; height: 1rem;"></div>
+                </div>
+            </div>
+
+            <button class="btn" onclick="startGame()">START MISSION</button>
+            <button class="btn" onclick="location.href='../index.html'"
+                style="background: #555; color: #fff; box-shadow: none;">HOME</button>
+        </div>
+
+        <!-- GAME OVER SCREEN -->
+        <div id="gameOverScreen" class="screen hidden">
+            <h1 style="color: #ff0055; text-shadow: 0 0 20px #ff0055;">GAME OVER</h1>
+            <p>Score: <span id="finalScore">0</span></p>
+            <button class="btn" onclick="startGame()">RETRY</button>
+            <button class="btn" onclick="showLobby()">LOBBY</button>
+        </div>
+    </div>
+
+    <!-- Game Juice -->
+    <script src="../assets/game_juice.js"></script>
+
+    <script>
+        // --- 1. GAME SPECS & ASSETS ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Inline SVG Assets (Base64 Encoded for Image usage)
+        const svgShip = `<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><path d="M20 0 L40 40 L20 30 L0 40 Z" fill="#00f0ff" filter="drop-shadow(0 0 5px #00f0ff)"/></svg>`;
+        const svgUfo = `<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="15" fill="#ff0055" filter="drop-shadow(0 0 5px #ff0055)"/><rect x="5" y="15" width="30" height="10" rx="5" fill="#550022"/></svg>`;
+
+        const shipImg = new Image();
+        shipImg.src = 'data:image/svg+xml;base64,' + btoa(svgShip);
+
+        const ufoImg = new Image();
+        ufoImg.src = 'data:image/svg+xml;base64,' + btoa(svgUfo);
+
+        // --- 2. ECONOMY SYSTEM ---
+        function getCoins() {
+            return parseInt(localStorage.getItem('neonCoins') || '0');
+        }
+
+        function saveCoins(amount) {
+            localStorage.setItem('neonCoins', amount);
+            updateUI();
+        }
+
+        // Space Shooter Specific Data
+        let gameData = JSON.parse(localStorage.getItem('spaceShooterData')) || { doubleLaser: false };
+
+        function saveGameData() {
+            localStorage.setItem('spaceShooterData', JSON.stringify(gameData));
+        }
+
+        function buyUpgrade() {
+            const cost = 150;
+            const currentCoins = getCoins();
+            const msgEl = document.getElementById('shopMsg');
+
+            if (gameData.doubleLaser) {
+                msgEl.innerText = "ALREADY OWNED!";
+                return;
+            }
+
+            if (currentCoins >= cost) {
+                saveCoins(currentCoins - cost);
+                gameData.doubleLaser = true;
+                saveGameData();
+                updateShopUI();
+                msgEl.style.color = '#00f0ff';
+                msgEl.innerText = "PURCHASE SUCCESSFUL!";
+            } else {
+                msgEl.style.color = '#ff0055';
+                msgEl.innerText = "NOT ENOUGH COINS!";
+            }
+        }
+
+        function updateShopUI() {
+            const btn = document.getElementById('btnBuyLaser');
+            if (gameData.doubleLaser) {
+                btn.innerText = "EQUIPPED";
+                btn.disabled = true;
+                btn.style.background = "#333";
+                btn.style.boxShadow = "none";
+            } else {
+                btn.innerText = "BUY (150)";
+                btn.disabled = false;
+            }
+        }
+
+        function updateUI() {
+            const coins = getCoins();
+            document.getElementById('coinDisplay').innerText = coins;
+        }
+
+        // --- 3. GAME LOGIC ---
+        let w, h;
+        const resize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
+        window.addEventListener('resize', resize);
+        resize();
+
+        let state = 'LOBBY'; // LOBBY, PLAYING, GAMEOVER
+        let score = 0;
+        let frames = 0;
+        let animationId;
+
+        // Entities
+        const player = { x: w / 2, y: h - 100, w: 40, h: 40 };
+        let bullets = [];
+        let enemies = [];
+        let particles = [];
+        let stars = [];
+
+        // Init Starfield
+        for (let i = 0; i < 100; i++) {
+            stars.push({
+                x: Math.random() * w,
+                y: Math.random() * h,
+                size: Math.random() * 2,
+                speed: Math.random() * 5 + 1
+            });
+        }
+
+        // Controls (Drag)
+        let isDragging = false;
+
+        // Offset Logic: ship should be slightly above finger to be visible
+        const TOUCH_OFFSET_Y = 50;
+
+        function updatePlayerPos(clientX, clientY, isTouch = false) {
+            if (state !== 'PLAYING') return;
+
+            player.x = clientX - player.w / 2;
+            player.y = clientY - player.h / 2;
+
+            if (isTouch) player.y -= TOUCH_OFFSET_Y;
+
+            // Boundary checks
+            if (player.x < 0) player.x = 0;
+            if (player.x > w - player.w) player.x = w - player.w;
+            if (player.y < 0) player.y = 0;
+            if (player.y > h - player.h) player.y = h - player.h;
+        }
+
+        window.addEventListener('keydown', e => {
+            if (e.code === 'Space' || e.code === 'Enter') {
+                if (state !== 'PLAYING') startGame();
+            }
+        });
+
+        window.addEventListener('mousedown', () => isDragging = true);
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousemove', e => {
+            if (isDragging) updatePlayerPos(e.clientX, e.clientY);
+        });
+
+        // Touch Control Setup
+        GameJuice.setupTouchControls(); // Global prevent scrolling
+
+        window.addEventListener('touchstart', e => {
+            isDragging = true;
+            updatePlayerPos(e.touches[0].clientX, e.touches[0].clientY, true);
+        }, { passive: false });
+
+        window.addEventListener('touchend', () => isDragging = false);
+
+        window.addEventListener('touchmove', e => {
+            // e.preventDefault(); (Handled by GameJuice now)
+            updatePlayerPos(e.touches[0].clientX, e.touches[0].clientY, true);
+        }, { passive: false });
+
+
+        function startGame() {
+            if (state === 'PLAYING') return;
+            state = 'PLAYING';
+            score = 0;
+            bullets = [];
+            enemies = [];
+            particles = [];
+            player.x = w / 2 - 20;
+            player.y = h - 150;
+            frames = 0;
+
+            document.getElementById('lobbyScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('scoreDisplay').innerText = 0;
+            updateUI();
+
+            // Loop start
+            cancelAnimationFrame(animationId);
+            loop();
+        }
+
+        function showLobby() {
+            state = 'LOBBY';
+            document.getElementById('lobbyScreen').classList.remove('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            updateShopUI();
+            updateUI();
+            cancelAnimationFrame(animationId);
+            loop(); // Keep running loop for background if desired, but efficiency wise let's just run it
+        }
+
+        function gameOver() {
+            state = 'GAMEOVER';
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+
+            // Explode player
+            GameJuice.createExplosion(player.x + 20, player.y + 20, '#00f0ff', 50, particles);
+            GameJuice.shake(20, 500);
+            GameJuice.flash('rgba(255, 0, 85, 0.5)', 300);
+        }
+
+        function loop() {
+            animationId = requestAnimationFrame(loop);
+
+            // --- DRAW BACKGROUND ---
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, w, h);
+
+            // Starfield
+            ctx.fillStyle = '#ffffff';
+            stars.forEach(s => {
+                s.y += s.speed;
+                if (s.y > h) { s.y = 0; s.x = Math.random() * w; }
+                ctx.globalAlpha = Math.random() * 0.5 + 0.3;
+                ctx.fillRect(s.x, s.y, s.size, s.size);
+            });
+            ctx.globalAlpha = 1.0;
+
+            if (state === 'PLAYING') {
+                frames++;
+
+                // --- UPDATE ---
+
+                // Auto Fire
+                if (frames % 15 === 0) {
+                    if (gameData.doubleLaser) {
+                        bullets.push({ x: player.x, y: player.y, w: 4, h: 10 });
+                        bullets.push({ x: player.x + player.w - 4, y: player.y, w: 4, h: 10 });
+                    } else {
+                        bullets.push({ x: player.x + player.w / 2 - 2, y: player.y, w: 4, h: 10 });
+                    }
+                }
+
+                // Spawn Enemies
+                const spawnRate = Math.max(20, 60 - Math.floor(score / 500));
+                if (frames % spawnRate === 0) {
+                    const size = 40;
+                    enemies.push({
+                        x: Math.random() * (w - size),
+                        y: -size,
+                        w: size, h: size,
+                        speed: 3 + Math.random() * 2 + (score * 0.001)
+                    });
+                }
+
+                // Update Bullets
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    let b = bullets[i];
+                    b.y -= 10;
+                    if (b.y < -10) bullets.splice(i, 1);
+                }
+
+                // Update Enemies
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    let e = enemies[i];
+                    e.y += e.speed;
+
+                    // Collision: Player vs Enemy
+                    if (
+                        player.x < e.x + e.w &&
+                        player.x + player.w > e.x &&
+                        player.y < e.y + e.h &&
+                        player.y + player.h > e.y
+                    ) {
+                        gameOver();
+                    }
+
+                    // Collision: Bullet vs Enemy
+                    for (let j = bullets.length - 1; j >= 0; j--) {
+                        let b = bullets[j];
+                        if (
+                            b.x < e.x + e.w &&
+                            b.x + b.w > e.x &&
+                            b.y < e.y + e.h &&
+                            b.y + b.h > e.y
+                        ) {
+                            // Hit
+                            GameJuice.createExplosion(e.x + e.w / 2, e.y + e.h / 2, '#ff0055', 10, particles);
+                            score += 100;
+                            document.getElementById('scoreDisplay').innerText = score;
+
+                            // Add Coin
+                            saveCoins(getCoins() + 5);
+
+                            enemies.splice(i, 1);
+                            bullets.splice(j, 1);
+                            break;
+                        }
+                    }
+
+                    if (e.y > h) enemies.splice(i, 1);
+                }
+
+                // --- DRAW ENTITIES ---
+                ctx.fillStyle = '#00f0ff';
+                ctx.shadowBlur = 10; ctx.shadowColor = '#00f0ff';
+                bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+                ctx.shadowBlur = 0;
+
+                ctx.drawImage(shipImg, player.x, player.y, player.w, player.h);
+
+                enemies.forEach(e => {
+                    ctx.drawImage(ufoImg, e.x, e.y, e.w, e.h);
+                });
+            }
+
+            // Draw Particles (Always)
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.05;
+
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+            ctx.globalAlpha = 1.0;
+        }
+
+        // Init
+        updateShopUI();
+        updateUI();
+        loop();
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Rise</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #0b0c15;
+            font-family: 'Orbitron', sans-serif;
+            touch-action: none;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            text-shadow: 0 0 10px #0ff;
+        }
+
+        .btn {
+            pointer-events: auto;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            background: #0ff;
+            color: #000;
+            border: none;
+            border-radius: 30px;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 0 20px #0ff;
+            margin-top: 20px;
+            transition: 0.2s;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 10px #0ff;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+    <div class="score" id="scoreDisplay">0</div>
+    <div id="ui">
+        <div id="menu">
+            <h1 style="font-size: 3em; margin: 0; color: #0ff;">NEON RISE</h1>
+            <p>Tap Left/Right to Move</p>
+            <button class="btn" onclick="startGame()">JUMP</button>
+        </div>
+        <div id="gameOver" class="hidden">
+            <h1 style="color: #0ff;">FALLEN</h1>
+            <p>Score: <span id="finalScore">0</span></p>
+            <button class="btn" onclick="startGame()">RETRY</button>
+        </div>
+    </div>
+    <div id="assets-preload" style="display:none;"></div>
+    <script>
+        const c = document.getElementById('c');
+        const ctx = c.getContext('2d');
+        let w, h;
+        const resize = () => { w = c.width = window.innerWidth; h = c.height = window.innerHeight; };
+        window.addEventListener('resize', resize); resize();
+
+        let state = 'MENU';
+        let score = 0;
+        let highScore = localStorage.getItem('neonRiseHighScore') || 0;
+        let cameraY = 0;
+
+        // Assets
+        const jumperImg = new Image(); jumperImg.src = '../assets/jumper.svg';
+        const platformImg = new Image(); platformImg.src = '../assets/wood_bridge.png';
+
+        // Entities
+        const player = { x: 0, y: 0, w: 40, h: 40, vx: 0, vy: 0 };
+        let platforms = [];
+        let particles = [];
+
+        function startGame() {
+            state = 'PLAYING';
+            score = 0;
+            platforms = [];
+
+            // Initial Platforms
+            for (let i = 0; i < 6; i++) {
+                platforms.push({ x: Math.random() * (w - 100), y: h - 100 - i * 150, w: 100, h: 20, type: 'normal' });
+            }
+            // Ground platform for safety at start
+            platforms.push({ x: 0, y: h - 10, w: w, h: 20, type: 'normal' });
+
+            player.x = w / 2 - 20;
+            player.y = h - 200;
+            player.vx = 0;
+            player.vy = 0;
+            cameraY = 0;
+
+            document.getElementById('menu').classList.add('hidden');
+            document.getElementById('gameOver').classList.add('hidden');
+            document.getElementById('scoreDisplay').innerText = 0;
+            requestAnimationFrame(loop);
+        }
+
+        function createExplosion(x, y, color) {
+            for (let i = 0; i < 5; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    life: 1, color
+                });
+            }
+        }
+
+        // Input
+        let inputX = 0;
+        window.addEventListener('keydown', e => {
+            if (e.key === 'ArrowLeft') inputX = -1;
+            if (e.key === 'ArrowRight') inputX = 1;
+        });
+        window.addEventListener('keyup', e => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') inputX = 0;
+        });
+
+        // Touch
+        window.addEventListener('touchstart', e => {
+            let tx = e.touches[0].clientX;
+            if (tx < w / 2) inputX = -1; else inputX = 1;
+        }, { passive: false });
+        window.addEventListener('touchmove', e => {
+            e.preventDefault();
+            let tx = e.touches[0].clientX;
+            if (tx < w / 2) inputX = -1; else inputX = 1;
+        }, { passive: false });
+        window.addEventListener('touchend', e => { inputX = 0; });
+
+        function update() {
+            if (state !== 'PLAYING') return;
+
+            // Player Physics
+            player.vx += inputX * 0.5;
+            player.vx *= 0.9;
+            player.vy += 0.5; // Gravity
+            player.x += player.vx;
+            player.y += player.vy;
+
+            // Wrap
+            if (player.x < -player.w) player.x = w;
+            if (player.x > w) player.x = -player.w;
+
+            // Camera Panning
+            if (player.y < h / 2) {
+                const diff = (h / 2) - player.y;
+                player.y = h / 2;
+                cameraY += diff;
+                score += Math.floor(diff);
+                document.getElementById('scoreDisplay').innerText = score;
+
+                // Move platforms
+                platforms.forEach(p => p.y += diff);
+            }
+
+            // Platform Collision (only when falling)
+            if (player.vy > 0) {
+                platforms.forEach(p => {
+                    if (
+                        player.x + player.w > p.x &&
+                        player.x < p.x + p.w &&
+                        player.y + player.h > p.y &&
+                        player.y + player.h < p.y + p.h + 15 // Tolerance
+                    ) {
+                        player.vy = -12; // JUMP
+                        createExplosion(player.x + player.w / 2, player.y + player.h, '#0ff');
+                    }
+                });
+            }
+
+            // Cleanup & Spawn Platforms
+            platforms.forEach((p, i) => {
+                if (p.y > h) {
+                    platforms.splice(i, 1);
+                    // Spawn new one on top
+                    // Find highest platform
+                    let minY = h;
+                    platforms.forEach(plat => { if (plat.y < minY) minY = plat.y; });
+
+                    platforms.push({
+                        x: Math.random() * (w - 150),
+                        y: minY - 100 - Math.random() * 50,
+                        w: 80 + Math.random() * 60,
+                        h: 20,
+                        type: 'normal'
+                    });
+                }
+            });
+
+            // Death
+            if (player.y > h) {
+                gameOver();
+            }
+
+            // Particles
+            particles.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy; p.life -= 0.05;
+                if (p.life <= 0) particles.splice(i, 1);
+            });
+        }
+
+        function gameOver() {
+            state = 'GAMEOVER';
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('neonRiseHighScore', highScore);
+            }
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('gameOver').classList.remove('hidden');
+        }
+
+        function draw() {
+            ctx.fillStyle = '#0b0c15';
+            ctx.fillRect(0, 0, w, h);
+
+            if (state === 'PLAYING') {
+                // Platforms
+                platforms.forEach(p => {
+                    ctx.drawImage(platformImg, p.x, p.y, p.w, p.h);
+                });
+
+                // Player
+                ctx.save();
+                ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
+                ctx.rotate(player.vx * 0.1);
+                ctx.drawImage(jumperImg, -player.w / 2, -player.h / 2, player.w, player.h);
+                ctx.restore();
+            }
+
+            // Particles
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 4, 4);
+            });
+            ctx.globalAlpha = 1.0;
+        }
+
+        function loop() {
+            update();
+            draw();
+            if (state === 'PLAYING') requestAnimationFrame(loop);
+        }
+
+        resize();
+        draw();
+    </script>
+</body>
+
+</html>

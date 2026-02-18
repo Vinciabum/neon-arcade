@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dino Jump 2.0</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            padding: 60px 20px 20px 20px;
+            color: #fff;
+            text-shadow: 2px 2px #000;
+            font-size: 16px;
+        }
+
+        .coin-box {
+            color: #ffd700;
+        }
+
+        /* Lobby / Shop / Game Over */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 40px;
+            color: #0f0;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #0f0;
+        }
+
+        button {
+            background: #fff;
+            color: #000;
+            border: 4px solid #0f0;
+            padding: 15px 30px;
+            font-family: 'Press Start 2P';
+            font-size: 16px;
+            margin: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 0 10px #0f0;
+        }
+
+        button:hover {
+            background: #0f0;
+            transform: scale(1.1);
+        }
+
+        button:disabled {
+            background: #555;
+            border-color: #777;
+            color: #aaa;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .shop-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 400px;
+            background: #222;
+            border: 2px solid #fff;
+            padding: 15px;
+            margin: 10px;
+        }
+
+        .item-info {
+            text-align: left;
+        }
+
+        .item-name {
+            color: #0ff;
+            margin-bottom: 5px;
+        }
+
+        .item-cost {
+            color: #ffd700;
+            font-size: 12px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Mobile controls hint */
+        .hint {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            color: #555;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div id="scoreDisplay">SCORE: 0</div>
+            <div class="coin-box">💰 <span id="coinDisplay">0</span></div>
+        </div>
+        <div class="hint">SPACE / TAP to JUMP</div>
+    </div>
+
+    <!-- Lobby -->
+    <div id="lobbyScreen" class="screen">
+        <h1>DINO JUMP 2.0</h1>
+        <div style="margin-bottom: 20px; color: #ffd700;">TOTAL COINS: <span id="lobbyCoins">0</span></div>
+        <button onclick="startGame()">PLAY GAME</button>
+        <button onclick="openShop()">UPGRADE SHOP</button>
+    </div>
+
+    <!-- Shop -->
+    <div id="shopScreen" class="screen hidden">
+        <h1 style="color:#0ff">NEON STORE</h1>
+        <div id="shopList">
+            <!-- Injected via JS -->
+        </div>
+        <button onclick="closeShop()">BACK TO LOBBY</button>
+    </div>
+
+    <!-- Game Over -->
+    <div id="gameOverScreen" class="screen hidden">
+        <h1 style="color:red">GAME OVER</h1>
+        <p>SCORE: <span id="finalScore">0</span></p>
+        <p>COINS COLLECTED: <span id="runCoins">0</span></p>
+        <button onclick="location.reload()">REPLAY</button>
+        <button onclick="closeGameOver()">LOBBY</button>
+    </div>
+
+    <canvas id="c"></canvas>
+
+    <!-- Game Juice -->
+    <script src="../assets/game_juice.js"></script>
+
+    <script>
+        /**
+         * Skill 1: Asset_Loader & Sprite Management
+         */
+        const dinoIdle = [new Image(), new Image()];
+        dinoIdle[0].src = '../assets/dino/png/1x/raptor-idle/raptor-idle1.png';
+        dinoIdle[1].src = '../assets/dino/png/1x/raptor-idle/raptor-idle2.png';
+
+        const dinoRun = [];
+        for (let i = 1; i <= 6; i++) {
+            const img = new Image();
+            img.src = `../assets/dino/png/1x/raptor-run/raptor-run${i}.png`;
+            dinoRun.push(img);
+        }
+
+        const dinoJump = [new Image()];
+        dinoJump[0].src = '../assets/dino/png/1x/raptor-jump/raptor-jump.png';
+
+        const cactusImg = new Image(); cactusImg.src = '../assets/cactus.svg';
+        const coinImg = new Image(); coinImg.src = '../assets/coin.svg';
+
+        /**
+         * Skill 2: Progression_Core
+         */
+        let playerData = JSON.parse(localStorage.getItem('dinoData')) || {
+            coins: 0,
+            upgrades: { doubleJump: false, magnet: false }
+        };
+
+        function saveGame() {
+            localStorage.setItem('dinoData', JSON.stringify(playerData));
+            updateUI();
+            localStorage.setItem('neonCoins', playerData.coins);
+        }
+
+        // --- GAME VARIABLES ---
+        const c = document.getElementById('c');
+        const ctx = c.getContext('2d');
+        let w, h;
+        let gameRunning = false;
+        let animationId; // For cancelAnimationFrame
+        let frames = 0;
+        let score = 0;
+        let runCoins = 0;
+        let gameSpeed = 5;
+
+        // Entities
+        let dino = {
+            x: 50, y: 0, w: 60, h: 60,
+            dy: 0, grounded: false, jumpCount: 0,
+            state: 'run', frameIndex: 0, frameTimer: 0
+        };
+        let obstacles = [];
+        let eggs = []; // Loots
+        let dustParticles = []; // Juice
+
+        function resize() {
+            w = c.width = window.innerWidth;
+            h = c.height = window.innerHeight;
+            if (!gameRunning) dino.y = h - 90; // Only reset Y if not running to avoid glitch
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- CONTROLS ---
+        const handleJump = (e) => {
+            if (e && e.type === 'touchstart') e.preventDefault(); // Stop Scroll
+
+            if (!gameRunning) return;
+
+            const maxJumps = playerData.upgrades.doubleJump ? 2 : 1;
+            if (dino.grounded || dino.jumpCount < maxJumps) {
+                dino.dy = -15;
+                dino.grounded = false;
+                dino.jumpCount++;
+                dino.state = 'jump';
+
+                // Jump Dust
+                GameJuice.createExplosion(dino.x + 30, dino.y + 60, '#fff', 5, dustParticles);
+            }
+        };
+
+        document.addEventListener('keydown', e => {
+            if (e.code === 'Space') {
+                if (gameRunning) handleJump();
+                else if (!document.getElementById('lobbyScreen').classList.contains('hidden')) startGame();
+                else if (!document.getElementById('gameOverScreen').classList.contains('hidden')) location.reload();
+            }
+            if (e.code === 'Enter') {
+                if (!gameRunning) startGame();
+                // Fix: Do not restart keydown logic if already running
+            }
+        });
+
+        // Mobile Touch (Prevent Default)
+        c.addEventListener('touchstart', handleJump, { passive: false });
+        GameJuice.setupTouchControls(); // Global prevent
+
+        // --- GAME LOOP ---
+        function update() {
+            if (!gameRunning) return;
+
+            // Clear
+            ctx.clearRect(0, 0, w, h);
+
+            // Ground
+            ctx.fillStyle = '#0f0';
+            ctx.fillRect(0, h - 50, w, 50);
+
+            // Physics
+            dino.dy += 0.8;
+            dino.y += dino.dy;
+
+            if (dino.y > h - 90) {
+                if (!dino.grounded) {
+                    // LANDING DUST
+                    GameJuice.createExplosion(dino.x + 30, h - 50, '#0f0', 8, dustParticles);
+                }
+                dino.y = h - 90;
+                dino.dy = 0;
+                dino.grounded = true;
+                dino.jumpCount = 0;
+                dino.state = 'run';
+            } else {
+                dino.state = 'jump';
+            }
+
+            // Animation
+            dino.frameTimer++;
+            if (dino.frameTimer > 8) {
+                dino.frameIndex++;
+                dino.frameTimer = 0;
+            }
+
+            // Draw Dino
+            let currentAnim = dinoRun;
+            if (dino.state === 'idle') currentAnim = dinoIdle;
+            if (dino.state === 'jump') currentAnim = dinoJump;
+            const frame = currentAnim[dino.frameIndex % currentAnim.length];
+            ctx.drawImage(frame, dino.x, dino.y, dino.w, dino.h);
+
+            // Obstacles
+            if (frames % 100 === 0) {
+                let type = Math.random() > 0.5 ? 'cactus' : 'bird';
+                obstacles.push({
+                    x: w,
+                    y: type === 'bird' ? h - 140 : h - 90,
+                    w: 30,
+                    h: type === 'bird' ? 20 : 40,
+                    type: type,
+                    color: type === 'bird' ? '#f0f' : '#f00'
+                });
+                gameSpeed += 0.05;
+            }
+
+            // Loot (Coins)
+            if (Math.random() < 0.005) {
+                eggs.push({ x: w, y: h - 150 - Math.random() * 100, w: 30, h: 30, collected: false });
+            }
+
+            // Update Objects
+            obstacles.forEach((obs, i) => {
+                obs.x -= gameSpeed;
+
+                if (obs.type === 'cactus') {
+                    ctx.drawImage(cactusImg, obs.x - 5, obs.y - 5, obs.w + 10, obs.h + 5);
+                } else {
+                    ctx.fillStyle = obs.color;
+                    ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+                }
+
+                if (aabb(dino, obs)) gameOver();
+                if (obs.x + obs.w < 0) obstacles.splice(i, 1);
+            });
+
+            // Update Loot
+            eggs.forEach((egg, i) => {
+                // Magnet
+                if (playerData.upgrades.magnet && !egg.collected) {
+                    let dx = dino.x - egg.x;
+                    let dy = dino.y - egg.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 300) {
+                        egg.x += (dx / dist) * 12; // Stronger magnet
+                        egg.y += (dy / dist) * 12;
+                    } else {
+                        egg.x -= gameSpeed;
+                    }
+                } else {
+                    egg.x -= gameSpeed;
+                }
+
+                if (!egg.collected) ctx.drawImage(coinImg, egg.x, egg.y, egg.w, egg.h);
+
+                if (aabb(dino, egg) && !egg.collected) {
+                    egg.collected = true;
+                    collectCoin(egg.x, egg.y);
+                    eggs.splice(i, 1);
+                }
+
+                if (egg.x < -50) eggs.splice(i, 1);
+            });
+
+            // Juice: Dust Particles
+            for (let i = dustParticles.length - 1; i >= 0; i--) {
+                let p = dustParticles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+                if (p.life <= 0) dustParticles.splice(i, 1);
+            }
+            ctx.globalAlpha = 1.0;
+
+            // Score
+            score++;
+            document.getElementById('scoreDisplay').innerText = `SCORE: ${Math.floor(score / 10)}`;
+            frames++;
+
+            animationId = requestAnimationFrame(update);
+        }
+
+        function aabb(r1, r2) {
+            return r1.x < r2.x + r2.w && r1.x + r1.w > r2.x &&
+                r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
+        }
+
+        function collectCoin(x, y) {
+            runCoins += 10;
+            playerData.coins += 10;
+            saveGame();
+            document.getElementById('coinDisplay').innerText = playerData.coins;
+
+            // Coin Sparkle
+            GameJuice.createExplosion(x, y, '#ffd700', 5, dustParticles);
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            cancelAnimationFrame(animationId);
+
+            // JUICE: Shake & Flash
+            GameJuice.shake(20, 500);
+            GameJuice.flash('red', 200);
+
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+            document.getElementById('finalScore').innerText = Math.floor(score / 10);
+            document.getElementById('runCoins').innerText = runCoins;
+        }
+
+        // --- UI Logic ---
+        function updateUI() {
+            document.getElementById('coinDisplay').innerText = playerData.coins;
+            document.getElementById('lobbyCoins').innerText = playerData.coins;
+        }
+
+        function startGame() {
+            if (gameRunning) return; // Prevention
+            document.getElementById('lobbyScreen').classList.add('hidden');
+            document.getElementById('shopScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+
+            gameRunning = true;
+            score = 0;
+            runCoins = 0;
+            gameSpeed = 5;
+            frames = 0;
+            obstacles = [];
+            eggs = [];
+            dustParticles = [];
+            dino.y = h - 90;
+
+            cancelAnimationFrame(animationId); // Safety clear
+            update();
+        }
+
+        function openShop() {
+            document.getElementById('lobbyScreen').classList.add('hidden');
+            document.getElementById('shopScreen').classList.remove('hidden');
+            renderShop();
+        }
+
+        function closeShop() {
+            document.getElementById('shopScreen').classList.add('hidden');
+            document.getElementById('lobbyScreen').classList.remove('hidden');
+        }
+
+        function closeGameOver() {
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('lobbyScreen').classList.remove('hidden');
+        }
+
+        function renderShop() {
+            const list = document.getElementById('shopList');
+            list.innerHTML = '';
+
+            const items = [
+                { id: 'doubleJump', name: 'Double Jump', cost: 50, desc: 'Jump again in mid-air!' },
+                { id: 'magnet', name: 'Magnet Mode', cost: 100, desc: 'Attracts Coins!' }
+            ];
+
+            items.forEach(item => {
+                const startDiv = document.createElement('div');
+                startDiv.className = 'shop-item';
+
+                const owned = playerData.upgrades[item.id];
+
+                startDiv.innerHTML = `
+                    <div class="item-info">
+                        <div class="item-name">${item.name}</div>
+                        <div class="item-cost">${owned ? 'OWNED' : item.cost + ' Coins'}</div>
+                        <div style="font-size:10px; color:#aaa;">${item.desc}</div>
+                    </div>
+                    <button ${owned || playerData.coins < item.cost ? 'disabled' : ''} 
+                        onclick="buyItem('${item.id}', ${item.cost})">
+                        ${owned ? 'EQUIPPED' : 'BUY'}
+                    </button>
+                `;
+                list.appendChild(startDiv);
+            });
+        }
+
+        window.buyItem = function (id, cost) {
+            if (playerData.coins >= cost && !playerData.upgrades[id]) {
+                playerData.coins -= cost;
+                playerData.upgrades[id] = true;
+                saveGame();
+                renderShop();
+            }
+        };
+
+        // Init
+        updateUI();
+
+    </script>
+</body>
+
+</html>

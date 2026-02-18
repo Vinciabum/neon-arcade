@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" shape-rendering="crispEdges">
+  <style> .base { fill: #ffd700; } .shine { fill: #fff; } .border { fill: #d4a017; } </style>
+  <!-- Border -->
+  <rect x="8" y="2" width="8" height="20" class="border" />
+  <rect x="6" y="4" width="12" height="16" class="border" />
+  <rect x="4" y="6" width="16" height="12" class="border" />
+  
+  <!-- Fill -->
+  <rect x="8" y="4" width="8" height="16" class="base" />
+  <rect x="6" y="6" width="12" height="12" class="base" />
+  <rect x="5" y="8" width="14" height="8" class="base" />
+
+  <!-- Shine -->
+  <rect x="8" y="6" width="2" height="4" class="shine" />
+  <rect x="7" y="8" width="2" height="2" class="shine" />
+</svg>

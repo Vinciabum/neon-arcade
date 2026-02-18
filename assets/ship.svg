@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <style>
+    .body { fill: #00f0ff; filter: url(#glow); }
+    .cockpit { fill: #fff; }
+    .engine { fill: #ff0055; }
+  </style>
+  <!-- Main Body -->
+  <path d="M20 2 L38 38 L20 32 L2 38 Z" class="body" />
+  <!-- Cockpit -->
+  <ellipse cx="20" cy="20" rx="3" ry="5" class="cockpit" />
+  <!-- Engine Glow -->
+  <rect x="18" y="32" width="4" height="8" class="engine" />
+</svg>

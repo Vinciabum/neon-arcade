@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+  <style>
+    .body { fill: #00cc00; stroke: #00ff00; stroke-width: 2; }
+    .core { fill: #00ff00; opacity: 0.5; }
+  </style>
+  <rect x="4" y="4" width="32" height="32" rx="4" ry="4" class="body" />
+  <rect x="12" y="12" width="16" height="16" class="core" />
+</svg>

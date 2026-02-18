@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Dodge</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #050510;
+            font-family: 'Orbitron', sans-serif;
+            touch-action: none;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-size: 3rem;
+            color: #00ff00;
+            text-shadow: 0 0 20px #00ff00;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        p {
+            color: #fff;
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #00ff00, #008800);
+            border: none;
+            padding: 15px 40px;
+            color: #000;
+            font-size: 1.5rem;
+            font-weight: bold;
+            font-family: inherit;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 20px #00ff00;
+            transition: 0.2s;
+            margin: 10px;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn:disabled {
+            filter: grayscale(1);
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 60px 20px 20px 20px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            color: #fff;
+            font-size: 1.2rem;
+            text-shadow: 0 0 5px #fff;
+            z-index: 5;
+        }
+
+        .shop-item {
+            border: 2px solid #00ff00;
+            padding: 20px;
+            border-radius: 15px;
+            background: rgba(0, 20, 10, 0.8);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .shop-title {
+            color: #00ffff;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .price {
+            color: #fff;
+            margin-bottom: 15px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Screen Shake Animation */
+        @keyframes shake {
+            0% {
+                transform: translate(1px, 1px) rotate(0deg);
+            }
+
+            10% {
+                transform: translate(-1px, -2px) rotate(-1deg);
+            }
+
+            20% {
+                transform: translate(-3px, 0px) rotate(1deg);
+            }
+
+            30% {
+                transform: translate(3px, 2px) rotate(0deg);
+            }
+
+            40% {
+                transform: translate(1px, -1px) rotate(1deg);
+            }
+
+            50% {
+                transform: translate(-1px, 2px) rotate(-1deg);
+            }
+
+            60% {
+                transform: translate(-3px, 1px) rotate(0deg);
+            }
+
+            70% {
+                transform: translate(3px, 1px) rotate(-1deg);
+            }
+
+            80% {
+                transform: translate(-1px, -1px) rotate(1deg);
+            }
+
+            90% {
+                transform: translate(1px, 2px) rotate(0deg);
+            }
+
+            100% {
+                transform: translate(1px, -2px) rotate(-1deg);
+            }
+        }
+
+        .shake-effect {
+            animation: shake 0.5s;
+            /* Run for 0.5 seconds */
+            animation-iteration-count: 1;
+        }
+
+        /* Red Flash Overlay */
+        #damage-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: red;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s;
+            z-index: 100;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="damage-overlay"></div>
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="hud" id="hud">
+        <div>TIME: <span id="timeDisplay">0</span>s</div>
+        <div style="color: #ffd700;">COINS: <span id="coinDisplay">0</span></div>
+    </div>
+
+    <div id="ui-layer">
+        <!-- LOBBY SCREEN -->
+        <div id="lobbyScreen" class="screen">
+            <h1>NEON DODGE</h1>
+            <p>Dodge the Spikes • Survive</p>
+
+            <!-- SHOP SECTION -->
+            <div id="shopSection">
+                <div class="shop-item">
+                    <div class="shop-title">ENERGY SHIELD</div>
+                    <div class="price">200 COINS</div>
+                    <button id="btnBuyShield" class="btn" onclick="buyUpgrade()">BUY UPGRADE</button>
+                    <div id="shopMsg" style="color: red; font-size: 0.8rem; height: 1rem;"></div>
+                </div>
+            </div>
+
+            <button class="btn" onclick="startGame()">START RUN</button>
+            <button class="btn" onclick="location.href='../index.html'"
+                style="background: #555; color: #fff; box-shadow: none;">HOME</button>
+        </div>
+
+        <!-- GAME OVER SCREEN -->
+        <div id="gameOverScreen" class="screen hidden">
+            <h1 style="color: #ff0000; text-shadow: 0 0 20px #ff0000;">NO SIGNAL</h1>
+            <p>Survived: <span id="finalTime">0</span>s</p>
+            <button class="btn" onclick="startGame()">RETRY</button>
+            <button class="btn" onclick="showLobby()">LOBBY</button>
+        </div>
+    </div>
+
+    <!-- Game Juice -->
+    <script src="../assets/game_juice.js"></script>
+
+    <script>
+        // --- 1. ASSETS ---
+        // New Assets from Tiny RPG Pack
+        const playerImg = new Image(); playerImg.src = '../assets/soldier_idle.png';
+        const enemyImg = new Image(); enemyImg.src = '../assets/orc_walk.png';
+
+        const svgShield = `<svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg"><circle cx="15" cy="15" r="12" fill="none" stroke="#00ffff" stroke-width="3"/></svg>`;
+        const shieldImg = new Image(); shieldImg.src = 'data:image/svg+xml;base64,' + btoa(svgShield);
+
+        // --- 2. ECONOMY ---
+        function getCoins() {
+            return parseInt(localStorage.getItem('neonCoins') || '0');
+        }
+        function saveCoins(amount) {
+            localStorage.setItem('neonCoins', amount);
+            updateUI();
+        }
+
+        // Game Specific Data
+        let gameData = JSON.parse(localStorage.getItem('neonDodgeData')) || { hasShield: false };
+        function saveGameData() {
+            localStorage.setItem('neonDodgeData', JSON.stringify(gameData));
+        }
+
+        function buyUpgrade() {
+            const cost = 200;
+            const currentCoins = getCoins();
+            const msgEl = document.getElementById('shopMsg');
+
+            if (gameData.hasShield) {
+                msgEl.innerText = "ALREADY EQUIPPED!";
+                return;
+            }
+
+            if (currentCoins >= cost) {
+                saveCoins(currentCoins - cost);
+                gameData.hasShield = true;
+                saveGameData();
+                updateShopUI();
+                msgEl.style.color = '#00ff00';
+                msgEl.innerText = "SHIELD EQUIPPED!";
+            } else {
+                msgEl.style.color = '#ff0000';
+                msgEl.innerText = "NOT ENOUGH COINS!";
+            }
+        }
+
+        function updateShopUI() {
+            const btn = document.getElementById('btnBuyShield');
+            if (gameData.hasShield) {
+                btn.innerText = "EQUIPPED";
+                btn.disabled = true;
+                btn.style.background = "#333";
+                btn.style.boxShadow = "none";
+            } else {
+                btn.innerText = "BUY (200)";
+                btn.disabled = false;
+            }
+        }
+        function updateUI() {
+            document.getElementById('coinDisplay').innerText = getCoins();
+        }
+
+        // --- 3. GAME LOGIC ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let w, h;
+        const resize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
+        window.addEventListener('resize', resize); resize();
+
+        let state = 'LOBBY';
+        let startTime = 0;
+        let elapsedTime = 0;
+        let protection = false;
+
+        // Touch Offset
+        const TOUCH_OFFSET_Y = 50;
+
+        const player = { x: w / 2, y: h / 2, r: 20 };
+        let enemies = [];
+        let particles = [];
+        let nextSpawn = 0;
+        let animationId;
+
+        // Controls
+        let isDragging = false;
+        function updatePlayerPos(cx, cy, isTouch = false) {
+            if (state !== 'PLAYING') return;
+            player.x = cx;
+            player.y = cy;
+
+            if (isTouch) player.y -= TOUCH_OFFSET_Y;
+
+            // Clamp
+            if (player.x < 10) player.x = 10;
+            if (player.x > w - 10) player.x = w - 10;
+            if (player.y < 10) player.y = 10;
+            if (player.y > h - 10) player.y = h - 10;
+        }
+
+        window.addEventListener('keydown', e => {
+            if (e.code === 'Space' || e.code === 'Enter') {
+                if (state !== 'PLAYING') startGame();
+            }
+        });
+
+        // Touch Setup
+        GameJuice.setupTouchControls();
+
+        window.addEventListener('mousedown', () => isDragging = true);
+        window.addEventListener('touchstart', e => { isDragging = true; updatePlayerPos(e.touches[0].clientX, e.touches[0].clientY, true); }, { passive: false });
+
+        ['mouseup', 'touchend'].forEach(evt => window.addEventListener(evt, () => isDragging = false));
+
+        window.addEventListener('mousemove', e => { if (isDragging) updatePlayerPos(e.clientX, e.clientY); });
+
+        window.addEventListener('touchmove', e => {
+            // e.preventDefault(); handled by GameJuice
+            if (state === 'PLAYING') updatePlayerPos(e.touches[0].clientX, e.touches[0].clientY, true);
+        }, { passive: false });
+
+
+        function startGame() {
+            if (state === 'PLAYING') return;
+            state = 'PLAYING';
+            startTime = Date.now();
+            elapsedTime = 0;
+            enemies = [];
+            particles = [];
+            player.x = w / 2; player.y = h / 2;
+
+            // Shield is a PERMANENT upgrade that grants ONE use per run
+            protection = gameData.hasShield;
+
+            document.getElementById('lobbyScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.body.classList.remove('shake-effect'); // Reset shake
+
+            cancelAnimationFrame(animationId);
+            loop();
+        }
+
+        function showLobby() {
+            state = 'LOBBY';
+            document.getElementById('lobbyScreen').classList.remove('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.body.classList.remove('shake-effect');
+            updateShopUI();
+            updateUI();
+
+            cancelAnimationFrame(animationId);
+            loop();
+        }
+
+        function gameOver() {
+            state = 'GAMEOVER';
+            document.getElementById('finalTime').innerText = elapsedTime.toFixed(1);
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+
+            // Screen Shake Effect
+            GameJuice.shake(15, 400);
+            GameJuice.flash('rgba(255, 0, 0, 0.4)', 200);
+
+            // Explode all enemies
+            enemies.forEach(e => GameJuice.createExplosion(e.x, e.y, '#ff0000', 5, particles));
+            GameJuice.createExplosion(player.x, player.y, '#fff', 30, particles);
+        }
+
+        function spawnEnemy() {
+            // Spawn from edges
+            const side = Math.floor(Math.random() * 4); // 0:top, 1:right, 2:bottom, 3:left
+            let x, y;
+            const size = 30;
+
+            if (side === 0) { x = Math.random() * w; y = -size; }
+            else if (side === 1) { x = w + size; y = Math.random() * h; }
+            else if (side === 2) { x = Math.random() * w; y = h + size; }
+            else { x = -size; y = Math.random() * h; }
+
+            // Velocity towards player
+            const angle = Math.atan2(player.y - y, player.x - x);
+            // Speed increases with time
+            const speed = 3 + (elapsedTime / 10);
+
+            enemies.push({ x, y, size, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed });
+        }
+
+        function loop() {
+            animationId = requestAnimationFrame(loop);
+
+            // Timer
+            if (state === 'PLAYING') {
+                const now = Date.now();
+                elapsedTime = (now - startTime) / 1000;
+                document.getElementById('timeDisplay').innerText = elapsedTime.toFixed(1);
+            }
+
+            // Clear Background
+            ctx.fillStyle = '#050510';
+            ctx.fillRect(0, 0, w, h);
+
+            // Grid Background Pulse
+            const pulse = 100 + Math.sin(Date.now() * 0.002) * 50;
+            ctx.strokeStyle = `rgba(0, 255, 0, ${0.1 + Math.sin(Date.now() * 0.005) * 0.05})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let i = 0; i < w; i += 50) { ctx.moveTo(i, 0); ctx.lineTo(i, h); }
+            for (let i = 0; i < h; i += 50) { ctx.moveTo(0, i); ctx.lineTo(w, i); }
+            ctx.stroke();
+
+            if (state !== 'PLAYING') {
+                // Background visual for lobby
+                return;
+            }
+
+            // Spawn Logic
+            const now = Date.now();
+            const spawnRate = Math.max(200, 1000 - elapsedTime * 20);
+            if (now > nextSpawn) {
+                spawnEnemy();
+                nextSpawn = now + spawnRate;
+            }
+
+            // Update & Draw Enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let e = enemies[i];
+                e.x += e.vx;
+                e.y += e.vy;
+
+                // Simple Flip based on VX
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                if (e.vx < 0) ctx.scale(-1, 1); // Flip if moving left
+
+                // Draw Orc (Centering. Assuming sprite needs scaling)
+                ctx.drawImage(enemyImg, -20, -20, 40, 40);
+                ctx.restore();
+
+                // Cleanup bounds (far out)
+                if (e.x < -100 || e.x > w + 100 || e.y < -100 || e.y > h + 100) {
+                    enemies.splice(i, 1);
+                    continue;
+                }
+
+                // Collision
+                const dx = player.x - e.x;
+                const dy = player.y - e.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < 15 + 15) {
+                    if (protection) {
+                        // Shield Block
+                        protection = false;
+                        GameJuice.createExplosion(e.x, e.y, '#00ffff', 15, particles); // Blue explosion
+                        GameJuice.shake(5, 200);
+                        GameJuice.flash('cyan', 100);
+
+                        enemies.splice(i, 1);
+
+                        // Shield Break Effect
+                        const overlay = document.getElementById('damage-overlay');
+                        overlay.style.background = 'cyan';
+                        overlay.style.opacity = 0.5;
+                        setTimeout(() => { overlay.style.opacity = 0; overlay.style.background = 'red'; }, 200);
+                    } else {
+                        // Death
+                        gameOver();
+                    }
+                }
+            }
+
+            // Draw Player
+            // Draw Soldier
+            ctx.drawImage(playerImg, player.x - 25, player.y - 25, 50, 50);
+
+            // Draw Shield
+            if (protection) {
+                ctx.save();
+                ctx.translate(player.x, player.y);
+                ctx.rotate(-elapsedTime * 3); // Counter rotate
+                ctx.drawImage(shieldImg, -25, -25, 50, 50);
+                ctx.restore();
+            }
+
+            // Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay || 0.05;
+
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+            ctx.globalAlpha = 1.0;
+        }
+
+        // Init
+        updateShopUI();
+        updateUI();
+
+    </script>
+</body>
+
+</html>
