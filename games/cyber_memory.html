@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Memory</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            background: #050510;
+            font-family: 'Orbitron', sans-serif;
+            color: #fff;
+            overflow: hidden;
+            touch-action: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        /* --- UI --- */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .hud {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            text-shadow: 0 0 10px #0ff;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+            pointer-events: auto;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 5, 16, 0.9);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            pointer-events: auto;
+            transition: opacity 0.3s;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 3rem;
+            color: #0ff;
+            margin: 0 0 20px 0;
+            text-shadow: 0 0 20px #0ff;
+            text-align: center;
+        }
+
+        .btn {
+            background: transparent;
+            color: #0ff;
+            border: 2px solid #0ff;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-family: inherit;
+            cursor: pointer;
+            margin: 10px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .btn:hover {
+            background: #0ff;
+            color: #000;
+            box-shadow: 0 0 30px #0ff;
+            transform: scale(1.05);
+        }
+
+        /* --- GAME BOARD --- */
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            perspective: 1000px;
+            z-index: 5;
+            padding: 20px;
+        }
+
+        .card {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+        }
+
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card.matched {
+            transform: rotateY(180deg) scale(0.9);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+            border: 2px solid rgba(0, 255, 255, 0.3);
+        }
+
+        .card-front {
+            background: rgba(0, 40, 40, 0.8);
+            /* Icon Hidden by default */
+        }
+
+        .card-front::after {
+            content: '?';
+            color: rgba(0, 255, 255, 0.3);
+        }
+
+        .card-back {
+            background: rgba(0, 80, 80, 0.9);
+            transform: rotateY(180deg);
+            box-shadow: 0 0 20px #0ff;
+            border-color: #0ff;
+        }
+
+        /* Particles Canvas */
+        #fx-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 15;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 600px) {
+            #game-board {
+                gap: 10px;
+            }
+
+            .card {
+                width: 60px;
+                height: 60px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="fx-canvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="hud">
+            <div>LEVEL: <span id="level-disp">1</span></div>
+            <div>SCORE: <span id="score-disp">0</span></div>
+            <div>COMBO: x<span id="combo-disp">1</span></div>
+        </div>
+    </div>
+
+    <div id="lobby" class="screen">
+        <h1>CYBER<br>MEMORY</h1>
+        <p style="text-align: center; max-width: 400px; margin-bottom: 30px; color: #aaa;">
+            Match holographic data fragments.<br>Build combos for high scores.
+        </p>
+        <button class="btn" onclick="startGame()">INITIATE</button>
+    </div>
+
+    <div id="game-over" class="screen hidden">
+        <h1 style="color: #ff3366; text-shadow: 0 0 20px #ff3366;">SYSTEM HALTED</h1>
+        <p>Final Score: <span id="final-score">0</span></p>
+        <button class="btn" onclick="startGame()">REBOOT</button>
+        <button class="btn" style="border-color: #aaa; color: #aaa;"
+            onclick="location.href='../index.html'">EXIT</button>
+    </div>
+
+    <div id="game-board">
+        <!-- Cards Injected JS -->
+    </div>
+
+    <!-- Game Juice Library (Inline for standalone) -->
+    <script>
+        const FX = {
+            canvas: document.getElementById('fx-canvas'),
+            ctx: document.getElementById('fx-canvas').getContext('2d'),
+            particles: [],
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                this.loop();
+            },
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            },
+
+            createExplosion(x, y, color) {
+                for (let i = 0; i < 20; i++) {
+                    this.particles.push({
+                        x, y,
+                        vx: (Math.random() - 0.5) * 10,
+                        vy: (Math.random() - 0.5) * 10,
+                        life: 1.0,
+                        color: color,
+                        size: Math.random() * 4 + 2
+                    });
+                }
+            },
+
+            loop() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life -= 0.03;
+                    p.size *= 0.95;
+
+                    this.ctx.globalAlpha = p.life;
+                    this.ctx.fillStyle = p.color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                }
+                this.ctx.globalAlpha = 1;
+
+                requestAnimationFrame(() => this.loop());
+            }
+        };
+
+        // Audio Synth
+        const AudioSys = {
+            ctx: null,
+            init() {
+                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            },
+            playTone(freq, type = 'sine', duration = 0.1) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            },
+            playMatch() { this.playTone(880, 'square', 0.2); setTimeout(() => this.playTone(1760, 'sine', 0.3), 100); },
+            playFlip() { this.playTone(400, 'triangle', 0.1); },
+            playError() { this.playTone(150, 'sawtooth', 0.3); }
+        };
+
+        // Game Logic
+        const Game = {
+            icons: ['🚀', '🛸', '🪐', '👾', '🤖', '👽', '🌌', '⭐', '🔋', '💎', '🧬', '💿', '💾', '📡'],
+            level: 1,
+            score: 0,
+            combo: 1,
+            cards: [],
+            flipped: [],
+            matches: 0,
+            board: document.getElementById('game-board'),
+            locked: false,
+
+            init() {
+                FX.init();
+            },
+
+            startLevel() {
+                this.locked = true;
+                this.board.innerHTML = '';
+                this.flipped = [];
+                this.matches = 0;
+
+                // Grid Size based on level (Max 36 cards = 6x6)
+                let pairCount = Math.min(6 + this.level * 2, 18); // Start 4x4 (8 pairs) -> grow
+                // Force grid structure (css grid)
+                let cols = 4;
+                if (pairCount > 10) cols = 5;
+                if (pairCount > 14) cols = 6;
+                this.board.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+                // Generate Pairs
+                let levelIcons = this.icons.slice(0, pairCount);
+                if (this.icons.length < pairCount) {
+                    // Reuse if run out
+                    while (levelIcons.length < pairCount) levelIcons.push(this.icons[Math.floor(Math.random() * this.icons.length)]);
+                }
+
+                let deck = [...levelIcons, ...levelIcons];
+                deck.sort(() => Math.random() - 0.5);
+
+                deck.forEach((icon, i) => {
+                    let card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <div class="card-face card-front"></div>
+                        <div class="card-face card-back">${icon}</div>
+                    `;
+                    card.dataset.icon = icon;
+                    card.dataset.index = i;
+                    card.onclick = () => this.flipCard(card);
+                    this.board.appendChild(card);
+                });
+
+                document.getElementById('level-disp').innerText = this.level;
+
+                setTimeout(() => {
+                    this.locked = false;
+                    AudioSys.playTone(600, 'sine', 0.5);
+                }, 500);
+            },
+
+            flipCard(card) {
+                if (this.locked || card.classList.contains('flipped') || card.classList.contains('matched')) return;
+
+                AudioSys.init(); // Ensure logic
+                AudioSys.playFlip();
+
+                card.classList.add('flipped');
+                this.flipped.push(card);
+
+                if (this.flipped.length === 2) {
+                    this.checkMatch();
+                }
+            },
+
+            checkMatch() {
+                this.locked = true;
+                const c1 = this.flipped[0];
+                const c2 = this.flipped[1];
+
+                if (c1.dataset.icon === c2.dataset.icon) {
+                    // Match
+                    setTimeout(() => {
+                        this.matches++;
+                        this.score += 100 * this.combo;
+                        this.combo++;
+                        this.updateHUD();
+
+                        AudioSys.playMatch();
+
+                        // Juice
+                        const rect1 = c1.getBoundingClientRect();
+                        const rect2 = c2.getBoundingClientRect();
+                        FX.createExplosion(rect1.left + rect1.width / 2, rect1.top + rect1.height / 2, '#0ff');
+                        FX.createExplosion(rect2.left + rect2.width / 2, rect2.top + rect2.height / 2, '#0ff');
+
+                        c1.classList.add('matched');
+                        c2.classList.add('matched');
+
+                        this.flipped = [];
+                        this.locked = false;
+
+                        // Check Win
+                        if (this.matches >= this.board.children.length / 2) {
+                            setTimeout(() => {
+                                this.level++;
+                                this.startLevel();
+                            }, 1000);
+                        }
+
+                    }, 400); // Wait for flip anim
+                } else {
+                    // No Match
+                    setTimeout(() => {
+                        AudioSys.playError();
+                        c1.classList.remove('flipped');
+                        c2.classList.remove('flipped');
+                        this.combo = 1;
+                        this.updateHUD();
+                        this.flipped = [];
+                        this.locked = false;
+                    }, 800);
+                }
+            },
+
+            updateHUD() {
+                document.getElementById('score-disp').innerText = this.score;
+                document.getElementById('combo-disp').innerText = this.combo;
+                const uiCombo = document.getElementById('combo-disp');
+                uiCombo.style.color = this.combo > 1 ? '#ffd700' : '#fff';
+            }
+        };
+
+        function startGame() {
+            document.getElementById('lobby').classList.add('hidden');
+            document.getElementById('game-over').classList.add('hidden');
+            Game.level = 1;
+            Game.score = 0;
+            Game.combo = 1;
+            Game.updateHUD();
+            Game.startLevel();
+        }
+
+        Game.init();
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Data Fall</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        body {
+            margin: 0;
+            background: #000;
+            color: #0f0;
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .hud-bar {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 20, 0, 0.8);
+            border-bottom: 1px solid #0f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            box-sizing: border-box;
+        }
+
+        /* --- KEYPAD (Mobile) --- */
+        #keypad {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 240px;
+            background: rgba(0, 10, 0, 0.95);
+            border-top: 2px solid #0f0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            pointer-events: auto;
+            transform: translateY(100%);
+            transition: transform 0.3s;
+        }
+
+        #keypad.active {
+            transform: translateY(0);
+        }
+
+        .key {
+            background: #051a05;
+            border: 1px solid #0f0;
+            color: #0f0;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .key:active {
+            background: #0f0;
+            color: #000;
+        }
+
+        .key-del {
+            background: #300 !important;
+            color: #f00 !important;
+            border-color: #f00 !important;
+        }
+
+        .key-ent {
+            background: #003300 !important;
+            font-weight: bold;
+        }
+
+        /* Input Display */
+        #input-display {
+            position: absolute;
+            bottom: 250px;
+            /* Above keypad */
+            width: 100%;
+            text-align: center;
+            font-size: 3rem;
+            color: #fff;
+            text-shadow: 0 0 10px #0f0;
+            pointer-events: none;
+        }
+
+        /* Screens */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            z-index: 20;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        h1 {
+            font-size: 3rem;
+            color: #0f0;
+            text-shadow: 0 0 20px #0f0, 2px 2px 0 #fff;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .btn {
+            background: #000;
+            color: #0f0;
+            border: 2px solid #0f0;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-family: 'Share Tech Mono';
+            cursor: pointer;
+            box-shadow: 0 0 15px #0f0;
+            margin-top: 20px;
+            text-transform: uppercase;
+        }
+
+        .btn:hover {
+            background: #0f0;
+            color: #000;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="c"></canvas>
+
+    <div id="ui-layer">
+        <div class="hud-bar">
+            <span>HP: <span id="hp-disp">100</span>%</span>
+            <span>SCORE: <span id="score-disp">0</span></span>
+        </div>
+
+        <div id="input-display"></div>
+
+        <div id="keypad" class="active">
+            <div class="key" onclick="typeNum('1')">1</div>
+            <div class="key" onclick="typeNum('2')">2</div>
+            <div class="key" onclick="typeNum('3')">3</div>
+            <div class="key" onclick="typeNum('4')">4</div>
+            <div class="key" onclick="typeNum('5')">5</div>
+            <div class="key" onclick="typeNum('6')">6</div>
+            <div class="key" onclick="typeNum('7')">7</div>
+            <div class="key" onclick="typeNum('8')">8</div>
+            <div class="key" onclick="typeNum('9')">9</div>
+            <div class="key key-del" onclick="typeNum('del')">DEL</div>
+            <div class="key" onclick="typeNum('0')">0</div>
+            <div class="key key-ent" onclick="typeNum('ent')">FIRE</div>
+        </div>
+    </div>
+
+    <!-- SCREENS -->
+    <div id="lobby" class="screen">
+        <h1>DATA FALL</h1>
+        <p style="color:#aaa; text-align:center;">
+            Solves equations to firewall incoming data.<br>
+            Don't let them breach the system.
+        </p>
+        <button class="btn" onclick="startGame()">JACK IN</button>
+    </div>
+
+    <div id="game-over" class="screen hidden">
+        <h1 style="color:red; text-shadow:none;">SYSTEM CRASH</h1>
+        <p>Final Score: <span id="final-score">0</span></p>
+        <button class="btn" onclick="startGame()">REBOOT</button>
+        <button class="btn" style="border-color:#555; color:#888;"
+            onclick="location.href='../index.html'">EJECT</button>
+    </div>
+
+    <!-- AUDIO SYNTH (Reused logic) -->
+    <script>
+        const AudioSys = {
+            ctx: null,
+            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+            playTone(freq, type, dur, vol = 0.1) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + dur);
+            },
+            shoot() { this.playTone(600, 'square', 0.1); this.playTone(300, 'sawtooth', 0.2); },
+            hit() { this.playTone(100, 'sawtooth', 0.3); },
+            input() { this.playTone(800, 'sine', 0.05, 0.05); }
+        };
+
+        // --- GAME LOGIC ---
+        const canvas = document.getElementById('c');
+        const ctx = canvas.getContext('2d');
+        let w, h;
+
+        let state = 'MENU';
+        let score = 0;
+        let hp = 100;
+        let difficulty = 1;
+
+        let drops = [];
+        let particles = [];
+        let lasers = [];
+
+        let currentInput = '';
+        let matrixChars = '01XY?@#&%'; // Aesthetic background chars
+
+        function resize() {
+            w = canvas.width = window.innerWidth;
+            h = canvas.height = window.innerHeight;
+            // Adjust keypad height?
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        /* --- ENTITIES --- */
+        class Drop {
+            constructor() {
+                this.x = Math.random() * (w - 60) + 30;
+                this.y = -50;
+                this.speed = (Math.random() * 0.5 + 0.5) * difficulty;
+                this.type = Math.random() > 0.8 ? 'hard' : 'normal';
+
+                // Gen Math
+                let a, b, op;
+                if (this.type === 'normal') {
+                    a = Math.floor(Math.random() * 9) + 1;
+                    b = Math.floor(Math.random() * 9) + 1;
+                    op = Math.random() > 0.5 ? '+' : '-';
+                    if (op === '-') {
+                        if (a < b) [a, b] = [b, a]; // Ensure positive
+                    }
+                    this.ans = op === '+' ? a + b : a - b;
+                    this.text = `${a} ${op} ${b}`;
+                    this.color = '#0f0';
+                } else {
+                    // Hard multiplication or 3 terms
+                    a = Math.floor(Math.random() * 9) + 2;
+                    b = Math.floor(Math.random() * 9) + 2;
+                    this.ans = a * b;
+                    this.text = `${a} x ${b}`;
+                    this.color = '#ff00ff';
+                    this.speed *= 0.8; // Slower because harder
+                }
+
+                this.size = 24;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.font = `bold ${this.size}px monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillText(this.text, this.x, this.y);
+
+                // Matrix Stream effect above
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+                ctx.font = '16px monospace';
+                for (let i = 1; i < 5; i++) {
+                    ctx.fillText(matrixChars[Math.floor(Math.random() * matrixChars.length)], this.x, this.y - i * 20);
+                }
+            }
+
+            update() {
+                this.y += this.speed;
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y;
+                this.vx = (Math.random() - 0.5) * 10;
+                this.vy = (Math.random() - 0.5) * 10;
+                this.life = 1.0;
+                this.color = color;
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                this.life -= 0.05;
+            }
+            draw() {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, 4, 4);
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        class Laser {
+            constructor(targetX, targetY) {
+                this.sx = w / 2;
+                this.sy = h;
+                this.tx = targetX;
+                this.ty = targetY;
+                this.life = 10;
+            }
+            draw() {
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(this.sx, this.sy);
+                ctx.lineTo(this.tx, this.ty);
+                ctx.stroke();
+            }
+        }
+
+        /* --- CONTROLS --- */
+        window.typeNum = function (val) {
+            AudioSys.init();
+
+            if (val === 'del') {
+                currentInput = currentInput.slice(0, -1);
+                AudioSys.input();
+            } else if (val === 'ent') {
+                checkAnswer();
+            } else {
+                if (currentInput.length < 4) {
+                    currentInput += val;
+                    AudioSys.input();
+                }
+            }
+            updateInputDisp();
+        };
+
+        // Keyboard Support
+        window.addEventListener('keydown', e => {
+            if (state !== 'PLAYING') return;
+            if (e.key >= '0' && e.key <= '9') typeNum(e.key);
+            if (e.key === 'Backspace') typeNum('del');
+            if (e.key === 'Enter') typeNum('ent');
+        });
+
+        function updateInputDisp() {
+            document.getElementById('input-display').innerText = currentInput;
+        }
+
+        function checkAnswer() {
+            const val = parseInt(currentInput);
+            if (isNaN(val)) return;
+
+            let hit = false;
+            // Find drop with matching answer
+            // Prioritize lowest drop (highest Y)
+            drops.sort((a, b) => b.y - a.y);
+
+            for (let i = 0; i < drops.length; i++) {
+                if (drops[i].ans === val) {
+                    // HIT
+                    hit = true;
+                    drops[i].destroy = true;
+                    score += 10;
+                    if (drops[i].type === 'hard') score += 20;
+
+                    document.getElementById('score-disp').innerText = score;
+
+                    // VFX
+                    lasers.push(new Laser(drops[i].x, drops[i].y));
+                    for (let k = 0; k < 15; k++) particles.push(new Particle(drops[i].x, drops[i].y, drops[i].color));
+
+                    AudioSys.shoot();
+
+                    // Difficulty ramping
+                    if (score % 100 === 0) difficulty += 0.2;
+
+                    break; // Only kill one per shot
+                }
+            }
+
+            if (!hit) {
+                // Penalize? Nah, just clear input
+                AudioSys.playTone(150, 'sawtooth', 0.2);
+            }
+
+            currentInput = '';
+            updateInputDisp();
+        }
+
+        /* --- LOOP --- */
+        let frame = 0;
+        function loop() {
+            if (state !== 'PLAYING') return;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; // Trails
+            ctx.fillRect(0, 0, w, h);
+
+            // Spawn
+            if (frame % Math.max(30, 120 - difficulty * 10) === 0) {
+                drops.push(new Drop());
+            }
+
+            // Update Drops
+            for (let i = drops.length - 1; i >= 0; i--) {
+                let d = drops[i];
+                d.update();
+                d.draw();
+
+                if (d.destroy) {
+                    drops.splice(i, 1);
+                    continue;
+                }
+
+                if (d.y > h - 240) { // Hit keypad area
+                    hp -= 10;
+                    document.getElementById('hp-disp').innerText = hp;
+                    drops.splice(i, 1);
+                    AudioSys.hit();
+
+                    ctx.fillStyle = 'white'; // Flash
+                    ctx.fillRect(0, 0, w, h);
+
+                    if (hp <= 0) gameOver();
+                }
+            }
+
+            // Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.update();
+                p.draw();
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            // Lasers
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                let l = lasers[i];
+                l.draw();
+                l.life--;
+                if (l.life <= 0) lasers.splice(i, 1);
+            }
+
+            frame++;
+            requestAnimationFrame(loop);
+        }
+
+        function startGame() {
+            document.getElementById('lobby').classList.add('hidden');
+            document.getElementById('game-over').classList.add('hidden');
+            state = 'PLAYING';
+            drops = [];
+            particles = [];
+            lasers = [];
+            hp = 100;
+            score = 0;
+            difficulty = 1;
+            currentInput = '';
+
+            document.getElementById('hp-disp').innerText = hp;
+            document.getElementById('score-disp').innerText = score;
+            updateInputDisp();
+
+            loop();
+        }
+
+        function gameOver() {
+            state = 'GAMEOVER';
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('game-over').classList.remove('hidden');
+        }
+
+    </script>
+</body>
+
+</html>

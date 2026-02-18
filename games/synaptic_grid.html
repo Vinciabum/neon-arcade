@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Synaptic Grid</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Audiowide&display=swap');
+
+        body {
+            margin: 0;
+            background: #080010;
+            color: #d0f;
+            font-family: 'Audiowide', cursive;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        #bg-pulse {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 200vw;
+            height: 200vw;
+            background: radial-gradient(circle, #200040 0%, #000 70%);
+            transform: translate(-50%, -50%) scale(1);
+            z-index: 1;
+            transition: transform 0.1s;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .hud {
+            padding: 20px;
+            font-size: 1.5rem;
+            color: #fff;
+            text-shadow: 0 0 10px #d0f;
+            display: flex;
+            justify-content: space-between;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+        }
+
+        #game-board {
+            position: relative;
+            z-index: 10;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            padding: 20px;
+            background: rgba(20, 0, 40, 0.5);
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(200, 0, 255, 0.2);
+            transition: transform 0.3s;
+        }
+
+        .tile {
+            width: 120px;
+            height: 120px;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            transition: all 0.1s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tile::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
+        .tile.lit {
+            transform: scale(0.95);
+            box-shadow: 0 0 30px currentColor;
+            /* Uses inline style color */
+            border-color: #fff;
+        }
+
+        .tile.lit::after {
+            opacity: 0.5;
+        }
+
+        .tile:active {
+            transform: scale(0.9);
+        }
+
+        /* Screens */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(8, 0, 16, 0.95);
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            transition: opacity 0.5s;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 3rem;
+            color: #d0f;
+            text-shadow: 0 0 20px #d0f;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .btn {
+            background: transparent;
+            color: #d0f;
+            border: 2px solid #d0f;
+            padding: 15px 50px;
+            font-size: 1.5rem;
+            font-family: inherit;
+            cursor: pointer;
+            border-radius: 50px;
+            box-shadow: 0 0 20px rgba(221, 0, 255, 0.3);
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #d0f;
+            color: #fff;
+            transform: scale(1.1);
+            box-shadow: 0 0 40px #d0f;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .tile {
+                width: 90px;
+                height: 90px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="bg-pulse"></div>
+
+    <div id="ui-layer">
+        <div class="hud">
+            <div>ROUND: <span id="round-disp">1</span></div>
+            <div>STATUS: <span id="status-disp">WAIT</span></div>
+        </div>
+    </div>
+
+    <div id="lobby" class="screen">
+        <h1>SYNAPTIC<br>GRID</h1>
+        <p style="color: #aaa; margin-bottom: 30px; text-align: center;">
+            Sync your neural pathways.<br>Repeat the pattern. Feel the rhythm.
+        </p>
+        <button class="btn" onclick="startGame()">SYNCHRONIZE</button>
+    </div>
+
+    <div id="game-over" class="screen hidden">
+        <h1 style="color: #ff0055; text-shadow: 0 0 30px #ff0055;">DESYNC</h1>
+        <p style="font-size: 1.2rem; color: #fff;">Max Round: <span id="final-round">1</span></p>
+        <button class="btn" onclick="startGame()">RETRY</button>
+        <button class="btn" style="border-color: #666; color: #888; margin-top: 10px; font-size: 1rem;"
+            onclick="location.href='../index.html'">DISCONNECT</button>
+    </div>
+
+    <div id="game-board">
+        <!-- Tiles JS generated -->
+    </div>
+
+    <script>
+        const AudioSys = {
+            ctx: null,
+            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+            playNote(freq, type = 'sine', dur = 0.3) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + dur);
+            }
+        };
+
+        const Colors = ['#ff0055', '#00ffcc', '#ffff00', '#cc00ff', '#0099ff', '#ff9900'];
+        const Notes = [261.63, 329.63, 392.00, 523.25, 440.00, 349.23]; // C4, E4, G4, C5...
+
+        const Game = {
+            sequence: [],
+            playerIndex: 0,
+            round: 1,
+            gridSize: 2, // 2x2 start
+            tiles: [],
+            locked: false,
+
+            init() {
+                this.generateGrid();
+            },
+
+            generateGrid() {
+                const board = document.getElementById('game-board');
+                board.innerHTML = '';
+                board.style.gridTemplateColumns = `repeat(${this.gridSize}, 1fr)`;
+
+                this.tiles = [];
+                const totalTiles = this.gridSize * this.gridSize;
+
+                for (let i = 0; i < totalTiles; i++) {
+                    let tile = document.createElement('div');
+                    tile.className = 'tile';
+                    tile.dataset.index = i;
+                    // Assign random color/note
+                    let colorIdx = i % Colors.length;
+                    tile.style.color = Colors[colorIdx]; // For box-shadow
+                    tile.style.borderColor = Colors[colorIdx];
+
+                    tile.onpointerdown = () => this.handleInput(i);
+                    board.appendChild(tile);
+                    this.tiles.push({ el: tile, note: Notes[colorIdx], color: Colors[colorIdx] });
+                }
+            },
+
+            playRound() {
+                this.locked = true;
+                this.playerIndex = 0;
+                document.getElementById('round-disp').innerText = this.round;
+                document.getElementById('status-disp').innerText = 'WATCH';
+                document.getElementById('status-disp').style.color = '#fff';
+
+                // Add new step
+                this.sequence.push(Math.floor(Math.random() * this.tiles.length));
+
+                // Play Sequence
+                let delay = 800;
+                let step = 0;
+
+                const interval = setInterval(() => {
+                    if (step >= this.sequence.length) {
+                        clearInterval(interval);
+                        this.locked = false;
+                        document.getElementById('status-disp').innerText = 'REPEAT';
+                        document.getElementById('status-disp').style.color = '#0f0';
+                        return;
+                    }
+
+                    this.flashTile(this.sequence[step]);
+                    step++;
+                }, delay);
+            },
+
+            flashTile(index) {
+                const t = this.tiles[index];
+                t.el.classList.add('lit');
+                t.el.style.backgroundColor = t.color; // Flash color
+
+                AudioSys.playNote(t.note, 'triangle', 0.4);
+
+                // BG Pulse
+                const bg = document.getElementById('bg-pulse');
+                bg.style.transform = 'translate(-50%, -50%) scale(1.1)';
+                setTimeout(() => bg.style.transform = 'translate(-50%, -50%) scale(1)', 100);
+
+                setTimeout(() => {
+                    t.el.classList.remove('lit');
+                    t.el.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                }, 300);
+            },
+
+            handleInput(index) {
+                if (this.locked) return;
+
+                AudioSys.init(); // Unlock audio context
+                this.flashTile(index);
+
+                if (index === this.sequence[this.playerIndex]) {
+                    // Correct
+                    this.playerIndex++;
+                    if (this.playerIndex >= this.sequence.length) {
+                        // Round Complete
+                        this.locked = true;
+                        this.round++;
+
+                        // Increase grid size at Round 5
+                        if (this.round === 5 && this.gridSize < 3) {
+                            this.gridSize = 3;
+                            setTimeout(() => {
+                                this.generateGrid();
+                                this.playRound();
+                            }, 1000);
+                        } else {
+                            setTimeout(() => this.playRound(), 1000);
+                        }
+                    }
+                } else {
+                    // Wrong
+                    this.gameOver();
+                }
+            },
+
+            gameOver() {
+                this.locked = true;
+                document.getElementById('status-disp').innerText = 'FAIL';
+                document.getElementById('status-disp').style.color = '#f00';
+                AudioSys.playNote(100, 'sawtooth', 1.0);
+                setTimeout(() => {
+                    document.getElementById('final-round').innerText = this.round;
+                    document.getElementById('game-over').classList.remove('hidden');
+                }, 500);
+            },
+
+            reset() {
+                this.round = 1;
+                this.sequence = [];
+                this.gridSize = 2;
+                this.generateGrid();
+                this.playRound();
+            }
+        };
+
+        function startGame() {
+            AudioSys.init();
+            document.getElementById('lobby').classList.add('hidden');
+            document.getElementById('game-over').classList.add('hidden');
+            Game.reset();
+        }
+
+        Game.init();
+
+    </script>
+</body>
+
+</html>
