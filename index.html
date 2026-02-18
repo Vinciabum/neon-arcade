@@ -530,6 +530,119 @@
                 background: #000;
             }
         }
+
+        /* --- MOBILE LAYOUT FIX (New) --- */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column-reverse;
+                /* Put sidebar (Nav) at bottom implicitly if we keep flex, but easier to just use fixed positioning or simple stack */
+                display: block;
+                /* Disable the side-by-side flex */
+            }
+
+            /* Convert Sidebar to Bottom Navigation */
+            .sidebar {
+                width: 100%;
+                height: 70px;
+                margin: 0;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                border-radius: 20px 20px 0 0;
+                flex-direction: row;
+                justify-content: space-around;
+                padding: 0;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
+                z-index: 1000;
+            }
+
+            .nav-icon {
+                margin: 0;
+                flex: 1;
+                border-radius: 0;
+                font-size: 1.5rem;
+            }
+
+            .nav-icon:hover {
+                transform: none;
+                /* No hover effects on touch */
+                background: transparent;
+                box-shadow: none;
+            }
+
+            .nav-icon.active {
+                box-shadow: inset 0 -4px 0 var(--accent-primary);
+                /* Bottom pill indicator */
+                background: transparent;
+                color: var(--accent-primary);
+                border-radius: 0;
+            }
+
+            /* Adjust Main Content */
+            .main-content {
+                width: 100%;
+                height: auto;
+                min-height: 100vh;
+                padding: 20px;
+                padding-bottom: 100px;
+                /* Safe area for bottom nav */
+                overflow-y: visible;
+                /* Let body scroll */
+            }
+
+            /* Hero Section Mobile */
+            .hero {
+                height: auto;
+                padding: 40px 20px;
+                flex-direction: column;
+                text-align: center;
+                border-radius: var(--radius-md);
+            }
+
+            .hero h1 {
+                font-size: 2.2rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .play-btn {
+                width: 100%;
+                padding: 14px;
+            }
+
+            /* Grid Mobile */
+            .game-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                grid-auto-rows: 160px;
+            }
+
+            .card.wide {
+                grid-column: span 2;
+            }
+
+            .card.tall {
+                grid-row: span 1;
+                /* Disable tall cards on mobile so they fit better? Or keep them. Let's keep them if they fit. */
+            }
+
+            header {
+                flex-direction: row;
+                margin-bottom: 20px;
+            }
+
+            .logo {
+                font-size: 1.5rem;
+            }
+
+            .wallet-pill {
+                padding: 8px 16px;
+            }
+        }
     </style>
 </head>
 
