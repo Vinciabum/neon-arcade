@@ -6,7 +6,7 @@
   "description": "just1game.com - original browser games",
   "scripts": {
     "build": "node build.js",
-    "test": "node --test tests/",
+    "test": "node --test",
     "shoot": "node tools/shoot.js"
   },
   "devDependencies": {
