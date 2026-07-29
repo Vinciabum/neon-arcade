@@ -35,6 +35,7 @@ jobs:
         env:
           GA_ID: ${{ vars.GA_ID }}
           CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+          GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
 
       - name: Verify build output
         run: |

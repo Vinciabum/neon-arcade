@@ -9,6 +9,12 @@ const SITE_TITLE = 'Neon Arcade — Free Original Browser Games';
 const SITE_DESC = 'Play original HTML5 arcade games free in your browser. No download, no sign-up, works on mobile and desktop.';
 const CONTACT_EMAIL = process.env.CONTACT_EMAIL ?? 'hello@just1game.com';
 
+// Search Console 확인 토큰. DNS TXT 형식(`google-site-verification=...`)을 그대로
+// 붙여넣어도 되도록 접두사를 벗겨낸다.
+const VERIFICATION = process.env.GOOGLE_SITE_VERIFICATION
+  ? `<meta name="google-site-verification" content="${process.env.GOOGLE_SITE_VERIFICATION.trim().replace(/^google-site-verification=/, '')}">`
+  : '';
+
 const ANALYTICS = process.env.GA_ID
   ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${process.env.GA_ID}"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${process.env.GA_ID}');</script>`
@@ -52,6 +58,8 @@ async function buildHome(games, templates) {
     CANONICAL: `${SITE_ORIGIN}/`,
     OG_IMAGE: absUrl(`/${thumbPath(featured.slug)}`),
     ANALYTICS,
+
+    VERIFICATION,
     FEATURED_TITLE: esc(featured.title),
     FEATURED_TAGLINE: esc(featured.tagline),
     FEATURED_URL: landingUrl(featured.slug),
@@ -92,6 +100,8 @@ async function buildLanding(game, games, templates) {
     GAME_SRC: `/${gamePath(game.slug)}`,
     JSONLD: jsonld,
     ANALYTICS,
+
+    VERIFICATION,
     HOW_TO_PLAY: game.howToPlay.map(s => `      <li>${esc(s)}</li>`).join('\n'),
     CONTROLS_KEYBOARD: esc(game.controls.keyboard),
     CONTROLS_TOUCH: esc(game.controls.touch),
@@ -159,6 +169,8 @@ visits to this or other websites. You can opt out of personalised advertising th
       DESCRIPTION: esc(page.description),
       CANONICAL: absUrl(`/${page.slug}/`),
       ANALYTICS,
+
+      VERIFICATION,
       BODY: page.body
     });
     await write(`${page.slug}/index.html`, html);
