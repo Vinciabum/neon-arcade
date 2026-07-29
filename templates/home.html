@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}}</title>
+<meta name="description" content="{{DESCRIPTION}}">
+<link rel="canonical" href="{{CANONICAL}}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{CANONICAL}}">
+<meta property="og:title" content="{{TITLE}}">
+<meta property="og:description" content="{{DESCRIPTION}}">
+<meta property="og:image" content="{{OG_IMAGE}}">
+<meta property="twitter:card" content="summary_large_image">
+<meta property="twitter:title" content="{{TITLE}}">
+<meta property="twitter:description" content="{{DESCRIPTION}}">
+<meta property="twitter:image" content="{{OG_IMAGE}}">
+<link rel="icon" type="image/svg+xml" href="/assets/dino.svg">
+<link rel="stylesheet" href="/assets/site.css">
+{{ANALYTICS}}
+</head>
+<body>
+<nav class="sidebar">
+  <div class="nav-icon active" title="Home">🏠</div>
+</nav>
+
+<main class="main-content">
+  <header>
+    <div class="logo">NEON</div>
+    <div class="wallet-pill"><span class="coin">💰</span><span id="coinDisplay">0</span></div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-pattern"></div>
+    <div class="hero-text">
+      <p style="color:#fff;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Weekly Top Pick</p>
+      <h1>{{FEATURED_TITLE}}</h1>
+      <p>{{FEATURED_TAGLINE}}</p>
+      <a class="play-btn" href="{{FEATURED_URL}}">PLAY NOW</a>
+    </div>
+  </section>
+
+  <div class="grid-header"><span>🔥</span> All Games</div>
+
+  <div class="game-grid" id="gameGrid">
+{{CARDS}}
+  </div>
+
+  <section class="site-copy">
+    <p>Welcome to Neon Arcade, a small studio publishing original <b>HTML5 games</b> you can play
+    straight in your browser. Every game here is built in-house — no downloads, no sign-up, no installs.
+    All titles are <b>mobile compatible</b> with responsive touch controls, so they run on phones,
+    tablets and desktops alike.</p>
+    <h2>Our Game Collection</h2>
+    <ul>
+{{GAME_LIST}}
+    </ul>
+  </section>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Neon Arcade. All rights reserved.</p>
+    <p><a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy Policy</a></p>
+  </footer>
+</main>
+
+<div class="modal-overlay" id="modal">
+  <div class="player-layout">
+    <div class="game-container">
+      <div class="game-frame-wrapper">
+        <iframe id="gameFrame" src="" title="Game player" style="width:100%;height:100%;border:none;"></iframe>
+      </div>
+      <div class="game-controls">
+        <div class="game-title-bar" id="playerTitle">Game</div>
+        <button class="close-btn-player" onclick="closeModal()">EXIT GAME</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>
