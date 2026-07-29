@@ -1,0 +1,164 @@
+[
+  {
+    "slug": "dino-jump",
+    "title": "Dino Jump",
+    "tagline": "A high-speed endless runner with power-ups and a shop.",
+    "description": "Run, jump and dodge obstacles in this neon endless runner. Collect coins, unlock power-ups in the shop and push for your best distance.",
+    "tag": "Runner",
+    "controls": { "keyboard": "Space or Up Arrow to jump", "touch": "Tap anywhere to jump" },
+    "howToPlay": [
+      "Press Space or tap the screen to jump over incoming obstacles.",
+      "Collect coins while you run to spend in the shop.",
+      "The longer you survive, the faster the game gets."
+    ],
+    "tips": ["Save coins for the shield power-up before pushing for a long run."],
+    "releasedAt": "2026-02-18",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "space-shooter",
+    "title": "Space Shooter",
+    "tagline": "Classic bullet-hell action with retro vibes.",
+    "description": "Pilot a neon starfighter through waves of enemies. Dodge incoming fire, upgrade your weapons and survive as long as you can in this retro shooter.",
+    "tag": "Action",
+    "controls": { "keyboard": "Arrow keys to move, Space to fire", "touch": "Drag to move, auto-fire enabled" },
+    "howToPlay": [
+      "Move your ship to dodge enemy fire.",
+      "Destroy enemies to raise your score and earn upgrades.",
+      "Enemy waves get denser as the game progresses."
+    ],
+    "tips": ["Stay near the bottom of the screen for more reaction time."],
+    "releasedAt": "2026-02-18",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "neon-dodge",
+    "title": "Neon Dodge",
+    "tagline": "Test your survival instincts in fast obstacle avoidance.",
+    "description": "Survive as long as you can in an arena filling with hazards. Read the patterns, weave through the gaps and beat your personal best time.",
+    "tag": "Survival",
+    "controls": { "keyboard": "Arrow keys or WASD to move", "touch": "Drag to move your marker" },
+    "howToPlay": [
+      "Move your marker to avoid every incoming hazard.",
+      "Your score is the time you survive.",
+      "Hazards spawn faster the longer you last."
+    ],
+    "tips": ["Keep to the centre of the arena so you have escape routes on both sides."],
+    "releasedAt": "2026-02-18",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "cyber-snake",
+    "title": "Cyber Snake",
+    "tagline": "The timeless classic reborn with a cybernetic skin.",
+    "description": "Guide a growing neon snake around the grid, eat data nodes and avoid crashing into your own tail in this smooth take on the arcade classic.",
+    "tag": "Classic",
+    "controls": { "keyboard": "Arrow keys or WASD to turn", "touch": "Swipe in the direction you want to turn" },
+    "howToPlay": [
+      "Steer the snake to eat the glowing nodes.",
+      "Every node makes the snake longer.",
+      "Hitting a wall or your own tail ends the run."
+    ],
+    "tips": ["Plan a loop around the outside before the snake gets long."],
+    "releasedAt": "2026-02-18",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "neon-breaker",
+    "title": "Neon Breaker",
+    "tagline": "A strategic brick-breaker built on physics and precision.",
+    "description": "Bounce the ball off your paddle to clear every neon brick. Angle your shots carefully, chain rebounds and clear the board without losing the ball.",
+    "tag": "Puzzle",
+    "controls": { "keyboard": "Left and Right arrows to move the paddle", "touch": "Drag left and right to move the paddle" },
+    "howToPlay": [
+      "Move the paddle to keep the ball in play.",
+      "Destroy every brick to clear the board.",
+      "The ball angle depends on where it hits the paddle."
+    ],
+    "tips": ["Hit the ball with the paddle edge for sharp angles into corner bricks."],
+    "releasedAt": "2026-02-18",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "cyber-memory",
+    "title": "Cyber Memory",
+    "tagline": "Match holographic data fragments and build combos.",
+    "description": "Flip holographic tiles to find matching pairs. Build combos for bonus points and unlock larger grids as your memory sharpens in this brain trainer.",
+    "tag": "Brain",
+    "controls": { "keyboard": "Not required", "touch": "Tap a tile to flip it" },
+    "howToPlay": [
+      "Tap two tiles to reveal them.",
+      "Matching tiles stay face up and score points.",
+      "Consecutive matches build a combo multiplier."
+    ],
+    "tips": ["Clear the outer edges first so the remaining tiles are easier to track."],
+    "releasedAt": "2026-02-18",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "data-fall",
+    "title": "Data Fall",
+    "tagline": "Solve equations to shoot lasers at falling numbers.",
+    "description": "Defend the system from falling data. Solve each equation before it reaches the floor and fire your laser to destroy the numbers in this math arcade game.",
+    "tag": "Math",
+    "controls": { "keyboard": "Number keys to answer, Enter to fire", "touch": "Tap the on-screen keypad" },
+    "howToPlay": [
+      "Read the equation attached to each falling block.",
+      "Type the answer and fire to destroy it.",
+      "Blocks that reach the floor damage the system."
+    ],
+    "tips": ["Target the lowest block first, not the easiest one."],
+    "releasedAt": "2026-02-18",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "synaptic-grid",
+    "title": "Synaptic Grid",
+    "tagline": "Follow the rhythm and repeat the light patterns.",
+    "description": "Watch the grid light up, then repeat the sequence in order. Each round adds a step in this musical memory challenge that tests focus and timing.",
+    "tag": "Focus",
+    "controls": { "keyboard": "Not required", "touch": "Tap the tiles in the order they lit up" },
+    "howToPlay": [
+      "Watch the sequence of lit tiles.",
+      "Repeat the sequence by tapping the tiles in the same order.",
+      "Each successful round adds one more step."
+    ],
+    "tips": ["Say the pattern out loud — audio memory holds longer sequences than visual memory."],
+    "releasedAt": "2026-02-18",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "neon-rise",
+    "title": "Neon Rise",
+    "tagline": "Climb through the clouds in a procedural platformer.",
+    "description": "Jump from platform to platform and climb as high as you can. Every run generates a new tower, so no two climbs are the same in this endless platformer.",
+    "tag": "Endless",
+    "controls": { "keyboard": "Left and Right arrows to steer", "touch": "Tilt or drag to steer while jumping" },
+    "howToPlay": [
+      "Your character jumps automatically on landing.",
+      "Steer left and right to land on the next platform.",
+      "Falling off the bottom of the screen ends the run."
+    ],
+    "tips": ["Small corrections beat large ones — overshooting is the most common way to fall."],
+    "releasedAt": "2026-02-18",
+    "status": "published",
+    "featured": true,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  }
+]
