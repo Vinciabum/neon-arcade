@@ -1,24 +1,62 @@
-# Neon Arcade (Side Project)
+# Neon Arcade
 
-A collection of 6 polished HTML5 mini-games built with vanilla JavaScript and CSS visuals.
+Original HTML5 games, published at **[just1game.com](https://just1game.com)**.
+Every game is built in-house with vanilla JavaScript and HTML5 Canvas.
 
-## Games Included
-1.  **Dino Jump**: A neon-themed infinite runner.
-2.  **Space Shooter**: A vertical scrolling shooter with upgrades.
-3.  **Neon Dodge**: A top-down survival game.
-4.  **Cyber Snake**: Classic Snake on a grid with power-ups.
-5.  **Neon Breaker**: A breakout-style block breaker.
-6.  **Neon Rise**: A vertical platform jumper.
+## Structure
 
-## Features
--   **Poki-style Portal**: Main `index.html` hub with modal game player.
--   **Mobile Friendly**: Support for touch controls across all games.
--   **Local Progression**: Save system for scores and shop upgrades using `localStorage`.
--   **Ad Integration**: Responsive ad placeholders for monetization.
+| Path | Purpose |
+|---|---|
+| `games.json` | Single source of truth for all game metadata |
+| `play/<slug>.html` | The game itself (self-contained, `noindex`) |
+| `templates/` | Page templates |
+| `build.js` | Static site generator + validation gates |
+| `tools/` | Path rules, validation, rendering, thumbnail capture |
+| `assets/thumbs/` | Generated WebP thumbnails |
 
-## How to Play
-Simply open `index.html` in your browser. No server required.
+Everything else at the repo root is **generated** — do not edit by hand.
 
-## Credits
--   Assets: [Tiny RPG Character Asset Pack](https://shubibubi.itch.io/tiny-rpg) (Soldier & Orc)
--   Icons: Emoji & CSS Graphics
+## Adding a game
+
+1. Drop the self-contained game at `play/<slug>.html`
+2. Add an entry to `games.json`
+3. `npm run shoot -- <slug>` to capture the thumbnail
+4. `npm run build`
+5. Commit and push — GitHub Actions deploys
+
+The build **fails** if a thumbnail is missing, a slug is duplicated, a file is
+oversized, a required field is absent, or authoring comments leaked into the output.
+This is deliberate: each of those checks exists because that exact mistake shipped
+to production once.
+
+## Commands
+
+```bash
+npm install
+npx playwright install chromium
+npm test          # validation and render tests
+npm run build     # generate the site
+npm run shoot     # regenerate all thumbnails from live gameplay
+```
+
+## Games
+
+Nine games are published. `games.json` is the authoritative list.
+
+## Third-party assets
+
+Most art is generated in code (SVG, canvas drawing). These raster sprites came from
+downloaded asset packs and are still in use:
+
+| File | Used by | Origin |
+|---|---|---|
+| `assets/soldier_idle.png`, `assets/orc_walk.png` | Neon Dodge | itch.io [Tiny RPG Character Asset Pack](https://shubibubi.itch.io/tiny-rpg) |
+| `assets/dino/png/1x/raptor-*` (9 files) | Dino Jump | itch.io raptor sprite pack |
+| `assets/wood_bridge.png`, `assets/egg_item.png` | Cyber Snake, Neon Rise | itch.io Sprout Lands pack |
+
+**Licence status: unverified.** These packs must be confirmed to permit commercial
+use before the site carries advertising or the games are submitted to a game portal.
+If a licence does not permit it, replace the sprite or set that game to
+`"status": "draft"` in `games.json`.
+
+Icons: emoji and CSS graphics.
