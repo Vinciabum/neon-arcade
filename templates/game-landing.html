@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}} — Play Free Online | Neon Arcade</title>
+<meta name="description" content="{{DESCRIPTION}}">
+<link rel="canonical" href="{{CANONICAL}}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{CANONICAL}}">
+<meta property="og:title" content="{{TITLE}} — Play Free Online">
+<meta property="og:description" content="{{DESCRIPTION}}">
+<meta property="og:image" content="{{OG_IMAGE}}">
+<meta property="twitter:card" content="summary_large_image">
+<meta property="twitter:title" content="{{TITLE}} — Play Free Online">
+<meta property="twitter:description" content="{{DESCRIPTION}}">
+<meta property="twitter:image" content="{{OG_IMAGE}}">
+<link rel="icon" type="image/svg+xml" href="/assets/dino.svg">
+<link rel="stylesheet" href="/assets/site.css">
+<script type="application/ld+json">{{JSONLD}}</script>
+{{ANALYTICS}}
+</head>
+<body>
+<main class="main-content landing">
+  <header>
+    <div class="logo"><a href="/">NEON</a></div>
+  </header>
+
+  <nav class="breadcrumb"><a href="/">Home</a> › <span>{{TITLE}}</span></nav>
+
+  <h1>{{TITLE}}</h1>
+  <p class="lede">{{TAGLINE}}</p>
+
+  <div class="landing-frame">
+    <iframe src="{{GAME_SRC}}" title="{{TITLE}}" loading="lazy"
+            style="width:100%;height:100%;border:none;"></iframe>
+  </div>
+
+  <section class="landing-body">
+    <h2>How to Play {{TITLE}}</h2>
+    <ul>
+{{HOW_TO_PLAY}}
+    </ul>
+
+    <h2>Controls</h2>
+    <table class="controls-table">
+      <tr><th>Keyboard</th><td>{{CONTROLS_KEYBOARD}}</td></tr>
+      <tr><th>Touch</th><td>{{CONTROLS_TOUCH}}</td></tr>
+    </table>
+
+{{TIPS_BLOCK}}
+    <h2>About {{TITLE}}</h2>
+    <p>{{DESCRIPTION}} It runs directly in your browser with no download or sign-up,
+    on desktop and mobile alike.</p>
+  </section>
+
+  <section class="more-games">
+    <h2>More Games</h2>
+    <div class="game-grid">
+{{RELATED_CARDS}}
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Neon Arcade. All rights reserved.</p>
+    <p><a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy Policy</a></p>
+  </footer>
+</main>
+</body>
+</html>
