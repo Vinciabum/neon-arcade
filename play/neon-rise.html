@@ -90,6 +90,7 @@
         </div>
     </div>
     <div id="assets-preload" style="display:none;"></div>
+    <script src="../assets/game_juice.js"></script>
     <script>
         const c = document.getElementById('c');
         const ctx = c.getContext('2d');
@@ -196,20 +197,21 @@
 
             // Platform Collision (only when falling)
             if (player.vy > 0) {
-                if (
-                    player.x + player.w > p.x &&
-                    player.x < p.x + p.w &&
-                    player.y + player.h > p.y &&
-                    player.y + player.h < p.y + p.h + 15 // Tolerance
-                ) {
-                    player.vy = -12; // JUMP
-                    GameJuice.playSound('jump');
-                    createExplosion(player.x + player.w / 2, player.y + player.h, '#0ff');
-                }
-            });
-        }
+                platforms.forEach(p => {
+                    if (
+                        player.x + player.w > p.x &&
+                        player.x < p.x + p.w &&
+                        player.y + player.h > p.y &&
+                        player.y + player.h < p.y + p.h + 15 // Tolerance
+                    ) {
+                        player.vy = -12; // JUMP
+                        GameJuice.playSound('jump');
+                        createExplosion(player.x + player.w / 2, player.y + player.h, '#0ff');
+                    }
+                });
+            }
 
-        // Cleanup & Spawn Platforms
+            // Cleanup & Spawn Platforms
         platforms.forEach((p, i) => {
             if (p.y > h) {
                 platforms.splice(i, 1);
