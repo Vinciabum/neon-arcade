@@ -212,3 +212,37 @@ test('구간 붕괴는 NaN 가드에 가려지지 않는다', () => {
   r.fpsWindows = [58, 12, 57];
   assert.ok(checkPlay(r).errors.some(e => e.includes('fps collapsed to 12')));
 });
+
+const okLegacy = () => ({
+  label: 'dino-jump',
+  mode: 'legacy',
+  avgFps: 57,
+  fpsWindows: [58, 57, 56],
+  heap: { start: 10_000_000, end: 14_000_000 },
+  legacyDiff: 21.4
+});
+
+test('휴리스틱 모드: 화면이 반응하면 통과하고 나머지는 보류한다', () => {
+  const { errors, skipped } = checkPlay(okLegacy());
+  assert.deepEqual(errors, []);
+  assert.equal(skipped.length, 1);
+  assert.ok(skipped[0].includes('no window.__GAME__ contract'));
+});
+
+test('휴리스틱 모드: 화면이 반응하지 않으면 실패한다', () => {
+  const r = okLegacy();
+  r.legacyDiff = 1.2;
+  assert.ok(checkPlay(r).errors.some(e => e.includes('no progress')));
+});
+
+test('휴리스틱 모드에서도 FPS는 실패로 잡는다', () => {
+  const r = okLegacy();
+  r.avgFps = 22;
+  r.fpsWindows = [24, 22, 20];
+  assert.ok(checkPlay(r).errors.some(e => e.includes('average fps')));
+});
+
+test('휴리스틱 모드는 계약 항목 부재를 실패로 만들지 않는다', () => {
+  const r = okLegacy();          // scoreSamples / idle / restart 전부 없음
+  assert.deepEqual(checkPlay(r).errors, []);
+});
