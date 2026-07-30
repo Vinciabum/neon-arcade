@@ -179,10 +179,28 @@ document.addEventListener('visibilitychange', () => {
                 입력을 주지 않으면 반드시 몇 초 안에 죽어야 한다 (게이트 2 방치 종결)
      draw()   : 캔버스를 그린다. 단색 화면이면 게이트 1이 막는다
    ============================================================ */
-const player = { x: 0.5, w: 34, h: 14, speed: 0.55 };
+const player = { x: 0.5, speed: 0.55 };   // 크기는 M()이 화면 높이에서 파생한다
 let blocks = [];
 let spawnIn = 0;
 let fallSpeed = 0;
+
+// 스프라이트·판정·격자 크기를 한 곳에서 화면 높이로부터 파생한다.
+// 픽셀 상수로 두면 큰 화면에서 그림이 먼지처럼 작아진다(4K에서 게이트1 분산이 1.5까지 떨어졌다).
+// 그리기와 판정이 같은 값을 쓰므로 보이는 것과 맞는 판정이 보장된다.
+// 괄호 안 값은 높이 760px에서의 픽셀 크기 — 기존 모습을 그대로 유지하는 기준점이다.
+function M() {
+  return {
+    grid: H / 18,                     // 배경 격자 간격 (42px)
+    line: Math.max(0.75, H / 760),    // 격자 선 두께 (1px). 두께까지 상대값이어야 한다 —
+                                      // 4K에서 1px 실선은 머리카락이 되어 사실상 사라진다
+    half: H * 0.017,                  // 블록 반변 (13px)
+    glowB: H * 0.0184,                // 블록 글로우 반경 (14px)
+    glowP: H * 0.0237,                // 플레이어 글로우 반경 (18px)
+    pw: H * 0.045,                    // 플레이어 폭 (34px)
+    ph: H * 0.0185,                   // 플레이어 높이 (14px)
+    py: H * 0.955                     // 플레이어 상단 y (H-34)
+  };
+}
 
 function reset() {
   player.x = 0.5;
@@ -208,40 +226,41 @@ function step(dt) {
     fallSpeed = Math.min(0.72, fallSpeed + 0.01);
   }
 
-  const py = H - 34;
+  const m = M();
   for (const b of blocks) {
     b.y += fallSpeed * dt;
     const bx = b.x * W, by = b.y * H;
-    const hit = by + 13 > py && by - 13 < py + player.h &&
-                Math.abs(bx - player.x * W) < player.w / 2 + 13;
+    const hit = by + m.half > m.py && by - m.half < m.py + m.ph &&
+                Math.abs(bx - player.x * W) < m.pw / 2 + m.half;
     if (hit) { gameOver(); return; }
-    if (!b.scored && by > py + player.h) { b.scored = true; score++; beep(880, 40); }
+    if (!b.scored && by > m.py + m.ph) { b.scored = true; score++; beep(880, 40); }
   }
   blocks = blocks.filter(b => b.y < 1.3);
 }
 
 function draw() {
+  const m = M();
   ctx.fillStyle = '#070912';
   ctx.fillRect(0, 0, W, H);
 
   // 배경 그리드 — 화면이 비지 않게 하고 속도감을 준다
   ctx.strokeStyle = 'rgba(0,229,255,.10)';
-  ctx.lineWidth = 1;
-  const off = (tick * 1.6) % 40;
-  for (let y = off; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  ctx.lineWidth = m.line;
+  const off = (tick * 1.6) % m.grid;
+  for (let y = off; y < H; y += m.grid) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  for (let x = 0; x < W; x += m.grid) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
 
   for (const b of blocks) {
     ctx.fillStyle = '#ff2e88';
     ctx.shadowColor = '#ff2e88';
-    ctx.shadowBlur = 14;
-    ctx.fillRect(b.x * W - 13, b.y * H - 13, 26, 26);
+    ctx.shadowBlur = m.glowB;
+    ctx.fillRect(b.x * W - m.half, b.y * H - m.half, m.half * 2, m.half * 2);
   }
 
   ctx.fillStyle = '#00e5ff';
   ctx.shadowColor = '#00e5ff';
-  ctx.shadowBlur = 18;
-  ctx.fillRect(player.x * W - player.w / 2, H - 34, player.w, player.h);
+  ctx.shadowBlur = m.glowP;
+  ctx.fillRect(player.x * W - m.pw / 2, m.py, m.pw, m.ph);
   ctx.shadowBlur = 0;
 }
 /* ===== GAME LOGIC 끝 ===== */
