@@ -38,6 +38,11 @@ const PAGE_OP_MS = 15_000;
 
 // 반응성 프레임을 몇 ms마다 찍을지. 입력 단계 8초에서 약 4장이 모인다.
 const REACT_EVERY_MS = 2_000;
+
+// 게이트 1의 픽셀 표본. 700ms부터 500ms 간격으로 5장 = 2.7초 구간을 덮는다.
+const GATE1_FIRST_MS = 700;
+const GATE1_EVERY_MS = 500;
+const GATE1_SAMPLES = 5;
 const heapPrecise = true;   // HEAP_ARGS로 launch하므로 요청은 항상 이뤄진다
 
 // 키 순서는 고정이지만 재생 가능한 실행은 아니다: 누르는 시점·dt·'over'일 때 재시작하는 분기가
@@ -116,10 +121,7 @@ async function collectTechOn(page, target) {
     return true;
   });
   if (!contract) await triggerStart(page);
-  // 900ms에는 화면에 오브젝트가 거의 없어 motion이 임계값에 걸린다.
-  // 실측(390x844): 900ms에서 2.0, 3초에서 4.7 — 게임이 실제로 붐비는 시점에 찍는다.
-  // 주의: 입력 없이 2.6초 안에 끝나는 게임은 게임오버 화면에서 찍힌다 (covered가 잡는다).
-  await page.waitForTimeout(2200);
+  await page.waitForTimeout(GATE1_FIRST_MS);
 
   const dom = await page.evaluate(() => {
     const c = document.querySelector('canvas');
@@ -142,15 +144,53 @@ async function collectTechOn(page, target) {
     };
   });
 
-  // 캔버스를 두 장 찍는다. 한 장의 분산만 보면 파티클·스타필드가 빈 화면으로 오판된다.
+  // 한 시점에 고정해서 찍으면 어느 값을 골라도 틀린다: 900ms에는 화면에 오브젝트가 거의 없어
+  // motion이 임계값에 걸리고, 2200ms에는 입력 없이 빨리 끝나는 게임이 게임오버 화면에서 찍힌다
+  // (실측: 9개 중 4개). "지금 그리고 있나"가 아니라 "한 번이라도 그렸나"를 본다.
   const shotTarget = dom.found ? page.locator('canvas').first() : page;
-  const shotA = await shotTarget.screenshot().catch(() => null);
-  await page.waitForTimeout(400);
-  const shotB = await shotTarget.screenshot().catch(() => null);
-  const shot = shotB ?? shotA;
+  const shots = [];
+  const coveredSamples = [dom.covered];
+  const stateSamples = [dom.state];
+  for (let i = 0; i < GATE1_SAMPLES; i++) {
+    if (i > 0) {
+      await page.waitForTimeout(GATE1_EVERY_MS);
+      const s = await page.evaluate(() => {
+        const c = document.querySelector('canvas');
+        const r = c?.getBoundingClientRect();
+        const top = r ? document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)) : null;
+        return {
+          covered: !!c && !!top && top !== c && !c.contains(top),
+          state: window.__GAME__ ? window.__GAME__.state : null
+        };
+      });
+      coveredSamples.push(s.covered);
+      stateSamples.push(s.state);
+    }
+    shots.push(await shotTarget.screenshot().catch(() => null));
+  }
+
+  const good = shots.filter(Boolean);
   // 촬영이 실패하면 0이 아니라 null로 둔다. 0으로 두면 "측정 못 했다"가 "빈 화면이다"로
   // 바뀌어 게임이 억울하게 실패한다.
-  const captureFailed = !shotA || !shotB;
+  const captureFailed = good.length < 2;
+
+  // 분산은 표본 중 최대. 한 장이라도 제대로 그려졌으면 빈 화면이 아니다.
+  let maxVariance = null;
+  for (const s of good) {
+    const v = await variance(s);
+    if (maxVariance === null || v > maxVariance) maxVariance = v;
+  }
+  // 움직임도 연속 표본 쌍 중 최대. 한 번이라도 변했으면 정지 화면이 아니다.
+  let maxMotion = null;
+  for (let i = 1; i < shots.length; i++) {
+    if (!shots[i - 1] || !shots[i]) continue;
+    const d = await diff(shots[i - 1], shots[i]);
+    if (maxMotion === null || d > maxMotion) maxMotion = d;
+  }
+
+  // 모든 표본에서 덮여 있었을 때만 covered로 본다 — 걷힌 오버레이나 늦게 끝난 게임을
+  // 게이트 1 실패로 만들면 안 된다.
+  const covered = coveredSamples.every(Boolean);
 
   const report = {
     label: target.label,
@@ -160,14 +200,17 @@ async function collectTechOn(page, target) {
     failedRequests,
     canvas: {
       found: dom.found,
-      covered: dom.covered,
-      state: dom.state,
+      covered,
+      // 표본별 시리즈는 진단용이다 — 실패했을 때 왜인지 설명할 수 있어야 한다.
+      coveredSamples,
+      state: dom.state,          // 첫 표본 시점의 상태
+      stateSamples,
       cssWidth: dom.cssWidth,
       cssHeight: dom.cssHeight,
       inView: dom.inView,
       captureFailed,
-      variance: shot ? Number((await variance(shot)).toFixed(1)) : null,
-      motion: shotA && shotB ? Number((await diff(shotA, shotB)).toFixed(1)) : null
+      variance: maxVariance === null ? null : Number(maxVariance.toFixed(1)),
+      motion: maxMotion === null ? null : Number(maxMotion.toFixed(1))
     },
     // 게이트가 보는 목록은 Playwright가 손대기 전의 스냅샷이다.
     listeners,
