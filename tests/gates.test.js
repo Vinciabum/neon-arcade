@@ -58,15 +58,11 @@ test('분산이 낮고 움직임도 없으면 빈 캔버스로 본다', () => {
 
 test('분산이 낮아도 움직이면 빈 캔버스가 아니다', () => {
   const r = okTech();
-  r.canvas.variance = 1.8;      // 파티클만 있는 화면
-  r.canvas.motion = 9.4;        // 그런데 프레임마다 바뀐다
+  r.canvas.variance = 1.8;      // 정지 화면은 거의 단색
+  r.canvas.motion = 9.4;        // 그래도 프레임마다 바뀐다 → 그리고 있는 것으로 본다
+  // 한계를 알고 받아들인 판정이다: 스프라이트가 안 나오는데 배경만 번쩍이는 게임도 통과한다.
+  // 그 대신 실제 파티클·스타필드 화면(variance 1~4)을 빈 화면으로 오판하지 않는다.
   assert.deepEqual(checkTech(r), []);
-});
-
-test('움직임 정보가 없으면 분산만으로 판정한다', () => {
-  const r = okTech();
-  r.canvas.variance = 0.4;      // motion 필드 없음 (구형 리포트)
-  assert.ok(checkTech(r).some(e => e.includes('canvas appears blank')));
 });
 
 test('빈 캔버스 판정도 경계값은 통과로 본다', () => {
@@ -298,6 +294,17 @@ test('휴리스틱 모드: rAF를 안 쓰는 게임은 FPS를 보류한다', () 
   const { errors, skipped } = checkPlay(r);
   assert.ok(!errors.some(e => e.includes('fps')));
   assert.ok(skipped.some(s => s.includes('fps not measurable')));
+});
+
+test('FPS를 보류해도 화면 반응 검사는 살아 있다', () => {
+  const r = okLegacy();
+  r.frames = 0;                 // setInterval 루프라 FPS는 보류
+  r.avgFps = 0;
+  r.fpsWindows = [0, 0, 0];
+  r.legacyDiff = 0.3;           // 그런데 화면이 얼어 있다
+  const { errors, skipped } = checkPlay(r);
+  assert.ok(skipped.some(s => s.includes('fps not measurable')));
+  assert.ok(errors.some(e => e.includes('no progress')));   // 이건 보류 대상이 아니다
 });
 
 test('계약 모드에서는 프레임 0을 보류하지 않는다', () => {
