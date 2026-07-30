@@ -280,7 +280,7 @@ const okLegacy = () => ({
   avgFps: 57,
   fpsWindows: [58, 57, 56],
   heap: { start: 10_000_000, end: 14_000_000 },
-  legacyDiff: 21.4
+  reactMax: 0.2109   // 실측: dino-jump
 });
 
 test('휴리스틱 모드: 화면이 반응하면 통과하고 나머지는 보류한다', () => {
@@ -292,20 +292,28 @@ test('휴리스틱 모드: 화면이 반응하면 통과하고 나머지는 보�
 
 test('휴리스틱 모드: 화면이 반응하지 않으면 실패한다', () => {
   const r = okLegacy();
-  r.legacyDiff = 1.2;
+  r.reactMax = 0;                     // 실측: 정지 페이지(frozen control) — 입력을 무시한다
   assert.ok(checkPlay(r).errors.some(e => e.includes('no progress')));
 });
 
-test('휴리스틱 모드: legacyDiff 경계는 통과로 본다', () => {
+test('휴리스틱 모드: reactMax 경계는 통과로 본다', () => {
   const r = okLegacy();
-  r.legacyDiff = 6;                   // MIN_LEGACY_DIFF와 같으면 통과
+  r.reactMax = 0.002;                 // MIN_LEGACY_REACT와 같으면 통과
   assert.deepEqual(checkPlay(r).errors, []);
 });
 
-test('휴리스틱 모드: legacyDiff가 없으면 통과시키지 않는다', () => {
+test('휴리스틱 모드: 실측 최저 반응 게임(neon-rise)도 통과한다', () => {
   const r = okLegacy();
-  delete r.legacyDiff;                // 수집 실패를 통과로 만들면 게이트가 죽는다
-  assert.ok(checkPlay(r).errors.some(e => e.includes('no progress')));
+  r.reactMax = 0.0055;                // 실측: neon-rise — 900x600의 0.07%(24px 스프라이트)가 움직인다
+  assert.deepEqual(checkPlay(r).errors, []);
+});
+
+test('휴리스틱 모드: reactMax가 없으면 반응성 판정을 보류한다', () => {
+  const r = okLegacy();
+  delete r.reactMax;                  // 수집 실패 — 실패로 단정하지 않고 보류한다
+  const { errors, skipped } = checkPlay(r);
+  assert.ok(!errors.some(e => e.includes('no progress')));
+  assert.ok(skipped.some(s => s.includes('reactivity not measured')));
 });
 
 test('휴리스틱 모드에서도 FPS는 실패로 잡는다', () => {
@@ -337,7 +345,7 @@ test('FPS를 보류해도 화면 반응 검사는 살아 있다', () => {
   r.frames = 0;                 // setInterval 루프라 FPS는 보류
   r.avgFps = 0;
   r.fpsWindows = [0, 0, 0];
-  r.legacyDiff = 0.3;           // 그런데 화면이 얼어 있다
+  r.reactMax = 0.0005;          // 그런데 화면이 얼어 있다 (MIN_LEGACY_REACT 미만)
   const { errors, skipped } = checkPlay(r);
   assert.ok(skipped.some(s => s.includes('fps not measurable')));
   assert.ok(errors.some(e => e.includes('no progress')));   // 이건 보류 대상이 아니다

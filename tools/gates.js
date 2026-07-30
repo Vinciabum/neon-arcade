@@ -63,7 +63,10 @@ export const PLAY = {
   MIN_AVG_FPS: 50,          // 60fps 목표에서 프레임 드랍 여유 10. 이 밑은 조작이 눌리는 느낌이 난다
   MIN_WINDOW_FPS: 30,       // 평균이 괜찮아도 특정 구간에서 30 밑으로 떨어지면 체감은 "멈췄다"
   MAX_HEAP_RATIO: 2.5,      // 60초 플레이로 힙이 2.5배면 오브젝트를 회수하지 않는다는 뜻
-  MIN_LEGACY_DIFF: 6,       // 휴리스틱 모드에서 "화면이 반응했다"로 볼 평균 픽셀차
+  MIN_LEGACY_REACT: 0.002,  // 변화 픽셀 비율. 정지 페이지 0.0000 vs 실제 반응하는 최저 게임 0.0055
+                             // (neon-rise, 24px 스프라이트 = 화면의 0.07%) — 약 2.75배 여유.
+                             // 평균 절대차(구 MIN_LEGACY_DIFF=6)는 면적에 희석돼 정상 게임을
+                             // 0.6으로 읽었다. 그래서 "얼마나 달라졌나" 대신 "몇 개가 달라졌나"를 쓴다.
   MIN_MEAN_SURVIVAL_MS: 3000,  // 평균 생존 3초 미만이면 사람이 플레이할 수 없다.
                                 // 입력 단계에서 죽은 횟수로 나눠 구한다 (수집기가 죽으면 즉시 재시작한다)
   MIN_DEATHS_TO_JUDGE: 2        // 죽음이 0~1번이면 평균을 추정할 신호가 부족하다. 진짜 즉사 게임은
@@ -112,8 +115,12 @@ export function checkPlay(r) {
 
   if (r.mode === 'legacy') {
     // 계약이 없는 기존 게임. 화면 반응만 실패로 보고, 나머지는 판정 보류한다.
-    if ((r.legacyDiff ?? 0) < PLAY.MIN_LEGACY_DIFF) {
-      errors.push(`${at}: no progress — screen did not react to input (diff ${r.legacyDiff ?? 0})`);
+    // reactMax는 키보드 패스와 포인터 패스의 최대값이다 — 게임마다 입력 수단이 달라서
+    // 한 채널만으로는 판정할 수 없다 (실측: cyber-memory는 탭에만, synaptic-grid는 키에만 반응).
+    if (typeof r.reactMax !== 'number') {
+      skipped.push(`${at}: reactivity not measured — collector reported no reactMax`);
+    } else if (r.reactMax < PLAY.MIN_LEGACY_REACT) {
+      errors.push(`${at}: no progress — screen did not react to input (changed ${(r.reactMax * 100).toFixed(2)}% of pixels, need ${(PLAY.MIN_LEGACY_REACT * 100).toFixed(2)}%)`);
     }
     skipped.push(`${at}: termination, idle-end and restart not checked — no window.__GAME__ contract`);
     return { errors, skipped };
