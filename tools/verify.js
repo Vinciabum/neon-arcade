@@ -387,23 +387,48 @@ async function collectPlayOn(page, target, T) {
 
   // --- FPS: 프로브 프레임 카운터를 구간별로 환산 ---
   // 게이트가 보는 avgFps는 '입력 단계'만이다. 플레이어가 실제로 겪는 구간이 그곳이다.
-  const fps = (a, b) => Number((((b.frames - a.frames) / (b.t - a.t)) * 1000).toFixed(1));
-  const first = inputMarks[0], last = inputMarks[inputMarks.length - 1];
-  const avgFps = fps(first, last);
+  //
+  // 프레임 카운터는 페이지가 다시 로드되면 0으로 돌아간다 — 레거시 게임의 재시작이 리로드일 수
+  // 있고, 그러면 프로브 자체가 새로 주입된다. 감소한 구간은 리셋 경계이므로 버린다.
+  // 실측: 그 처리를 안 했을 때 dino-jump의 한 구간이 -134.9fps로 나왔다. 음수 fps는
+  // Number.isFinite를 통과하므로 게이트가 걸러주지 못한다 — 여기서 만들지 않는 것이 유일한 방어다.
+  const spans = (marks) => {
+    const out = [];
+    for (let i = 1; i < marks.length; i++) {
+      const df = marks[i].frames - marks[i - 1].frames;
+      const dt = marks[i].t - marks[i - 1].t;
+      if (df >= 0 && dt > 0) out.push({ df, dt });
+    }
+    return out;
+  };
+  const rate = (list) => {
+    const df = list.reduce((a, s) => a + s.df, 0);
+    const dt = list.reduce((a, s) => a + s.dt, 0);
+    return dt > 0 ? Number(((df / dt) * 1000).toFixed(1)) : NaN;
+  };
 
+  const inputSpans = spans(inputMarks);
+  const avgFps = rate(inputSpans);
+
+  // 구간(window)도 리셋을 건너뛰며 누적한다.
   const fpsWindows = [];
-  let anchor = first;
-  for (const m of inputMarks) {
-    if (m.t - anchor.t >= T.windowMs) {
-      fpsWindows.push(fps(anchor, m));
-      anchor = m;
+  let bucket = [];
+  let bucketMs = 0;
+  for (const s of inputSpans) {
+    bucket.push(s);
+    bucketMs += s.dt;
+    if (bucketMs >= T.windowMs) {
+      fpsWindows.push(rate(bucket));
+      bucket = [];
+      bucketMs = 0;
     }
   }
   // 꼬리 구간도 1초 이상이면 보고한다 — 마지막 몇 초의 스톨이 안 보이면 의미가 없다.
-  if (last.t - anchor.t >= 1000) fpsWindows.push(fps(anchor, last));
+  if (bucketMs >= 1000) fpsWindows.push(rate(bucket));
 
-  const idleFirst = idleMarks[0], idleLast = idleMarks[idleMarks.length - 1];
-  const idleFps = idleMarks.length > 1 ? fps(idleFirst, idleLast) : null;
+  const idleLast = idleMarks[idleMarks.length - 1];
+  const idleSpans = spans(idleMarks);
+  const idleFps = idleSpans.length ? rate(idleSpans) : null;
 
   return {
     label: target.label, mode, api,
