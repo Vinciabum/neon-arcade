@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkTech } from '../tools/gates.js';
+import { checkTech, checkPlay } from '../tools/gates.js';
 
 // 게이트 1을 통과하는 기준 리포트. 각 테스트는 여기서 한 가지만 망가뜨린다.
 const okTech = () => ({
@@ -103,4 +103,74 @@ test('에러 목록이 길면 3개만 보여주고 남은 수를 알린다', () 
   assert.ok(msg.includes('e1 | e2 | e3'));
   assert.ok(msg.includes('(+2 more)'));
   assert.ok(!msg.includes('e4'));
+});
+
+// 게이트 2를 통과하는 계약 모드 기준 리포트
+const okPlay = () => ({
+  label: 'game-base',
+  mode: 'contract',
+  api: 1,
+  avgFps: 58,
+  fpsWindows: [59, 58, 57, 58],
+  heap: { start: 12_000_000, end: 16_000_000 },
+  scoreSamples: [0, 0, 2, 5, 9, 14],
+  stateSamples: ['playing', 'playing', 'playing', 'playing'],
+  idle: { ended: true, afterMs: 5200 },
+  restart: { ok: true, state: 'playing', score: 0 }
+});
+
+test('정상 플레이 리포트는 통과한다', () => {
+  const { errors, skipped } = checkPlay(okPlay());
+  assert.deepEqual(errors, []);
+  assert.deepEqual(skipped, []);
+});
+
+test('점수가 전혀 변하지 않으면 잡는다 (진행성)', () => {
+  const r = okPlay();
+  r.scoreSamples = [0, 0, 0, 0, 0, 0];
+  assert.ok(checkPlay(r).errors.some(e => e.includes('no progress')));
+});
+
+test('방치해도 끝나지 않으면 잡는다 (종결성)', () => {
+  const r = okPlay();
+  r.idle = { ended: false, afterMs: 20000 };
+  assert.ok(checkPlay(r).errors.some(e => e.includes('never ends when idle')));
+});
+
+test('평균 FPS 미달을 잡는다', () => {
+  const r = okPlay();
+  r.avgFps = 41;
+  r.fpsWindows = [45, 40, 39, 40];
+  assert.ok(checkPlay(r).errors.some(e => e.includes('average fps')));
+});
+
+test('구간 FPS 붕괴를 잡는다', () => {
+  const r = okPlay();
+  r.avgFps = 52;
+  r.fpsWindows = [59, 58, 12, 58];
+  assert.ok(checkPlay(r).errors.some(e => e.includes('fps collapsed')));
+});
+
+test('힙 폭증을 잡는다', () => {
+  const r = okPlay();
+  r.heap = { start: 12_000_000, end: 90_000_000 };
+  assert.ok(checkPlay(r).errors.some(e => e.includes('heap growth')));
+});
+
+test('재시작 실패를 잡는다', () => {
+  const r = okPlay();
+  r.restart = { ok: false, state: 'over', score: 14 };
+  assert.ok(checkPlay(r).errors.some(e => e.includes('restart')));
+});
+
+test('재시작 후 점수가 남아 있으면 잡는다', () => {
+  const r = okPlay();
+  r.restart = { ok: true, state: 'playing', score: 14 };
+  assert.ok(checkPlay(r).errors.some(e => e.includes('score did not reset')));
+});
+
+test('계약 버전 불일치를 잡는다', () => {
+  const r = okPlay();
+  r.api = 2;
+  assert.ok(checkPlay(r).errors.some(e => e.includes('contract api')));
 });

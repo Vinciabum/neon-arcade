@@ -45,3 +45,64 @@ export function checkTech(r) {
 
   return errors;
 }
+
+export const PLAY = {
+  API: 1,
+  MIN_AVG_FPS: 50,
+  MIN_WINDOW_FPS: 30,
+  MAX_HEAP_RATIO: 2.5,
+  MIN_LEGACY_DIFF: 6          // 휴리스틱 모드에서 "화면이 반응했다"로 볼 평균 픽셀차
+};
+
+export function checkPlay(r) {
+  const errors = [];
+  const skipped = [];
+  const at = r.label ?? 'game';
+
+  // --- 모든 모드 공통: rAF 프로브로 측정되므로 계약이 없어도 판정 가능 ---
+  if (r.avgFps < PLAY.MIN_AVG_FPS) {
+    errors.push(`${at}: average fps ${r.avgFps} below ${PLAY.MIN_AVG_FPS}`);
+  }
+  const worst = Math.min(...(r.fpsWindows?.length ? r.fpsWindows : [r.avgFps]));
+  if (worst < PLAY.MIN_WINDOW_FPS) {
+    errors.push(`${at}: fps collapsed to ${worst} in one window (min ${PLAY.MIN_WINDOW_FPS})`);
+  }
+  if (r.heap?.start > 0) {
+    const ratio = r.heap.end / r.heap.start;
+    if (ratio > PLAY.MAX_HEAP_RATIO) {
+      errors.push(`${at}: heap growth x${ratio.toFixed(1)} exceeds x${PLAY.MAX_HEAP_RATIO} — likely a leak`);
+    }
+  }
+
+  if (r.mode === 'legacy') {
+    // 계약이 없는 기존 게임. 화면 반응만 실패로 보고, 나머지는 판정 보류한다.
+    if ((r.legacyDiff ?? 0) < PLAY.MIN_LEGACY_DIFF) {
+      errors.push(`${at}: no progress — screen did not react to input (diff ${r.legacyDiff ?? 0})`);
+    }
+    skipped.push(`${at}: termination, idle-end and restart not checked — no window.__GAME__ contract`);
+    return { errors, skipped };
+  }
+
+  // --- 계약 모드 ---
+  if (r.api !== PLAY.API) {
+    errors.push(`${at}: contract api ${r.api} — this checker speaks api ${PLAY.API}`);
+    return { errors, skipped };
+  }
+
+  const distinct = new Set(r.scoreSamples ?? []);
+  if (distinct.size < 2) {
+    errors.push(`${at}: no progress — score never changed across ${(r.scoreSamples ?? []).length} samples`);
+  }
+
+  if (!r.idle?.ended) {
+    errors.push(`${at}: never ends when idle — no game over after ${r.idle?.afterMs ?? '?'}ms without input`);
+  }
+
+  if (!r.restart?.ok || r.restart.state !== 'playing') {
+    errors.push(`${at}: restart failed — state after start() was "${r.restart?.state ?? 'unknown'}"`);
+  } else if (r.restart.score !== 0) {
+    errors.push(`${at}: score did not reset on restart — ${r.restart.score}`);
+  }
+
+  return { errors, skipped };
+}
