@@ -317,11 +317,13 @@ const targets = opts.targets.length
 
 const browser = await chromium.launch({ args: HEAP_ARGS });
 
-// 크롬 첫 실행 비용이 첫 게임의 loadMs로 잘못 청구되는 것을 막는다.
-// 실측: 같은 파일이 콜드 3199ms → 웜 458ms. 게이트가 늑대소년이 되면 아무도 안 믿는다.
-if (targets.length) {
+// 브라우저 첫 페이지를 띄우는 비용만 미리 치른다. 대상 파일로 예열하면 안 된다 —
+// 그러면 그 대상의 loadMs가 '캐시된 두 번째 로드'가 되어 실제보다 좋게 나온다.
+// 실측: cyber-snake이 1번째 대상일 때 469ms, 2번째 대상일 때 3263ms (같은 파일·같은 실행).
+// about:blank는 게임 파일을 캐시에 넣지 않으므로 각 게임의 파싱 비용은 그대로 측정된다.
+{
   const warm = await browser.newPage();
-  await warm.goto(pathToFileURL(path.resolve(targets[0].file)).href, { waitUntil: 'load' }).catch(() => {});
+  await warm.goto('about:blank').catch(() => {});
   await warm.close();
 }
 
