@@ -131,10 +131,13 @@ async function collectPlay(browser, target, T) {
 
   const canvas = page.locator('canvas').first();
   const shotTarget = (await canvas.count()) > 0 ? canvas : page;
-  const beforeInput = await shotTarget.screenshot().catch(() => null);
 
   if (mode === 'contract') await page.evaluate(() => window.__GAME__.start());
   else await triggerStart(page);
+  await page.waitForTimeout(500);          // 시작 화면이 걷히고 첫 프레임이 자리잡을 시간
+  // 기준 프레임은 시작 '후'에 찍는다. 시작 전에 찍으면 타이틀 오버레이가 사라진 차이를
+  // 입력 반응으로 착각한다 (실측: 그 방식으로 legacyDiff 6.2, 임계값 6 — 오버레이가 만든 값이었다).
+  const beforeInput = await shotTarget.screenshot().catch(() => null);
 
   const heapStart = await page.evaluate(() => performance.memory?.usedJSHeapSize ?? 0);
 
