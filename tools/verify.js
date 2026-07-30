@@ -23,8 +23,9 @@ const MOBILE = TECH.MOBILE_VIEWPORT;
 const DESKTOP = { width: 900, height: 600 };
 
 // targetMs는 대상 하나에 허용하는 총 시간. 동기 루프에 걸려 영원히 매달리는 것을 막는다.
-const FULL = { inputMs: 30_000, idleMs: 20_000, sampleMs: 500, windowMs: 5_000, targetMs: 180_000 };
-const QUICK = { inputMs: 8_000, idleMs: 8_000, sampleMs: 400, windowMs: 2_000, targetMs: 60_000 };
+// 입력 단계를 채널별 2패스로 돌리므로 inputMs는 대상당 두 번 쓰인다 — 마감도 그만큼 늘렸다.
+const FULL = { inputMs: 30_000, idleMs: 20_000, sampleMs: 500, windowMs: 5_000, targetMs: 240_000 };
+const QUICK = { inputMs: 8_000, idleMs: 8_000, sampleMs: 400, windowMs: 2_000, targetMs: 90_000 };
 
 // 이 플래그 없이는 Chromium이 usedJSHeapSize를 큰 단위로 뭉개서 준다 (실측: 정확히 10000000).
 // 플래그를 '요청'했다는 것만 알 수 있고 브라우저가 실제로 반영했는지는 확인할 방법이 없다.
@@ -194,6 +195,9 @@ async function collectTechOn(page, target) {
 
   const report = {
     label: target.label,
+    // checkTech가 캔버스 규칙을 계약 모드에서만 하드 실패로 볼 수 있게 모드를 넘긴다.
+    // 9개 중 2개는 캔버스로 그리지 않는다 (cyber-memory=DOM 카드, synaptic-grid=캔버스 없음).
+    mode: contract ? 'contract' : 'legacy',
     loadMs: Number(loadMs.toFixed(1)),
     consoleErrors,
     pageErrors,
@@ -271,11 +275,6 @@ async function collectPlayOn(page, target, T) {
   const stateSamples = [];
   const inputMarks = [{ t: performance.now(), frames: await page.evaluate(() => window.__PROBE__?.frames ?? 0) }];
 
-  // 반응성은 입력 단계 내내 반복해서 잰다. 시작-끝 두 장만 비교하면 제자리로 돌아온
-  // 스프라이트가 "반응 없음"으로 읽힌다.
-  const reactShots = [];
-  let nextReactAt = performance.now() + REACT_EVERY_MS;
-
   // 캔버스 비율 좌표에 마우스 클릭을 넣는다. 게이트 2 컨텍스트에는 hasTouch가 없어서
   // touchscreen.tap은 쓸 수 없다 — mouse.click이 pointerdown·mousedown·click을 발생시킨다.
   // 캔버스가 없는 게임(DOM으로 그리는 게임)은 shotTarget이 page이고 Page에는 boundingBox가
@@ -288,43 +287,71 @@ async function collectPlayOn(page, target, T) {
     await page.mouse.click(area.x + area.width * fx, area.y + area.height * fy).catch(() => {});
   };
 
-  const inputEnd = performance.now() + T.inputMs;
-  let k = 0;
-  while (performance.now() < inputEnd) {
-    // 키와 탭을 번갈아 넣는다 — 키보드 게임과 마우스 게임을 한 패스로 덮는다.
-    if (k % 2 === 0) await page.keyboard.press(INPUT_PATTERN[(k >> 1) % INPUT_PATTERN.length]).catch(() => {});
-    else await tapAt(TAP_POINTS[(k >> 1) % TAP_POINTS.length]);
-    k++;
-    await page.waitForTimeout(T.sampleMs);
-    const s = await page.evaluate(() => ({
-      frames: window.__PROBE__?.frames ?? 0,
-      score: window.__GAME__ ? window.__GAME__.score : null,
-      state: window.__GAME__ ? window.__GAME__.state : null
-    }));
-    inputMarks.push({ t: performance.now(), frames: s.frames });
-    if (s.score !== null) scoreSamples.push(s.score);
-    if (s.state !== null) stateSamples.push(s.state);
-    if (performance.now() >= nextReactAt) {
-      const shot = await shotTarget.screenshot().catch(() => null);
-      if (shot) reactShots.push(shot);
-      nextReactAt = performance.now() + REACT_EVERY_MS;
-    }
-    // 계약 모드에서 도중에 죽으면 다시 시작해 입력 단계를 계속한다
-    if (s.state === 'over') await safeStart('input-phase restart');
-  }
+  // 입력을 한 채널씩 따로 넣는다. 섞으면 서로를 지운다 — 실측: 탭을 끼우자 cyber-memory는
+  // 0 → 0.0279로 살아났지만 synaptic-grid는 0.0346 → 0이 됐다. 사이먼 게임에서 클릭은
+  // '틀린 답'이라 진행이 멈춘다. 그래서 키만 넣는 패스와 포인터만 넣는 패스를 각각 돌린다.
+  // 패스를 절반 길이로 줄이지 않은 이유: synaptic-grid의 반응은 키 입력 4초가 지나서야
+  // 화면에 나타난다 (실측 [0, 0, 0.0285, 0.0284]). 절반이면 그 신호를 통째로 놓친다.
+  const runPass = async (channel) => {
+    const shots = [];
+    const first = await shotTarget.screenshot().catch(() => null);
+    if (first) shots.push(first);
 
-  const afterInput = await shotTarget.screenshot().catch(() => null);
+    let nextReactAt = performance.now() + REACT_EVERY_MS;
+    const began = performance.now();
+    const end = began + T.inputMs;
+    let k = 0;
+    while (performance.now() < end) {
+      if (channel === 'keys') await page.keyboard.press(INPUT_PATTERN[k % INPUT_PATTERN.length]).catch(() => {});
+      else await tapAt(TAP_POINTS[k % TAP_POINTS.length]);
+      k++;
+      await page.waitForTimeout(T.sampleMs);
+      const s = await page.evaluate(() => ({
+        frames: window.__PROBE__?.frames ?? 0,
+        score: window.__GAME__ ? window.__GAME__.score : null,
+        state: window.__GAME__ ? window.__GAME__.state : null
+      }));
+      inputMarks.push({ t: performance.now(), frames: s.frames });
+      // 두 패스의 표본을 함께 모은다 — 탭에만 반응하는 게임도 점수 진행을 보일 수 있어야 한다.
+      if (s.score !== null) scoreSamples.push(s.score);
+      if (s.state !== null) stateSamples.push(s.state);
+      if (performance.now() >= nextReactAt) {
+        const shot = await shotTarget.screenshot().catch(() => null);
+        if (shot) shots.push(shot);
+        nextReactAt = performance.now() + REACT_EVERY_MS;
+      }
+      // 계약 모드에서 도중에 죽으면 다시 시작해 패스를 계속한다
+      if (s.state === 'over') await safeStart(`${channel} pass restart`);
+    }
+
+    const last = await shotTarget.screenshot().catch(() => null);
+    if (last) shots.push(last);
+    const samples = [];
+    for (let i = 1; i < shots.length; i++) {
+      samples.push(Number((await changedFraction(shots[i - 1], shots[i])).toFixed(4)));
+    }
+    return { samples, lastShot: last, ms: performance.now() - began };
+  };
+
+  const keysPass = await runPass('keys');
+  // 두 번째 패스는 같은 조건에서 시작한다 — 첫 패스에서 죽은 채로 재면 포인터 채널이 억울하다.
+  if (mode === 'contract') await safeStart('between passes');
+  else await triggerStart(page);
+  await page.waitForTimeout(500);
+  const pointerPass = await runPass('pointer');
+
+  const afterInput = pointerPass.lastShot ?? keysPass.lastShot;
   // 촬영 실패는 0(=반응 없음)이 아니라 null(=측정 못 함)이다.
   const legacyDiff = beforeInput && afterInput ? Number((await diff(beforeInput, afterInput)).toFixed(1)) : null;
 
-  // 연속한 프레임 쌍마다 변화 픽셀 비율을 낸다. max는 "한 번이라도 확실히 반응했나",
-  // mean은 "계속 살아 있었나"를 본다.
-  if (afterInput) reactShots.push(afterInput);
-  const reactSamples = [];
-  for (let i = 1; i < reactShots.length; i++) {
-    reactSamples.push(Number((await changedFraction(reactShots[i - 1], reactShots[i])).toFixed(4)));
-  }
-  const reactMax = reactSamples.length ? Math.max(...reactSamples) : null;
+  // 채널별 최대. 게이트가 읽는 reactMax는 두 채널 중 큰 값이다 — 한 채널로만 조작하는
+  // 게임을 "정지 화면"으로 판정하지 않기 위해서다.
+  const maxOf = (a) => (a.length ? Math.max(...a) : null);
+  const reactByChannel = { keys: maxOf(keysPass.samples), pointer: maxOf(pointerPass.samples) };
+  const reactMax = maxOf([...keysPass.samples, ...pointerPass.samples]);
+  // reactMean은 reactMax를 만든 쪽 패스의 평균이다.
+  const winner = (reactByChannel.pointer ?? -1) > (reactByChannel.keys ?? -1) ? pointerPass : keysPass;
+  const reactSamples = winner.samples;
   const reactMean = reactSamples.length
     ? Number((reactSamples.reduce((a, b) => a + b, 0) / reactSamples.length).toFixed(4))
     : null;
@@ -383,7 +410,9 @@ async function collectPlayOn(page, target, T) {
     // frames는 rAF 프레임 총수. 0이면 setInterval 루프라 FPS를 셀 수 없다.
     frames: idleLast.frames,
     // 입력 단계의 길이와 표본 간격. gates.js가 이 둘로 평균 생존시간을 보정해 계산한다.
-    inputMs: T.inputMs,
+    // 두 패스의 실제 합계다 — T.inputMs(한 패스)를 넘기면 stateSamples는 두 패스를 담고 있으므로
+    // 평균 생존이 절반으로 계산돼 정상 게임이 "너무 빨리 죽는다"로 판정된다.
+    inputMs: Math.round(keysPass.ms + pointerPass.ms),
     sampleMs: T.sampleMs,
     avgFps, fpsWindows: fpsWindows.length ? fpsWindows : [avgFps],
     // idleFps는 진단용이다 — 게이트는 읽지 않는다.
@@ -393,7 +422,8 @@ async function collectPlayOn(page, target, T) {
     heap: { start: heapStart, end: heapEnd, precise: heapPrecise && heapStart > 0 && heapEnd > 0 },
     scoreSamples, stateSamples, idle, restart,
     // 반응성 지표. reactMax/reactMean은 0~1 비율이다 (legacyDiff와 단위가 다르다).
-    reactMax, reactMean, reactSamples,
+    // reactByChannel로 어느 입력 채널이 통했는지 보인다.
+    reactMax, reactMean, reactSamples, reactByChannel,
     // legacyDiff는 휴리스틱 모드에서만 뜻이 있다. 계약 모드에서는 아예 넣지 않는다 —
     // 아무도 읽지 않는 숫자가 리포트에 있으면 읽는 사람이 의미를 상상하게 된다.
     ...(mode === 'legacy' ? { legacyDiff } : {})
