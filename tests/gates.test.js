@@ -246,6 +246,31 @@ test('구간 FPS 붕괴를 잡는다', () => {
   assert.ok(checkPlay(r).errors.some(e => e.includes('fps collapsed')));
 });
 
+test('프레임은 있는데 평균이 0이면 실패로 잡는다 (음수와 다르다)', () => {
+  const r = okPlay();
+  r.frames = 1200;         // 프레임 총수는 정상 — 이 구간에서만 아무것도 안 그렸다
+  r.avgFps = 0;             // fpsWindows는 base 값(전부 양수)을 그대로 둬서 이 검사만 격리한다
+  assert.ok(checkPlay(r).errors.some(e => e.includes('average fps')));
+});
+
+test('음수 평균 FPS는 실패가 아니라 미측정으로 본다', () => {
+  const r = okPlay();
+  // 실측: 스스로 리로드하는 게임이 프로브의 프레임 카운터를 되돌려 -134.9가 나왔다 —
+  // 유한한 값이라 isFinite 검사는 통과하지만 물리적으로 있을 수 없는 값이다.
+  r.avgFps = -134.9;
+  const { errors } = checkPlay(r);
+  assert.ok(errors.some(e => e.includes('fps not measured')));
+  assert.ok(!errors.some(e => e.includes('average fps -134.9')));
+});
+
+test('구간 하나가 음수면 붕괴가 아니라 미측정으로 본다', () => {
+  const r = okPlay();
+  r.fpsWindows = [59, -12, 58];   // 다른 구간은 멀쩡하다
+  const { errors } = checkPlay(r);
+  assert.ok(errors.some(e => e.includes('fps not measured')));
+  assert.ok(!errors.some(e => e.includes('fps collapsed')));
+});
+
 test('힙 폭증을 잡는다', () => {
   const r = okPlay();
   r.heap = { start: 12_000_000, end: 90_000_000 };

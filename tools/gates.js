@@ -98,15 +98,18 @@ export function checkPlay(r) {
   } else {
     // FPS는 수집 실패를 통과로 만들면 안 된다. 표본이 1개뿐이면 avgFps가 NaN이 되는데,
     // 그때 조용히 통과시키면 게이트가 죽은 채로 초록불이 뜬다.
-    if (!Number.isFinite(r.avgFps)) {
+    // 음수 FPS는 측정이 깨진 것이다. 실측: 스스로 리로드하는 게임이 프로브의 프레임 카운터를
+    // 0으로 되돌려 구간 FPS가 -134.9로 나왔다 — 유한한 값이라 isFinite 검사를 통과해버렸다.
+    // 0은 다르다: frames는 정상인데 이 구간 평균만 0이면 정말로 아무것도 안 그린 것이라 실패로 둔다.
+    if (!Number.isFinite(r.avgFps) || r.avgFps < 0) {
       errors.push(`${at}: fps not measured — collector reported ${r.avgFps}`);
     } else if (r.avgFps < PLAY.MIN_AVG_FPS) {
       errors.push(`${at}: average fps ${r.avgFps} below ${PLAY.MIN_AVG_FPS}`);
     }
-    // 구간 표본에 숫자가 아닌 값이 하나라도 섞이면 Math.min이 NaN을 전파해
-    // 구간 검사 전체가 사라진다. 수집 실패는 통과가 아니라 실패로 본다.
+    // 구간 표본에 숫자가 아니거나 0 이하인 값이 하나라도 섞이면 Math.min이 그 값을 그대로
+    // 물고 나가 "collapsed to -134.9" 같은, 읽는 사람에게 아무 사실도 말해주지 않는 메시지가 된다.
     const windows = r.fpsWindows?.length ? r.fpsWindows : [r.avgFps];
-    if (windows.some(w => !Number.isFinite(w))) {
+    if (windows.some(w => !Number.isFinite(w) || w <= 0)) {
       errors.push(`${at}: fps not measured — window sample was not a number`);
     } else if (Math.min(...windows) < PLAY.MIN_WINDOW_FPS) {
       errors.push(`${at}: fps collapsed to ${Math.min(...windows)} in one window (min ${PLAY.MIN_WINDOW_FPS})`);
