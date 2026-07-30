@@ -12,25 +12,33 @@ export const TECH = {
 
 const cap = (list, n = 3) => list.slice(0, n).join(' | ') + (list.length > n ? ` (+${list.length - n} more)` : '');
 
-// 게이트 1. 에러 문자열 배열을 그대로 돌려준다 (보류 개념이 없다).
+// 게이트 1. { errors, skipped }를 돌려준다 — checkPlay와 반환 모양이 같다.
+// 캔버스 세 규칙(부재·빈 화면·덮임)은 mode === 'legacy'에서는 보류로 내린다: DOM으로 그리는
+// 게임(cyber-memory)이나 캔버스가 아예 없는 게임(synaptic-grid)은 픽셀 통계로 판단할 수 없다.
+// 새 게임은 game-base.html 템플릿(캔버스 기반)에서 복사되므로 계약 모드에서는 그대로 실패로 둔다.
 export function checkTech(r) {
   const errors = [];
+  const skipped = [];
   const at = r.label ?? 'game';
+  // 캔버스를 판단할 수 없는 휴리스틱 모드에서만 보류로 내린다. 계약 모드나 모드 미상은
+  // (예전과 같이) 실패 쪽으로 안전하게 둔다.
+  const canvasBucket = r.mode === 'legacy' ? skipped : errors;
 
   if (r.consoleErrors?.length) errors.push(`${at}: ${r.consoleErrors.length} console error(s) — ${cap(r.consoleErrors)}`);
   if (r.pageErrors?.length) errors.push(`${at}: ${r.pageErrors.length} page error(s) — ${cap(r.pageErrors)}`);
   if (r.failedRequests?.length) errors.push(`${at}: ${r.failedRequests.length} failed request(s) — ${cap(r.failedRequests)}`);
 
   if (!r.canvas?.found) {
-    errors.push(`${at}: no canvas element found`);
+    canvasBucket.push(`${at}: no canvas element found`);
   } else {
     // 캡처 자체가 실패했으면 픽셀에 대해 아무 말도 할 수 없다. 게임 결함으로 보고하면 오진이다.
+    // (모드와 무관하다 — 캔버스가 있는데 찍지 못한 것은 항상 하네스 문제다.)
     if (r.canvas.captureFailed || typeof r.canvas.variance !== 'number') {
       errors.push(`${at}: canvas capture failed — cannot judge the pixels`);
     } else if (r.canvas.variance < TECH.MIN_CANVAS_VARIANCE && (r.canvas.motion ?? 0) < TECH.MIN_CANVAS_MOTION) {
       // 정지 분산이 낮아도 프레임 간 변화가 있으면 그리고 있는 것이다.
       // 파티클·스타필드처럼 미세한 화면이 "빈 화면"으로 오판되는 것을 막는다.
-      errors.push(`${at}: canvas appears blank — variance ${r.canvas.variance}, motion ${r.canvas.motion ?? 0}`);
+      canvasBucket.push(`${at}: canvas appears blank — variance ${r.canvas.variance}, motion ${r.canvas.motion ?? 0}`);
     }
     if (r.canvas.inView === false) {
       errors.push(`${at}: canvas outside viewport on mobile (${TECH.MOBILE_VIEWPORT.width}x${TECH.MOBILE_VIEWPORT.height})`);
@@ -38,7 +46,7 @@ export function checkTech(r) {
     // 시작 오버레이가 캔버스를 덮고 있으면 그 스크린샷은 게임 화면이 아니다.
     // 실측: 타이틀 화면의 분산(10.8)이 실제 플레이(9.2)보다 높아서 분산만으로는 구분할 수 없다.
     if (r.canvas.covered) {
-      errors.push(`${at}: canvas covered by an overlay — the screenshot is not gameplay (start screen not dismissed, or the run already ended)`);
+      canvasBucket.push(`${at}: canvas covered by an overlay — the screenshot is not gameplay (start screen not dismissed, or the run already ended)`);
     }
   }
 
@@ -55,7 +63,7 @@ export function checkTech(r) {
     errors.push(`${at}: horizontal overflow on mobile — scrollWidth ${r.mobile.scrollWidth} > viewport ${r.mobile.innerWidth}`);
   }
 
-  return errors;
+  return { errors, skipped };
 }
 
 export const PLAY = {
@@ -73,7 +81,7 @@ export const PLAY = {
                                  // 짧은 세션에도 여러 번 죽으므로 2로 올려도 탐지력 손실이 없다
 };
 
-// 게이트 2. { errors, skipped } 를 돌려준다 — checkTech와 반환 모양이 다르다.
+// 게이트 2. { errors, skipped } 를 돌려준다 — checkTech와 반환 모양이 같다.
 // 계약(window.__GAME__)이 없는 기존 게임은 종결성·재시작을 판정할 방법이 없어
 // "실패"가 아니라 "보류(skipped)"로 분류해야 하기 때문이다. 호출자는 errors만 실패로 센다.
 export function checkPlay(r) {

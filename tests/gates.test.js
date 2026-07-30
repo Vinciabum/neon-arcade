@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { checkTech, checkPlay } from '../tools/gates.js';
 
 // 게이트 1을 통과하는 기준 리포트. 각 테스트는 여기서 한 가지만 망가뜨린다.
+// mode: 'contract' — 새 게임은 game-base.html 템플릿(캔버스 기반)에서 복사되므로
+// 캔버스 세 규칙(부재·빈 화면·덮임)이 그대로 실패로 살아 있어야 한다.
 const okTech = () => ({
   label: 'game-base',
+  mode: 'contract',
   loadMs: 820,
   consoleErrors: [],
   pageErrors: [],
@@ -15,45 +18,47 @@ const okTech = () => ({
 });
 
 test('깨끗한 리포트는 통과한다', () => {
-  assert.deepEqual(checkTech(okTech()), []);
+  const { errors, skipped } = checkTech(okTech());
+  assert.deepEqual(errors, []);
+  assert.deepEqual(skipped, []);
 });
 
 test('콘솔 에러를 잡는다', () => {
   const r = okTech();
   r.consoleErrors = ['Uncaught TypeError: x is not a function'];
-  const errors = checkTech(r);
+  const { errors } = checkTech(r);
   assert.ok(errors.some(e => e.includes('console error')));
 });
 
 test('페이지 예외를 잡는다', () => {
   const r = okTech();
   r.pageErrors = ['ReferenceError: draw is not defined'];
-  assert.ok(checkTech(r).some(e => e.includes('page error')));
+  assert.ok(checkTech(r).errors.some(e => e.includes('page error')));
 });
 
 test('실패한 리소스 요청을 잡는다', () => {
   const r = okTech();
   r.failedRequests = ['assets/missing.png'];
-  assert.ok(checkTech(r).some(e => e.includes('failed request')));
+  assert.ok(checkTech(r).errors.some(e => e.includes('failed request')));
 });
 
 test('캔버스 부재를 잡는다', () => {
   const r = okTech();
   r.canvas = { found: false };
-  assert.ok(checkTech(r).some(e => e.includes('no canvas')));
+  assert.ok(checkTech(r).errors.some(e => e.includes('no canvas')));
 });
 
 test('빈 캔버스를 잡는다', () => {
   const r = okTech();
   r.canvas.variance = 0.4;
-  assert.ok(checkTech(r).some(e => e.includes('canvas appears blank')));
+  assert.ok(checkTech(r).errors.some(e => e.includes('canvas appears blank')));
 });
 
 test('분산이 낮고 움직임도 없으면 빈 캔버스로 본다', () => {
   const r = okTech();
   r.canvas.variance = 0.4;
   r.canvas.motion = 0;
-  assert.ok(checkTech(r).some(e => e.includes('canvas appears blank')));
+  assert.ok(checkTech(r).errors.some(e => e.includes('canvas appears blank')));
 });
 
 test('분산이 낮아도 움직이면 빈 캔버스가 아니다', () => {
@@ -62,31 +67,31 @@ test('분산이 낮아도 움직이면 빈 캔버스가 아니다', () => {
   r.canvas.motion = 9.4;        // 그래도 프레임마다 바뀐다 → 그리고 있는 것으로 본다
   // 한계를 알고 받아들인 판정이다: 스프라이트가 안 나오는데 배경만 번쩍이는 게임도 통과한다.
   // 그 대신 실제 파티클·스타필드 화면(variance 1~4)을 빈 화면으로 오판하지 않는다.
-  assert.deepEqual(checkTech(r), []);
+  assert.deepEqual(checkTech(r).errors, []);
 });
 
 test('빈 캔버스 판정도 경계값은 통과로 본다', () => {
   const r = okTech();
   r.canvas.variance = 0.4;
   r.canvas.motion = 2;          // MIN_CANVAS_MOTION과 같으면 통과
-  assert.deepEqual(checkTech(r), []);
+  assert.deepEqual(checkTech(r).errors, []);
 });
 
 test('오버레이가 캔버스를 덮고 있으면 잡는다', () => {
   const r = okTech();
   r.canvas.covered = true;
-  assert.ok(checkTech(r).some(e => e.includes('covered by an overlay')));
+  assert.ok(checkTech(r).errors.some(e => e.includes('covered by an overlay')));
 });
 
 test('덮임 정보가 없는 리포트는 통과한다', () => {
   const r = okTech();          // covered 필드 없음 — 구형 리포트
-  assert.deepEqual(checkTech(r), []);
+  assert.deepEqual(checkTech(r).errors, []);
 });
 
 test('캔버스가 없으면 덮임은 따지지 않는다', () => {
   const r = okTech();
   r.canvas = { found: false, covered: true };
-  const errors = checkTech(r);
+  const { errors } = checkTech(r);
   assert.ok(errors.some(e => e.includes('no canvas')));
   assert.ok(!errors.some(e => e.includes('covered by an overlay')));
 });
@@ -95,7 +100,7 @@ test('캡처 실패를 게임 결함으로 보고하지 않는다 (captureFailed
   const r = okTech();
   r.canvas.captureFailed = true;
   r.canvas.variance = 34.5;    // 숫자는 그럴듯해도 캡처 자체가 실패했으면 믿을 수 없다
-  const errors = checkTech(r);
+  const { errors } = checkTech(r);
   assert.ok(errors.some(e => e.includes('canvas capture failed')));
   assert.ok(!errors.some(e => e.includes('canvas appears blank')));
 });
@@ -103,43 +108,74 @@ test('캡처 실패를 게임 결함으로 보고하지 않는다 (captureFailed
 test('캡처 실패를 게임 결함으로 보고하지 않는다 (variance가 숫자가 아님)', () => {
   const r = okTech();
   r.canvas.variance = null;    // captureFailed 플래그 없이도 숫자가 아니면 판단 불가
-  const errors = checkTech(r);
+  const { errors } = checkTech(r);
   assert.ok(errors.some(e => e.includes('canvas capture failed')));
   assert.ok(!errors.some(e => e.includes('canvas appears blank')));
+});
+
+test('휴리스틱 모드: 캔버스가 없어도 터치·가로 넘침은 그대로 실패로 잡는다', () => {
+  const r = okTech();
+  r.mode = 'legacy';
+  r.canvas = { found: false };        // synaptic-grid처럼 캔버스가 아예 없는 게임
+  r.listeners = ['keydown'];          // 터치 리스너 없음 — 이건 여전히 실패여야 한다
+  r.mobile = { scrollWidth: 520, innerWidth: 390 };   // 가로 넘침도 마찬가지
+  const { errors, skipped } = checkTech(r);
+  assert.ok(!errors.some(e => e.includes('no canvas')));
+  assert.ok(skipped.some(s => s.includes('no canvas')));
+  assert.ok(errors.some(e => e.includes('no touch input')));
+  assert.ok(errors.some(e => e.includes('horizontal overflow')));
+});
+
+test('휴리스틱 모드: 빈 캔버스도 실패 대신 보류한다', () => {
+  const r = okTech();
+  r.mode = 'legacy';
+  r.canvas.variance = 0.4;    // cyber-memory의 장식용 캔버스처럼 정지해 있다
+  const { errors, skipped } = checkTech(r);
+  assert.ok(!errors.some(e => e.includes('canvas appears blank')));
+  assert.ok(skipped.some(s => s.includes('canvas appears blank')));
+});
+
+test('휴리스틱 모드: 오버레이 덮임도 실패 대신 보류한다', () => {
+  const r = okTech();
+  r.mode = 'legacy';
+  r.canvas.covered = true;
+  const { errors, skipped } = checkTech(r);
+  assert.ok(!errors.some(e => e.includes('covered by an overlay')));
+  assert.ok(skipped.some(s => s.includes('covered by an overlay')));
 });
 
 test('터치 핸들러 부재를 잡는다', () => {
   const r = okTech();
   r.listeners = ['keydown'];
-  assert.ok(checkTech(r).some(e => e.includes('no touch input')));
+  assert.ok(checkTech(r).errors.some(e => e.includes('no touch input')));
 });
 
 test('pointerdown도 터치 입력으로 인정한다', () => {
   const r = okTech();
   r.listeners = ['keydown', 'pointerdown'];
-  assert.deepEqual(checkTech(r), []);
+  assert.deepEqual(checkTech(r).errors, []);
 });
 
 test('2초 초과 로드를 잡는다', () => {
   const r = okTech();
   r.loadMs = 2600;
-  assert.ok(checkTech(r).some(e => e.includes('slow load')));
+  assert.ok(checkTech(r).errors.some(e => e.includes('slow load')));
 });
 
 test('모바일 가로 넘침을 잡는다', () => {
   const r = okTech();
   r.mobile = { scrollWidth: 520, innerWidth: 390 };
-  assert.ok(checkTech(r).some(e => e.includes('horizontal overflow')));
+  assert.ok(checkTech(r).errors.some(e => e.includes('horizontal overflow')));
 });
 
 test('캔버스가 화면 밖이면 잡는다', () => {
   const r = okTech();
   r.canvas.inView = false;
-  assert.ok(checkTech(r).some(e => e.includes('canvas outside viewport')));
+  assert.ok(checkTech(r).errors.some(e => e.includes('canvas outside viewport')));
 });
 
 test('빈 리포트에도 던지지 않는다 — 없는 필드는 검사를 건너뛴다', () => {
-  const errors = checkTech({});
+  const { errors } = checkTech({});
   assert.ok(errors.some(e => e.includes('no canvas')));
   assert.ok(errors.some(e => e.includes('no touch input')));
   assert.ok(!errors.some(e => e.includes('slow load')));
@@ -151,13 +187,13 @@ test('임계값 경계는 통과로 본다', () => {
   r.canvas.variance = 3;                              // MIN_CANVAS_VARIANCE와 같으면 통과
   r.loadMs = 2000;                                    // MAX_LOAD_MS와 같으면 통과
   r.mobile = { scrollWidth: 391, innerWidth: 390 };   // +1까지는 반올림 오차로 본다
-  assert.deepEqual(checkTech(r), []);
+  assert.deepEqual(checkTech(r).errors, []);
 });
 
 test('에러 목록이 길면 3개만 보여주고 남은 수를 알린다', () => {
   const r = okTech();
   r.consoleErrors = ['e1', 'e2', 'e3', 'e4', 'e5'];
-  const msg = checkTech(r).find(e => e.includes('console error'));
+  const msg = checkTech(r).errors.find(e => e.includes('console error'));
   assert.ok(msg.includes('5 console error(s)'));
   assert.ok(msg.includes('e1 | e2 | e3'));
   assert.ok(msg.includes('(+2 more)'));

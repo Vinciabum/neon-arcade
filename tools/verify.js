@@ -472,11 +472,12 @@ const withDeadline = (promise, ms, label) => Promise.race([
 
 async function verifyTarget(target) {
   const tech = await collectTech(browser, target);
-  const techErrors = checkTech(tech);
+  const { errors: techErrors, skipped: techSkipped } = checkTech(tech);
   const play = await collectPlay(browser, target, T);
-  const { errors: playErrors, skipped } = checkPlay(play);
+  const { errors: playErrors, skipped: playSkipped } = checkPlay(play);
   // 게임 쪽 start() 실패는 하네스 크래시가 아니라 게이트 2의 에러로 센다.
-  return { tech, techErrors, play, playErrors: [...playErrors, ...(play.startErrors ?? [])], skipped };
+  // 게이트 1·2의 skipped를 한 목록으로 합친다 — 아래 출력 루프가 이미 그 하나만 읽는다.
+  return { tech, techErrors, play, playErrors: [...playErrors, ...(play.startErrors ?? [])], skipped: [...techSkipped, ...playSkipped] };
 }
 
 try {
