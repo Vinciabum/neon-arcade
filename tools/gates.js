@@ -11,6 +11,7 @@ export const TECH = {
 
 const cap = (list, n = 3) => list.slice(0, n).join(' | ') + (list.length > n ? ` (+${list.length - n} more)` : '');
 
+// 게이트 1. 에러 문자열 배열을 그대로 돌려준다 (보류 개념이 없다).
 export function checkTech(r) {
   const errors = [];
   const at = r.label ?? 'game';
@@ -48,25 +49,35 @@ export function checkTech(r) {
 
 export const PLAY = {
   API: 1,
-  MIN_AVG_FPS: 50,
-  MIN_WINDOW_FPS: 30,
-  MAX_HEAP_RATIO: 2.5,
-  MIN_LEGACY_DIFF: 6          // 휴리스틱 모드에서 "화면이 반응했다"로 볼 평균 픽셀차
+  MIN_AVG_FPS: 50,          // 60fps 목표에서 프레임 드랍 여유 10. 이 밑은 조작이 눌리는 느낌이 난다
+  MIN_WINDOW_FPS: 30,       // 평균이 괜찮아도 특정 구간에서 30 밑으로 떨어지면 체감은 "멈췄다"
+  MAX_HEAP_RATIO: 2.5,      // 60초 플레이로 힙이 2.5배면 오브젝트를 회수하지 않는다는 뜻
+  MIN_LEGACY_DIFF: 6        // 휴리스틱 모드에서 "화면이 반응했다"로 볼 평균 픽셀차
 };
 
+// 게이트 2. { errors, skipped } 를 돌려준다 — checkTech와 반환 모양이 다르다.
+// 계약(window.__GAME__)이 없는 기존 게임은 종결성·재시작을 판정할 방법이 없어
+// "실패"가 아니라 "보류(skipped)"로 분류해야 하기 때문이다. 호출자는 errors만 실패로 센다.
 export function checkPlay(r) {
   const errors = [];
   const skipped = [];
   const at = r.label ?? 'game';
 
   // --- 모든 모드 공통: rAF 프로브로 측정되므로 계약이 없어도 판정 가능 ---
-  if (r.avgFps < PLAY.MIN_AVG_FPS) {
+  // FPS는 수집 실패를 통과로 만들면 안 된다. 표본이 1개뿐이면 avgFps가 NaN이 되는데,
+  // 그때 조용히 통과시키면 게이트가 죽은 채로 초록불이 뜬다.
+  if (!Number.isFinite(r.avgFps)) {
+    errors.push(`${at}: fps not measured — collector reported ${r.avgFps}`);
+  } else if (r.avgFps < PLAY.MIN_AVG_FPS) {
     errors.push(`${at}: average fps ${r.avgFps} below ${PLAY.MIN_AVG_FPS}`);
   }
-  const worst = Math.min(...(r.fpsWindows?.length ? r.fpsWindows : [r.avgFps]));
-  if (worst < PLAY.MIN_WINDOW_FPS) {
+  const windows = r.fpsWindows?.length ? r.fpsWindows : [r.avgFps];
+  const worst = Math.min(...windows);
+  if (Number.isFinite(worst) && worst < PLAY.MIN_WINDOW_FPS) {
     errors.push(`${at}: fps collapsed to ${worst} in one window (min ${PLAY.MIN_WINDOW_FPS})`);
   }
+  // 힙은 브라우저가 performance.memory를 안 주면 0으로 온다. 측정 불가와 누수 없음을
+  // 구분할 방법이 없으니 여기서는 통과시킨다 — 누수 판정은 있는 데이터로만 한다.
   if (r.heap?.start > 0) {
     const ratio = r.heap.end / r.heap.start;
     if (ratio > PLAY.MAX_HEAP_RATIO) {

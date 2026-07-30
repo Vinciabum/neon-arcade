@@ -173,4 +173,29 @@ test('계약 버전 불일치를 잡는다', () => {
   const r = okPlay();
   r.api = 2;
   assert.ok(checkPlay(r).errors.some(e => e.includes('contract api')));
+  assert.equal(checkPlay(r).errors.length, 1);   // 모르는 버전이면 나머지 검사는 하지 않는다
+});
+
+test('FPS 미측정을 통과시키지 않는다', () => {
+  const r = okPlay();
+  delete r.avgFps;
+  delete r.fpsWindows;
+  assert.ok(checkPlay(r).errors.some(e => e.includes('fps not measured')));
+});
+
+test('임계값 경계는 통과로 본다', () => {
+  const r = okPlay();
+  r.avgFps = 50;                                   // MIN_AVG_FPS와 같으면 통과
+  r.fpsWindows = [50, 30, 50];                     // MIN_WINDOW_FPS와 같으면 통과
+  r.heap = { start: 10_000_000, end: 25_000_000 }; // 정확히 x2.5는 통과
+  r.scoreSamples = [0, 1];                         // 서로 다른 값 2개면 진행성 인정
+  assert.deepEqual(checkPlay(r).errors, []);
+});
+
+test('재시작 플래그와 상태를 각각 독립으로 본다', () => {
+  const okButNotPlaying = { ...okPlay(), restart: { ok: true, state: 'over', score: 0 } };
+  assert.ok(checkPlay(okButNotPlaying).errors.some(e => e.includes('restart failed')));
+
+  const playingButNotOk = { ...okPlay(), restart: { ok: false, state: 'playing', score: 0 } };
+  assert.ok(checkPlay(playingButNotOk).errors.some(e => e.includes('restart failed')));
 });
