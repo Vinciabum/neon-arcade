@@ -109,7 +109,10 @@ async function collectTechOn(page, target) {
     return true;
   });
   if (!contract) await triggerStart(page);
-  await page.waitForTimeout(900);          // 실제로 그려질 시간을 준다
+  // 900ms에는 화면에 오브젝트가 거의 없어 motion이 임계값에 걸린다.
+  // 실측(390x844): 900ms에서 2.0, 3초에서 4.7 — 게임이 실제로 붐비는 시점에 찍는다.
+  // 주의: 입력 없이 2.6초 안에 끝나는 게임은 게임오버 화면에서 찍힌다 (covered가 잡는다).
+  await page.waitForTimeout(2200);
 
   const dom = await page.evaluate(() => {
     const c = document.querySelector('canvas');
