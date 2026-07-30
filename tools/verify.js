@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { gamePath } from './paths.js';
 import { PROBE_SOURCE } from './probe.js';
-import { checkTech, checkPlay, TECH } from './gates.js';
+import { checkTech, checkPlay, TECH, PLAY } from './gates.js';
 import { diff, variance } from './framediff.js';
 import { triggerStart } from './start.js';
 
@@ -22,25 +22,41 @@ import { triggerStart } from './start.js';
 const MOBILE = TECH.MOBILE_VIEWPORT;
 const DESKTOP = { width: 900, height: 600 };
 
-const FULL = { inputMs: 30_000, idleMs: 20_000, sampleMs: 500, windowMs: 5_000 };
-const QUICK = { inputMs: 8_000, idleMs: 8_000, sampleMs: 400, windowMs: 2_000 };
+// targetMs는 대상 하나에 허용하는 총 시간. 동기 루프에 걸려 영원히 매달리는 것을 막는다.
+const FULL = { inputMs: 30_000, idleMs: 20_000, sampleMs: 500, windowMs: 5_000, targetMs: 180_000 };
+const QUICK = { inputMs: 8_000, idleMs: 8_000, sampleMs: 400, windowMs: 2_000, targetMs: 60_000 };
 
 // 이 플래그 없이는 Chromium이 usedJSHeapSize를 큰 단위로 뭉개서 준다 (실측: 정확히 10000000).
 // 플래그를 '요청'했다는 것만 알 수 있고 브라우저가 실제로 반영했는지는 확인할 방법이 없다.
 // 그래서 heap.precise는 "요청했고 읽은 값이 0이 아니다"라는 뜻이다 — 그 이상을 주장하지 않는다.
 const HEAP_ARGS = ['--enable-precise-memory-info'];
+
+// goto·screenshot·locator 동작에 걸리는 상한. page.evaluate에는 timeout 옵션이 없어서
+// (Playwright는 { exposeFunctions }만 받는다) 동기 루프에 걸린 evaluate는 이걸로 못 끊는다 —
+// 그건 대상별 마감(T.targetMs)이 막는다.
+const PAGE_OP_MS = 15_000;
 const heapPrecise = true;   // HEAP_ARGS로 launch하므로 요청은 항상 이뤄진다
 
 // 키 순서는 고정이지만 재생 가능한 실행은 아니다: 누르는 시점·dt·'over'일 때 재시작하는 분기가
 // 모두 벽시계에 의존한다. 같은 실패를 다시 만드는 것은 보장되지 않는다.
 const INPUT_PATTERN = ['ArrowLeft', 'ArrowRight', 'Space', 'ArrowRight', 'ArrowLeft', 'KeyA', 'KeyD', 'ArrowUp'];
 
+class UsageError extends Error {}
+
+// 잘못된 인자는 조용히 다른 일을 하지 않고 즉시 멈춘다.
+// 예전에는 `--json`에 값이 없으면 리포트가 그냥 사라지고, `--json cyber-snake`는
+// 'cyber-snake'라는 파일을 쓴 뒤 전체 게임을 검증했다 — 둘 다 사용자가 의도한 일이 아니다.
 function parseArgs(argv) {
   const opts = { quick: false, json: null, targets: [] };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--quick') opts.quick = true;
-    else if (argv[i] === '--json') opts.json = argv[++i];
-    else opts.targets.push(argv[i]);
+    const a = argv[i];
+    if (a === '--quick') opts.quick = true;
+    else if (a === '--json') {
+      const v = argv[++i];
+      if (v === undefined || v.startsWith('--')) throw new UsageError(`--json needs a file path (got ${v ?? 'nothing'})`);
+      opts.json = v;
+    } else if (a.startsWith('--')) throw new UsageError(`unknown flag ${a}`);
+    else opts.targets.push(a);
   }
   return opts;
 }
@@ -52,6 +68,17 @@ const resolveTarget = (t) => t.endsWith('.html')
 // ---------- 게이트 1: 모바일 뷰포트에서 기술 검증 ----------
 async function collectTech(browser, target) {
   const page = await browser.newPage({ viewport: MOBILE, hasTouch: true, isMobile: true });
+  page.setDefaultTimeout(PAGE_OP_MS);
+  // 중간에 던져도 페이지는 반드시 닫는다. 남은 페이지는 rAF 루프를 계속 돌려 CPU를 먹고,
+  // 그 결과 '다음' 게임의 fps가 게이트 밑으로 떨어져 엉뚱한 게임이 실패한다.
+  try {
+    return await collectTechOn(page, target);
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+async function collectTechOn(page, target) {
   await page.addInitScript({ content: PROBE_SOURCE });
 
   const consoleErrors = [];
@@ -126,13 +153,21 @@ async function collectTech(browser, target) {
     listeners: dom.listeners,
     mobile: { scrollWidth: dom.scrollWidth, innerWidth: dom.innerWidth }
   };
-  await page.close();
   return report;
 }
 
 // ---------- 게이트 2: 데스크톱 뷰포트에서 자동 플레이 ----------
 async function collectPlay(browser, target, T) {
   const page = await browser.newPage({ viewport: DESKTOP });
+  page.setDefaultTimeout(PAGE_OP_MS);
+  try {
+    return await collectPlayOn(page, target, T);
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+async function collectPlayOn(page, target, T) {
   await page.addInitScript({ content: PROBE_SOURCE });
   await page.goto(pathToFileURL(path.resolve(target.file)).href, { waitUntil: 'load' });
   await page.waitForTimeout(700);
@@ -143,7 +178,18 @@ async function collectPlay(browser, target, T) {
   const canvas = page.locator('canvas').first();
   const shotTarget = (await canvas.count()) > 0 ? canvas : page;
 
-  if (mode === 'contract') await page.evaluate(() => window.__GAME__.start());
+  // start()가 던지면 그것은 게임의 결함이다. 그대로 위로 올리면 "verify crashed"가 되어
+  // 하네스를 탓하게 되므로, 게임 쪽 에러로 기록하고 수집을 계속한다.
+  const startErrors = [];
+  const safeStart = async (where) => {
+    try {
+      await page.evaluate(() => window.__GAME__.start());
+    } catch (err) {
+      const msg = `__GAME__.start() threw at ${where} — ${String(err.message).slice(0, 160)}`;
+      if (!startErrors.includes(msg)) startErrors.push(msg);
+    }
+  };
+  if (mode === 'contract') await safeStart('start');
   else await triggerStart(page);
   await page.waitForTimeout(500);          // 시작 화면이 걷히고 첫 프레임이 자리잡을 시간
   // 기준 프레임은 시작 '후'에 찍는다. 시작 전에 찍으면 타이틀 오버레이가 사라진 차이를
@@ -175,7 +221,7 @@ async function collectPlay(browser, target, T) {
     if (s.score !== null) scoreSamples.push(s.score);
     if (s.state !== null) stateSamples.push(s.state);
     // 계약 모드에서 도중에 죽으면 다시 시작해 입력 단계를 계속한다
-    if (s.state === 'over') await page.evaluate(() => window.__GAME__.start());
+    if (s.state === 'over') await safeStart('input-phase restart');
   }
 
   const afterInput = await shotTarget.screenshot().catch(() => null);
@@ -185,7 +231,7 @@ async function collectPlay(browser, target, T) {
   // --- 방치 단계: 입력 없이 게임오버가 오는지 ---
   // 프레임 마크를 입력 단계와 따로 모은다. 죽은 뒤에는 step()을 건너뛰어 프레임이 싸지므로
   // 두 단계를 섞으면 무거운 게임의 fps가 플레이어가 겪지 않는 프레임으로 부풀려진다.
-  if (mode === 'contract') await page.evaluate(() => window.__GAME__.start());
+  if (mode === 'contract') await safeStart('idle-phase');
   const idleStart = performance.now();
   const idleMarks = [{ t: idleStart, frames: await page.evaluate(() => window.__PROBE__?.frames ?? 0) }];
   let idleEnded = false;
@@ -203,7 +249,7 @@ async function collectPlay(browser, target, T) {
   // --- 재시작 단계 ---
   let restart = null;
   if (mode === 'contract') {
-    await page.evaluate(() => window.__GAME__.start());
+    await safeStart('restart-phase');
     await page.waitForTimeout(700);
     const s = await page.evaluate(() => ({ state: window.__GAME__.state, score: window.__GAME__.score }));
     restart = { ok: s.state === 'playing', state: s.state, score: s.score };
@@ -231,7 +277,6 @@ async function collectPlay(browser, target, T) {
   const idleFirst = idleMarks[0], idleLast = idleMarks[idleMarks.length - 1];
   const idleFps = idleMarks.length > 1 ? fps(idleFirst, idleLast) : null;
 
-  await page.close();
   return {
     label: target.label, mode, api,
     // frames는 rAF 프레임 총수. 0이면 setInterval 루프라 FPS를 셀 수 없다.
@@ -242,13 +287,26 @@ async function collectPlay(browser, target, T) {
     avgFps, fpsWindows: fpsWindows.length ? fpsWindows : [avgFps],
     // idleFps는 진단용이다 — 게이트는 읽지 않는다.
     idleFps,
+    // 게임 쪽 결함. main이 playErrors에 합쳐 실패로 센다.
+    startErrors,
     heap: { start: heapStart, end: heapEnd, precise: heapPrecise && heapStart > 0 && heapEnd > 0 },
-    scoreSamples, stateSamples, legacyDiff, idle, restart
+    scoreSamples, stateSamples, idle, restart,
+    // legacyDiff는 휴리스틱 모드에서만 뜻이 있다. 계약 모드에서는 아예 넣지 않는다 —
+    // 아무도 읽지 않는 숫자가 리포트에 있으면 읽는 사람이 의미를 상상하게 된다.
+    ...(mode === 'legacy' ? { legacyDiff } : {})
   };
 }
 
 // ---------- main ----------
-const opts = parseArgs(process.argv.slice(2));
+let opts;
+try {
+  opts = parseArgs(process.argv.slice(2));
+} catch (err) {
+  if (!(err instanceof UsageError)) throw err;
+  console.error(`verify: ${err.message}`);
+  console.error('usage: node tools/verify.js [--quick] [--json <path>] [<slug|path.html> ...]');
+  process.exit(2);
+}
 const T = opts.quick ? QUICK : FULL;
 
 const targets = opts.targets.length
@@ -270,32 +328,60 @@ if (targets.length) {
 const reports = [];
 let failed = 0;
 
-for (const target of targets) {
-  console.log(`\n== ${target.label} (${target.file})`);
-  try {
-    const tech = await collectTech(browser, target);
-    const techErrors = checkTech(tech);
-    const play = await collectPlay(browser, target, T);
-    const { errors: playErrors, skipped } = checkPlay(play);
+// 동기 무한 루프를 도는 게임은 그냥 두면 verify를 영원히 붙잡고 크롬도 남는다.
+// 대상마다 마감을 두고, 넘기면 그 대상만 포기하고 다음으로 간다.
+const withDeadline = (promise, ms, label) => Promise.race([
+  promise,
+  new Promise((_, reject) => setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms).unref())
+]).catch((err) => { throw new Error(`${label}: ${err.message}`); });
 
-    console.log(`  mode ${play.mode}  load ${Math.round(tech.loadMs)}ms  fps ${play.avgFps}  variance ${tech.canvas.variance}  motion ${tech.canvas.motion}`);
-    for (const s of skipped) console.log(`  ~ skipped: ${s}`);
-    for (const e of [...techErrors, ...playErrors]) console.error(`  x ${e}`);
-    if (!techErrors.length && !playErrors.length) console.log('  ok  gate 1 + gate 2 passed');
-    else failed++;
-
-    reports.push({ target: target.label, tech, play, techErrors, playErrors, skipped });
-  } catch (err) {
-    console.error(`  x ${target.label}: verify crashed — ${err.message}`);
-    reports.push({ target: target.label, crashed: err.message });
-    failed++;
-  }
+async function verifyTarget(target) {
+  const tech = await collectTech(browser, target);
+  const techErrors = checkTech(tech);
+  const play = await collectPlay(browser, target, T);
+  const { errors: playErrors, skipped } = checkPlay(play);
+  // 게임 쪽 start() 실패는 하네스 크래시가 아니라 게이트 2의 에러로 센다.
+  return { tech, techErrors, play, playErrors: [...playErrors, ...(play.startErrors ?? [])], skipped };
 }
-await browser.close();
+
+try {
+  for (const target of targets) {
+    console.log(`\n== ${target.label} (${target.file})`);
+    try {
+      const { tech, techErrors, play, playErrors, skipped } =
+        await withDeadline(verifyTarget(target), T.targetMs, target.label);
+
+      console.log(`  mode ${play.mode}  load ${tech.loadMs}ms  fps ${play.avgFps}  variance ${tech.canvas.variance}  motion ${tech.canvas.motion}`);
+      for (const s of skipped) console.log(`  ~ skipped: ${s}`);
+      for (const e of [...techErrors, ...playErrors]) console.error(`  x ${e}`);
+
+      if (!techErrors.length && !playErrors.length) console.log('  ok  gate 1 + gate 2 passed');
+      else {
+        // 실패한 대상만 진단값을 한 줄 더 찍는다. 이 값들이 없으면 왜 실패했는지 추적할 수 없다.
+        const deaths = (play.stateSamples ?? []).filter(s => s === 'over').length;
+        const ratio = play.heap?.start > 0 ? (play.heap.end / play.heap.start).toFixed(2) : 'n/a';
+        console.error(`  ? state ${tech.canvas.state} covered ${tech.canvas.covered}` +
+          ` captureFailed ${tech.canvas.captureFailed} idle ${play.idle?.ended}/${play.idle?.afterMs}ms` +
+          ` deaths ${deaths} heap x${ratio} (precise ${play.heap?.precise}) restart ${play.restart?.state ?? 'n/a'}`);
+        failed++;
+      }
+
+      reports.push({ target: target.label, file: target.file, crashed: null, tech, play, techErrors, playErrors, skipped });
+    } catch (err) {
+      console.error(`  x ${target.label}: verify crashed — ${err.message}`);
+      reports.push({ target: target.label, file: target.file, crashed: err.message });
+      failed++;
+    }
+  }
+} finally {
+  await browser.close().catch(() => {});
+}
 
 if (opts.json) {
+  // 리포트는 스스로를 설명해야 한다 — 나중에 이 파일만 읽는 판정자가 임계값도 타이밍도 모른다.
+  const out = { runAt: new Date().toISOString(), quick: opts.quick, timings: T, thresholds: { TECH, PLAY }, reports };
   await mkdir(path.dirname(path.resolve(opts.json)), { recursive: true });
-  await writeFile(opts.json, JSON.stringify(reports, null, 2), 'utf8');
+  await writeFile(opts.json, JSON.stringify(out, null, 2), 'utf8');
   console.log(`\n  -> ${opts.json}`);
 }
 
