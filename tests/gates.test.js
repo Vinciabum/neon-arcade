@@ -72,6 +72,25 @@ test('빈 캔버스 판정도 경계값은 통과로 본다', () => {
   assert.deepEqual(checkTech(r), []);
 });
 
+test('오버레이가 캔버스를 덮고 있으면 잡는다', () => {
+  const r = okTech();
+  r.canvas.covered = true;
+  assert.ok(checkTech(r).some(e => e.includes('covered by an overlay')));
+});
+
+test('덮임 정보가 없는 리포트는 통과한다', () => {
+  const r = okTech();          // covered 필드 없음 — 구형 리포트
+  assert.deepEqual(checkTech(r), []);
+});
+
+test('캔버스가 없으면 덮임은 따지지 않는다', () => {
+  const r = okTech();
+  r.canvas = { found: false, covered: true };
+  const errors = checkTech(r);
+  assert.ok(errors.some(e => e.includes('no canvas')));
+  assert.ok(!errors.some(e => e.includes('covered by an overlay')));
+});
+
 test('터치 핸들러 부재를 잡는다', () => {
   const r = okTech();
   r.listeners = ['keydown'];
