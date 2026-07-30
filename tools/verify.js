@@ -65,8 +65,12 @@ async function collectTech(browser, target) {
   const dom = await page.evaluate(() => {
     const c = document.querySelector('canvas');
     const r = c?.getBoundingClientRect();
+    // 캔버스 중앙에서 가장 위에 있는 요소가 캔버스가 아니면 시작 오버레이가 아직 덮고 있다.
+    // 실측: 타이틀 화면의 분산이 실제 플레이보다 높아서 픽셀만으로는 구분할 수 없다.
+    const top = r ? document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)) : null;
     return {
       found: !!c,
+      covered: !!c && !!top && top !== c && !c.contains(top),
       cssWidth: r ? Math.round(r.width) : 0,
       cssHeight: r ? Math.round(r.height) : 0,
       inView: !!r && r.width > 0 && r.height > 0 && r.top < window.innerHeight && r.right <= window.innerWidth + 1,
@@ -91,6 +95,7 @@ async function collectTech(browser, target) {
     failedRequests,
     canvas: {
       found: dom.found,
+      covered: dom.covered,
       cssWidth: dom.cssWidth,
       cssHeight: dom.cssHeight,
       inView: dom.inView,
@@ -192,6 +197,8 @@ async function collectPlay(browser, target, T) {
     label: target.label, mode, api,
     // frames는 rAF 프레임 총수. 0이면 setInterval 루프라 FPS를 셀 수 없다.
     frames: last.frames,
+    // 입력 단계의 길이. gates.js가 stateSamples의 'over' 수로 나눠 평균 생존시간을 본다.
+    inputMs: T.inputMs,
     avgFps, fpsWindows: fpsWindows.length ? fpsWindows : [avgFps],
     heap: { start: heapStart, end: heapEnd },
     scoreSamples, stateSamples, legacyDiff, idle, restart
@@ -209,6 +216,15 @@ const targets = opts.targets.length
       .map(g => resolveTarget(g.slug));
 
 const browser = await chromium.launch();
+
+// 크롬 첫 실행 비용이 첫 게임의 loadMs로 잘못 청구되는 것을 막는다.
+// 실측: 같은 파일이 콜드 3199ms → 웜 458ms. 게이트가 늑대소년이 되면 아무도 안 믿는다.
+if (targets.length) {
+  const warm = await browser.newPage();
+  await warm.goto(pathToFileURL(path.resolve(targets[0].file)).href, { waitUntil: 'load' }).catch(() => {});
+  await warm.close();
+}
+
 const reports = [];
 let failed = 0;
 
