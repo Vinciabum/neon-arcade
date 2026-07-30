@@ -71,10 +71,13 @@ export function checkPlay(r) {
   } else if (r.avgFps < PLAY.MIN_AVG_FPS) {
     errors.push(`${at}: average fps ${r.avgFps} below ${PLAY.MIN_AVG_FPS}`);
   }
+  // 구간 표본에 숫자가 아닌 값이 하나라도 섞이면 Math.min이 NaN을 전파해
+  // 구간 검사 전체가 사라진다. 수집 실패는 통과가 아니라 실패로 본다.
   const windows = r.fpsWindows?.length ? r.fpsWindows : [r.avgFps];
-  const worst = Math.min(...windows);
-  if (Number.isFinite(worst) && worst < PLAY.MIN_WINDOW_FPS) {
-    errors.push(`${at}: fps collapsed to ${worst} in one window (min ${PLAY.MIN_WINDOW_FPS})`);
+  if (windows.some(w => !Number.isFinite(w))) {
+    errors.push(`${at}: fps not measured — window sample was not a number`);
+  } else if (Math.min(...windows) < PLAY.MIN_WINDOW_FPS) {
+    errors.push(`${at}: fps collapsed to ${Math.min(...windows)} in one window (min ${PLAY.MIN_WINDOW_FPS})`);
   }
   // 힙은 브라우저가 performance.memory를 안 주면 0으로 온다. 측정 불가와 누수 없음을
   // 구분할 방법이 없으니 여기서는 통과시킨다 — 누수 판정은 있는 데이터로만 한다.

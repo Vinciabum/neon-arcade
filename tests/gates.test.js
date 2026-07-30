@@ -199,3 +199,16 @@ test('재시작 플래그와 상태를 각각 독립으로 본다', () => {
   const playingButNotOk = { ...okPlay(), restart: { ok: false, state: 'playing', score: 0 } };
   assert.ok(checkPlay(playingButNotOk).errors.some(e => e.includes('restart failed')));
 });
+
+test('구간 표본에 NaN이 섞여도 검사를 건너뛰지 않는다', () => {
+  const r = okPlay();
+  r.fpsWindows = [58, NaN, 57];
+  const { errors } = checkPlay(r);
+  assert.ok(errors.some(e => e.includes('fps not measured')));
+});
+
+test('구간 붕괴는 NaN 가드에 가려지지 않는다', () => {
+  const r = okPlay();
+  r.fpsWindows = [58, 12, 57];
+  assert.ok(checkPlay(r).errors.some(e => e.includes('fps collapsed to 12')));
+});
