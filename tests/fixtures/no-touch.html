@@ -1,16 +1,22 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>fixture: no touch</title>
 <style>html,body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh}</style></head>
 <body><canvas id="c"></canvas><script>
-// 키보드 전용 게임. 모바일에서는 조작할 수 없으니 게이트 1이 막아야 한다.
+// 키보드·마우스 전용 게임. 터치/포인터 이벤트를 하나도 듣지 않으니 모바일에서는 조작할 수
+// 없다 — 게이트 1의 터치 검사가 막아야 하고, 그 하나만 걸려야 한다.
 //
-// 계약(window.__GAME__)을 넣은 이유 — 이게 없으면 이 픽스처는 그냥 통과한다:
-// 계약이 없으면 verify가 triggerStart를 부르고, 그 안의 boundingBox() 한 번만으로
-// Playwright(1.60)가 페이지에 touchstart·touchend·pointerdown 등 자기 히트타깃 리스너를 심는다.
-// 프로브가 addEventListener를 후킹해 목록을 만들므로 그 리스너들이 그대로 섞여
-// 터치 검사가 무조건 통과해버린다 (실측 확인). 계약 모드는 triggerStart를 건너뛴다.
+// 계약(window.__GAME__)을 유지하는 이유: 터치 검사는 모드와 무관하지만, 계약 모드에서는
+// collectTech가 start()로 시작하고 triggerStart를 건너뛰므로 게이트 1이 보는 것이 단순해진다.
+// (한때는 계약이 필수였다: triggerStart의 boundingBox() 한 번에 Playwright가 자기 히트타깃
+// 리스너로 touchstart·pointerdown을 심어 프로브 목록을 오염시켜 이 픽스처가 통과했다.
+// 지금은 collectTech가 상호작용 전에 리스너를 스냅샷해서 그 구멍은 막혔다.)
 const ctx = document.getElementById('c').getContext('2d');
 let state = 'title', score = 0, tick = 0, lastInput = 0;
-window.addEventListener('keydown', () => { if (state === 'playing') { score++; lastInput = tick; } });
+// 수집기는 키 패스와 포인터 패스를 따로 돌린다. click·mousedown은 TECH.TOUCH_EVENTS에 없으므로
+// 마우스를 받아도 이 픽스처는 여전히 정직하게 터치 검사에 걸린다. 포인터 패스에서도 무입력
+// 타이머가 풀려야 한다 — 안 그러면 그 패스에서 죽어 평균 생존시간 규칙까지 같이 걸릴 수 있다.
+const bump = () => { if (state === 'playing') { score++; lastInput = tick; } };
+window.addEventListener('keydown', bump);
+window.addEventListener('click', bump);
 function frame() {
   tick++;
   if (state === 'playing' && tick - lastInput > 300) state = 'over';   // 무입력 5초면 종료 (게이트 2는 통과해야 한다)
