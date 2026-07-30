@@ -261,7 +261,4 @@ test('휴리스틱 모드에서도 FPS는 실패로 잡는다', () => {
 test('휴리스틱 모드는 계약 항목 부재를 실패로 만들지 않는다', () => {
   const { errors } = checkPlay(okLegacy());   // scoreSamples / idle / restart 전부 없음
   assert.deepEqual(errors, []);
-  for (const word of ['contract api', 'never ends when idle', 'restart', 'score did not reset']) {
-    assert.ok(!errors.some(e => e.includes(word)), `계약 전용 검사가 새어나왔다: ${word}`);
-  }
 });
