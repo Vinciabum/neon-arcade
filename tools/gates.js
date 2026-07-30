@@ -4,7 +4,7 @@
 
 export const TECH = {
   MAX_LOAD_MS: 2000,
-  MIN_CANVAS_VARIANCE: 3,      // 그레이스케일 분산. 이하면 사실상 단색 화면
+  MIN_CANVAS_STDDEV: 3,        // 그레이스케일 표준편차. 이하면 사실상 단색 화면
   MIN_CANVAS_MOTION: 2,        // 프레임 간 평균 픽셀차. 완전 정지 화면은 0에 가깝다
   TOUCH_EVENTS: ['touchstart', 'touchend', 'touchmove', 'pointerdown'],
   MOBILE_VIEWPORT: { width: 390, height: 844 }   // verify.js가 게이트 1을 이 뷰포트에서 수집한다
@@ -33,18 +33,18 @@ export function checkTech(r) {
   } else {
     // 캡처 자체가 실패했으면 픽셀에 대해 아무 말도 할 수 없다. 게임 결함으로 보고하면 오진이다.
     // (모드와 무관하다 — 캔버스가 있는데 찍지 못한 것은 항상 하네스 문제다.)
-    if (r.canvas.captureFailed || typeof r.canvas.variance !== 'number') {
+    if (r.canvas.captureFailed || typeof r.canvas.stddev !== 'number') {
       errors.push(`${at}: canvas capture failed — cannot judge the pixels`);
-    } else if (r.canvas.variance < TECH.MIN_CANVAS_VARIANCE && (r.canvas.motion ?? 0) < TECH.MIN_CANVAS_MOTION) {
-      // 정지 분산이 낮아도 프레임 간 변화가 있으면 그리고 있는 것이다.
+    } else if (r.canvas.stddev < TECH.MIN_CANVAS_STDDEV && (r.canvas.motion ?? 0) < TECH.MIN_CANVAS_MOTION) {
+      // 정지 표준편차가 낮아도 프레임 간 변화가 있으면 그리고 있는 것이다.
       // 파티클·스타필드처럼 미세한 화면이 "빈 화면"으로 오판되는 것을 막는다.
-      canvasBucket.push(`${at}: canvas appears blank — variance ${r.canvas.variance}, motion ${r.canvas.motion ?? 0}`);
+      canvasBucket.push(`${at}: canvas appears blank — stddev ${r.canvas.stddev}, motion ${r.canvas.motion ?? 0}`);
     }
     if (r.canvas.inView === false) {
       errors.push(`${at}: canvas outside viewport on mobile (${TECH.MOBILE_VIEWPORT.width}x${TECH.MOBILE_VIEWPORT.height})`);
     }
     // 시작 오버레이가 캔버스를 덮고 있으면 그 스크린샷은 게임 화면이 아니다.
-    // 실측: 타이틀 화면의 분산(10.8)이 실제 플레이(9.2)보다 높아서 분산만으로는 구분할 수 없다.
+    // 실측: 타이틀 화면의 표준편차(10.8)가 실제 플레이(9.2)보다 높아서 표준편차만으로는 구분할 수 없다.
     if (r.canvas.covered) {
       canvasBucket.push(`${at}: canvas covered by an overlay — the screenshot is not gameplay (start screen not dismissed, or the run already ended)`);
     }

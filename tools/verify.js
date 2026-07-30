@@ -15,7 +15,7 @@ import path from 'node:path';
 import { gamePath } from './paths.js';
 import { PROBE_SOURCE } from './probe.js';
 import { checkTech, checkPlay, TECH, PLAY } from './gates.js';
-import { diff, variance, changedFraction } from './framediff.js';
+import { diff, stddev, changedFraction } from './framediff.js';
 import { triggerStart } from './start.js';
 
 // 게이트 1의 기준 뷰포트는 gates.js가 소유한다 — 에러 메시지도 같은 값을 쓰므로 여기서 다시 적지 않는다.
@@ -115,7 +115,7 @@ async function collectTechOn(page, target) {
   const listenersContaminated = listeners.includes('__playwright_global_listeners_check__');
 
   // 계약이 있으면 휴리스틱보다 계약으로 시작한다 — 게이트 1의 픽셀 지표는
-  // state === 'playing' 에서만 의미가 있다 (타이틀·게임오버 화면은 분산이 낮고 해상도에 민감하다).
+  // state === 'playing' 에서만 의미가 있다 (타이틀·게임오버 화면은 표준편차가 낮고 해상도에 민감하다).
   const contract = await page.evaluate(() => {
     if (!window.__GAME__) return false;
     window.__GAME__.start();
@@ -128,12 +128,12 @@ async function collectTechOn(page, target) {
     const c = document.querySelector('canvas');
     const r = c?.getBoundingClientRect();
     // 캔버스 중앙에서 가장 위에 있는 요소가 캔버스가 아니면 시작 오버레이가 아직 덮고 있다.
-    // 실측: 타이틀 화면의 분산이 실제 플레이보다 높아서 픽셀만으로는 구분할 수 없다.
+    // 실측: 타이틀 화면의 표준편차가 실제 플레이보다 높아서 픽셀만으로는 구분할 수 없다.
     const top = r ? document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)) : null;
     return {
       found: !!c,
       covered: !!c && !!top && top !== c && !c.contains(top),
-      // 촬영 시점의 상태. 게이트는 읽지 않는다 — 낮은 분산을 나중에 설명하기 위한 진단값이다.
+      // 촬영 시점의 상태. 게이트는 읽지 않는다 — 낮은 표준편차를 나중에 설명하기 위한 진단값이다.
       state: window.__GAME__ ? window.__GAME__.state : null,
       cssWidth: r ? Math.round(r.width) : 0,
       cssHeight: r ? Math.round(r.height) : 0,
@@ -175,11 +175,11 @@ async function collectTechOn(page, target) {
   // 바뀌어 게임이 억울하게 실패한다.
   const captureFailed = good.length < 2;
 
-  // 분산은 표본 중 최대. 한 장이라도 제대로 그려졌으면 빈 화면이 아니다.
-  let maxVariance = null;
+  // 표준편차는 표본 중 최대. 한 장이라도 제대로 그려졌으면 빈 화면이 아니다.
+  let maxStddev = null;
   for (const s of good) {
-    const v = await variance(s);
-    if (maxVariance === null || v > maxVariance) maxVariance = v;
+    const v = await stddev(s);
+    if (maxStddev === null || v > maxStddev) maxStddev = v;
   }
   // 움직임도 연속 표본 쌍 중 최대. 한 번이라도 변했으면 정지 화면이 아니다.
   let maxMotion = null;
@@ -213,7 +213,7 @@ async function collectTechOn(page, target) {
       cssHeight: dom.cssHeight,
       inView: dom.inView,
       captureFailed,
-      variance: maxVariance === null ? null : Number(maxVariance.toFixed(1)),
+      stddev: maxStddev === null ? null : Number(maxStddev.toFixed(1)),
       motion: maxMotion === null ? null : Number(maxMotion.toFixed(1))
     },
     // 게이트가 보는 목록은 Playwright가 손대기 전의 스냅샷이다.
@@ -512,7 +512,7 @@ try {
       const { tech, techErrors, play, playErrors, skipped } =
         await withDeadline(verifyTarget(target), T.targetMs, target.label);
 
-      console.log(`  mode ${play.mode}  load ${tech.loadMs}ms  fps ${play.avgFps}  variance ${tech.canvas.variance}  motion ${tech.canvas.motion}`);
+      console.log(`  mode ${play.mode}  load ${tech.loadMs}ms  fps ${play.avgFps}  stddev ${tech.canvas.stddev}  motion ${tech.canvas.motion}`);
       for (const s of skipped) console.log(`  ~ skipped: ${s}`);
       for (const e of [...techErrors, ...playErrors]) console.error(`  x ${e}`);
 

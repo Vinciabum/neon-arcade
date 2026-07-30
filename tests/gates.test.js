@@ -12,7 +12,7 @@ const okTech = () => ({
   consoleErrors: [],
   pageErrors: [],
   failedRequests: [],
-  canvas: { found: true, cssWidth: 390, cssHeight: 520, variance: 34.5, inView: true },
+  canvas: { found: true, cssWidth: 390, cssHeight: 520, stddev: 34.5, inView: true },
   listeners: ['keydown', 'touchstart', 'visibilitychange'],
   mobile: { scrollWidth: 390, innerWidth: 390 }
 });
@@ -50,29 +50,29 @@ test('캔버스 부재를 잡는다', () => {
 
 test('빈 캔버스를 잡는다', () => {
   const r = okTech();
-  r.canvas.variance = 0.4;
+  r.canvas.stddev = 0.4;
   assert.ok(checkTech(r).errors.some(e => e.includes('canvas appears blank')));
 });
 
-test('분산이 낮고 움직임도 없으면 빈 캔버스로 본다', () => {
+test('표준편차가 낮고 움직임도 없으면 빈 캔버스로 본다', () => {
   const r = okTech();
-  r.canvas.variance = 0.4;
+  r.canvas.stddev = 0.4;
   r.canvas.motion = 0;
   assert.ok(checkTech(r).errors.some(e => e.includes('canvas appears blank')));
 });
 
-test('분산이 낮아도 움직이면 빈 캔버스가 아니다', () => {
+test('표준편차가 낮아도 움직이면 빈 캔버스가 아니다', () => {
   const r = okTech();
-  r.canvas.variance = 1.8;      // 정지 화면은 거의 단색
+  r.canvas.stddev = 1.8;        // 정지 화면은 거의 단색
   r.canvas.motion = 9.4;        // 그래도 프레임마다 바뀐다 → 그리고 있는 것으로 본다
   // 한계를 알고 받아들인 판정이다: 스프라이트가 안 나오는데 배경만 번쩍이는 게임도 통과한다.
-  // 그 대신 실제 파티클·스타필드 화면(variance 1~4)을 빈 화면으로 오판하지 않는다.
+  // 그 대신 실제 파티클·스타필드 화면(stddev 1~4)을 빈 화면으로 오판하지 않는다.
   assert.deepEqual(checkTech(r).errors, []);
 });
 
 test('빈 캔버스 판정도 경계값은 통과로 본다', () => {
   const r = okTech();
-  r.canvas.variance = 0.4;
+  r.canvas.stddev = 0.4;
   r.canvas.motion = 2;          // MIN_CANVAS_MOTION과 같으면 통과
   assert.deepEqual(checkTech(r).errors, []);
 });
@@ -99,15 +99,15 @@ test('캔버스가 없으면 덮임은 따지지 않는다', () => {
 test('캡처 실패를 게임 결함으로 보고하지 않는다 (captureFailed 플래그)', () => {
   const r = okTech();
   r.canvas.captureFailed = true;
-  r.canvas.variance = 34.5;    // 숫자는 그럴듯해도 캡처 자체가 실패했으면 믿을 수 없다
+  r.canvas.stddev = 34.5;      // 숫자는 그럴듯해도 캡처 자체가 실패했으면 믿을 수 없다
   const { errors } = checkTech(r);
   assert.ok(errors.some(e => e.includes('canvas capture failed')));
   assert.ok(!errors.some(e => e.includes('canvas appears blank')));
 });
 
-test('캡처 실패를 게임 결함으로 보고하지 않는다 (variance가 숫자가 아님)', () => {
+test('캡처 실패를 게임 결함으로 보고하지 않는다 (stddev가 숫자가 아님)', () => {
   const r = okTech();
-  r.canvas.variance = null;    // captureFailed 플래그 없이도 숫자가 아니면 판단 불가
+  r.canvas.stddev = null;      // captureFailed 플래그 없이도 숫자가 아니면 판단 불가
   const { errors } = checkTech(r);
   assert.ok(errors.some(e => e.includes('canvas capture failed')));
   assert.ok(!errors.some(e => e.includes('canvas appears blank')));
@@ -129,7 +129,7 @@ test('휴리스틱 모드: 캔버스가 없어도 터치·가로 넘침은 그�
 test('휴리스틱 모드: 빈 캔버스도 실패 대신 보류한다', () => {
   const r = okTech();
   r.mode = 'legacy';
-  r.canvas.variance = 0.4;    // cyber-memory의 장식용 캔버스처럼 정지해 있다
+  r.canvas.stddev = 0.4;    // cyber-memory의 장식용 캔버스처럼 정지해 있다
   const { errors, skipped } = checkTech(r);
   assert.ok(!errors.some(e => e.includes('canvas appears blank')));
   assert.ok(skipped.some(s => s.includes('canvas appears blank')));
@@ -184,7 +184,7 @@ test('빈 리포트에도 던지지 않는다 — 없는 필드는 검사를 건
 
 test('임계값 경계는 통과로 본다', () => {
   const r = okTech();
-  r.canvas.variance = 3;                              // MIN_CANVAS_VARIANCE와 같으면 통과
+  r.canvas.stddev = 3;                                // MIN_CANVAS_STDDEV와 같으면 통과
   r.loadMs = 2000;                                    // MAX_LOAD_MS와 같으면 통과
   r.mobile = { scrollWidth: 391, innerWidth: 390 };   // +1까지는 반올림 오차로 본다
   assert.deepEqual(checkTech(r).errors, []);

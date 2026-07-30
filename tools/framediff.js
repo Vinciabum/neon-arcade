@@ -1,4 +1,4 @@
-// 스크린샷 두 장의 차이와 한 장의 분산을 재는 공용 유틸.
+// 스크린샷 두 장의 차이와 한 장의 표준편차를 재는 공용 유틸.
 // 64x48 그레이스케일로 줄여 비교한다 — 렌더 노이즈에 둔감하고 충분히 빠르다.
 import sharp from 'sharp';
 
@@ -24,8 +24,8 @@ export async function changedFraction(a, b, { width = 192, height = 144, noise =
   return changed / x.length;
 }
 
-// 표준편차. 단색 화면(빈 캔버스)이면 0에 가깝다.
-export async function variance(buf) {
+// 64x48 그레이스케일 축소본의 모집단 표준편차(population standard deviation). 단색 화면(빈 캔버스)이면 0에 가깝다.
+export async function stddev(buf) {
   const px = await shrink(buf);
   let sum = 0;
   for (let i = 0; i < px.length; i++) sum += px[i];
