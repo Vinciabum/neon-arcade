@@ -49,6 +49,33 @@ test('빈 캔버스를 잡는다', () => {
   assert.ok(checkTech(r).some(e => e.includes('canvas appears blank')));
 });
 
+test('분산이 낮고 움직임도 없으면 빈 캔버스로 본다', () => {
+  const r = okTech();
+  r.canvas.variance = 0.4;
+  r.canvas.motion = 0;
+  assert.ok(checkTech(r).some(e => e.includes('canvas appears blank')));
+});
+
+test('분산이 낮아도 움직이면 빈 캔버스가 아니다', () => {
+  const r = okTech();
+  r.canvas.variance = 1.8;      // 파티클만 있는 화면
+  r.canvas.motion = 9.4;        // 그런데 프레임마다 바뀐다
+  assert.deepEqual(checkTech(r), []);
+});
+
+test('움직임 정보가 없으면 분산만으로 판정한다', () => {
+  const r = okTech();
+  r.canvas.variance = 0.4;      // motion 필드 없음 (구형 리포트)
+  assert.ok(checkTech(r).some(e => e.includes('canvas appears blank')));
+});
+
+test('빈 캔버스 판정도 경계값은 통과로 본다', () => {
+  const r = okTech();
+  r.canvas.variance = 0.4;
+  r.canvas.motion = 2;          // MIN_CANVAS_MOTION과 같으면 통과
+  assert.deepEqual(checkTech(r), []);
+});
+
 test('터치 핸들러 부재를 잡는다', () => {
   const r = okTech();
   r.listeners = ['keydown'];

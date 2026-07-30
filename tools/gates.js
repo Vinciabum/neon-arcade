@@ -5,6 +5,7 @@
 export const TECH = {
   MAX_LOAD_MS: 2000,
   MIN_CANVAS_VARIANCE: 3,      // 그레이스케일 분산. 이하면 사실상 단색 화면
+  MIN_CANVAS_MOTION: 2,        // 프레임 간 평균 픽셀차. 완전 정지 화면은 0에 가깝다
   TOUCH_EVENTS: ['touchstart', 'touchend', 'touchmove', 'pointerdown'],
   MOBILE_VIEWPORT: { width: 390, height: 844 }   // verify.js가 게이트 1을 이 뷰포트에서 수집한다
 };
@@ -23,8 +24,10 @@ export function checkTech(r) {
   if (!r.canvas?.found) {
     errors.push(`${at}: no canvas element found`);
   } else {
-    if (r.canvas.variance < TECH.MIN_CANVAS_VARIANCE) {
-      errors.push(`${at}: canvas appears blank — variance ${r.canvas.variance} below ${TECH.MIN_CANVAS_VARIANCE}`);
+    // 정지 분산이 낮아도 프레임 간 변화가 있으면 그리고 있는 것이다.
+    // 파티클·스타필드처럼 미세한 화면이 "빈 화면"으로 오판되는 것을 막는다.
+    if (r.canvas.variance < TECH.MIN_CANVAS_VARIANCE && (r.canvas.motion ?? 0) < TECH.MIN_CANVAS_MOTION) {
+      errors.push(`${at}: canvas appears blank — variance ${r.canvas.variance}, motion ${r.canvas.motion ?? 0}`);
     }
     if (r.canvas.inView === false) {
       errors.push(`${at}: canvas outside viewport on mobile (${TECH.MOBILE_VIEWPORT.width}x${TECH.MOBILE_VIEWPORT.height})`);
