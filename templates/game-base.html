@@ -174,16 +174,24 @@ document.addEventListener('visibilitychange', () => {
 /* ============================================================
    ===== GAME LOGIC — 새 게임에서 이 구역만 교체한다 =====
    지켜야 할 계약:
-     reset()  : 새 판의 초기 상태를 만든다 (score는 호출자가 0으로 만든다)
-     step(dt) : dt(초)만큼 진행. 죽으면 gameOver()를 부른다.
-                입력을 주지 않으면 반드시 몇 초 안에 죽어야 한다 (게이트 2 방치 종결)
-     draw()   : 캔버스를 그린다. 단색 화면이면 게이트 1이 막는다
+     reset()     : 새 판의 초기 상태를 만든다 (score는 호출자가 0으로 만든다)
+     step(m, dt) : dt(초)만큼 진행. 죽으면 gameOver()를 부른다.
+                   입력을 주지 않으면 반드시 몇 초 안에 죽어야 한다 (게이트 2 방치 종결)
+     draw(m, dt) : 캔버스를 그린다. 모든 상태에서 매 프레임 불린다.
+                   단색이고 정지한 화면이면 게이트 1이 막는다
+     m 은 루프가 프레임당 한 번 만든 M() 결과다 — step과 draw가 같은 값을 본다
    ============================================================ */
 const player = { x: 0.5, speed: 0.55 };   // 크기는 M()이 화면 높이에서 파생한다
 let blocks = [];
 let spawnIn = 0;
 let fallSpeed = 0;
 let spawnCount = 0;
+let gridOff = 0;      // 격자 스크롤 위상. 프레임 수가 아니라 시간·격자 간격에 비례해야
+                      // 해상도와 프레임레이트가 달라도 같은 속도로 보인다
+const GRID_SCROLL = 1.25;   // 초당 격자 간격의 몇 배로 흐르는가. 게이트1의 motion은
+                            // 400ms 간격 두 장의 픽셀차인데, 격자는 주기 패턴이라
+                            // 위상차가 반주기(0.5)에 가까울 때 차이가 가장 크다.
+                            // 1.25/초 × 0.4초 = 0.5주기 — 해상도에 무관하게 성립한다.
 
 // 스프라이트·판정·격자 크기를 한 곳에서 화면 높이로부터 파생한다.
 // 픽셀 상수로 두면 큰 화면에서 그림이 먼지처럼 작아진다(4K에서 게이트1 분산이 1.5까지 떨어졌다).
@@ -207,12 +215,13 @@ function reset() {
   player.x = 0.5;
   blocks = [];
   spawnCount = 0;
+  gridOff = 0;
   spawnIn = 0.35;
   fallSpeed = 0.30;            // 화면 높이의 30%/초. px/s로 두면 큰 화면에서 낙하가 느려져
                                // 방치 종결이 게이트 예산(8초)을 넘긴다 — 높이에 무관하게 만든다
 }
 
-function step(dt) {
+function step(m, dt) {
   if (input.left) player.x -= player.speed * dt;
   if (input.right) player.x += player.speed * dt;
   player.x = Math.min(0.94, Math.max(0.06, player.x));
@@ -235,7 +244,6 @@ function step(dt) {
     fallSpeed = Math.min(0.72, fallSpeed + 0.01);
   }
 
-  const m = M();
   for (const b of blocks) {
     b.y += fallSpeed * dt;
     const bx = b.x * W, by = b.y * H;
@@ -247,16 +255,18 @@ function step(dt) {
   blocks = blocks.filter(b => b.y < 1.3);
 }
 
-function draw() {
-  const m = M();
+function draw(m, dt) {
+  // 위상은 여기서 진행시킨다 — draw는 모든 상태에서 매 프레임 불리므로
+  // 타이틀·일시정지·게임오버 화면에서도 격자가 흐른다(게이트1이 어디서 찍어도 움직인다).
+  gridOff = (gridOff + m.grid * GRID_SCROLL * dt) % m.grid;
+
   ctx.fillStyle = '#070912';
   ctx.fillRect(0, 0, W, H);
 
   // 배경 그리드 — 화면이 비지 않게 하고 속도감을 준다
   ctx.strokeStyle = 'rgba(0,229,255,.10)';
   ctx.lineWidth = m.line;
-  const off = (tick * 1.6) % m.grid;
-  for (let y = off; y < H; y += m.grid) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  for (let y = gridOff; y < H; y += m.grid) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
   for (let x = 0; x < W; x += m.grid) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
 
   for (const b of blocks) {
@@ -302,11 +312,12 @@ function frame(now) {
   const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
   last = now;
   tick++;
+  const m = M();               // 프레임당 한 번만 만든다 (step·draw가 같은 값을 본다)
   if (state === S.PLAYING) {
-    step(dt);
+    step(m, dt);
     el.score.textContent = score;
   }
-  draw();
+  draw(m, dt);
   requestAnimationFrame(frame);
 }
 
