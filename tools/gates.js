@@ -35,7 +35,7 @@ export function checkTech(r) {
     // 시작 오버레이가 캔버스를 덮고 있으면 그 스크린샷은 게임 화면이 아니다.
     // 실측: 타이틀 화면의 분산(10.8)이 실제 플레이(9.2)보다 높아서 분산만으로는 구분할 수 없다.
     if (r.canvas.covered) {
-      errors.push(`${at}: canvas covered by an overlay — the start trigger did not take`);
+      errors.push(`${at}: canvas covered by an overlay — the screenshot is not gameplay (start screen not dismissed, or the run already ended)`);
     }
   }
 
