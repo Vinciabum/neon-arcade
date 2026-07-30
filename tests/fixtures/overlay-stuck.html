@@ -1,0 +1,22 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>fixture: overlay stuck</title>
+<style>
+  html,body{margin:0;background:#000}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none}
+  #veil{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(4,6,12,.4);color:#8ff;font:600 20px system-ui}
+  /* 베일을 반투명하게 둔 이유: .88이면 캔버스 픽셀이 거의 통과하지 못해
+     "빈 화면"·"입력 무반응" 규칙까지 같이 걸린다. 덮는다는 사실만 남기고 나머지는 통과시킨다. */
+</style></head>
+<body><canvas id="c"></canvas><div id="veil"><p>Loading assets…</p></div><script>
+const c = document.getElementById('c');
+c.addEventListener('touchstart', () => {});
+const ctx = c.getContext('2d');
+let tick = 0;
+function frame() {
+  tick++;
+  ctx.fillStyle = '#123'; ctx.fillRect(0, 0, 4000, 4000);
+  ctx.fillStyle = '#ff0'; ctx.fillRect((tick * 3) % 320, 50, 60, 60);   // 기본 300x150 버퍼 안에 그린다
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);   // 게임은 잘 그리는데 베일이 절대 걷히지 않는다
+</script></body></html>

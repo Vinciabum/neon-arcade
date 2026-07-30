@@ -1,0 +1,17 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>fixture: console error</title>
+<style>html,body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh;touch-action:none}</style></head>
+<body><canvas id="c"></canvas><script>
+const ctx = document.getElementById('c').getContext('2d');
+document.getElementById('c').addEventListener('touchstart', () => {});
+let t = 0;
+function frame() {
+  ctx.fillStyle = '#123'; ctx.fillRect(0, 0, 400, 400);
+  ctx.fillStyle = '#0ff'; ctx.fillRect((t * 3) % 300, 100, 40, 40);
+  t++;
+  // 다음 프레임을 먼저 예약한 다음 던진다. 루프가 죽으면 fps·진행성 규칙까지 같이 걸려서
+  // 이 픽스처가 "에러 규칙 하나"를 격리해 증명하지 못한다.
+  requestAnimationFrame(frame);
+  if (t === 30) window.thisFunctionDoesNotExist();   // 의도적 결함
+}
+requestAnimationFrame(frame);
+</script></body></html>
