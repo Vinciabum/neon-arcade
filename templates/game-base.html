@@ -188,7 +188,8 @@ function reset() {
   player.x = 0.5;
   blocks = [];
   spawnIn = 0.35;
-  fallSpeed = 210;
+  fallSpeed = 0.30;            // 화면 높이의 30%/초. px/s로 두면 큰 화면에서 낙하가 느려져
+                               // 방치 종결이 게이트 예산(8초)을 넘긴다 — 높이에 무관하게 만든다
 }
 
 function step(dt) {
@@ -199,17 +200,17 @@ function step(dt) {
   spawnIn -= dt;
   if (spawnIn <= 0) {
     // 첫 블록은 겨냥하지 않는다. 겨냥이 너무 이르면 점수를 한 번도 못 얻고 죽어서
-    // "진행성 없음"으로 오판된다. 3번째 블록부터 겨냥하면 방치 종결은 5초 안에 오고
+    // "진행성 없음"으로 오판된다. 4번째 블록부터 겨냥하면(blocks.length가 3에 도달) 방치 종결은 5초 안에 오고
     // 그 사이 앞선 블록들이 지나가며 점수가 오른다.
     const aimed = blocks.length > 0 && blocks.length % 3 === 0;
     blocks.push({ x: aimed ? player.x : 0.08 + Math.abs(Math.sin(tick * 0.37)) * 0.84, y: -0.05, scored: false });
     spawnIn = 0.62;
-    fallSpeed = Math.min(520, fallSpeed + 6);
+    fallSpeed = Math.min(0.72, fallSpeed + 0.01);
   }
 
   const py = H - 34;
   for (const b of blocks) {
-    b.y += (fallSpeed * dt) / H;
+    b.y += fallSpeed * dt;
     const bx = b.x * W, by = b.y * H;
     const hit = by + 13 > py && by - 13 < py + player.h &&
                 Math.abs(bx - player.x * W) < player.w / 2 + 13;
