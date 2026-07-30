@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Game Base — Neon Arcade</title>
+<style>
+  :root { --neon: #00e5ff; --bg: #05060a; --ink: #e8f6ff; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  #wrap { position: fixed; inset: 0; display: flex; flex-direction: column; }
+  #hud { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 10px 14px; font-variant-numeric: tabular-nums; font-size: 14px; }
+  #hud b { color: var(--neon); font-weight: 700; }
+  #stage { position: relative; flex: 1; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; background: #070912; }
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; text-align: center;
+    background: rgba(5, 6, 10, .82); padding: 20px; }
+  .overlay[hidden] { display: none; }
+  .overlay h1 { margin: 0; font-size: clamp(22px, 7vw, 38px); letter-spacing: .04em; color: var(--neon); }
+  .overlay p { margin: 0; max-width: 30ch; line-height: 1.5; opacity: .85; font-size: 14px; }
+  .btn { appearance: none; border: 1px solid var(--neon); background: transparent; color: var(--neon);
+    padding: 12px 26px; border-radius: 999px; font: inherit; font-weight: 700; cursor: pointer;
+    min-width: 160px; min-height: 48px; }
+  .btn:active { background: rgba(0, 229, 255, .16); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span>SCORE <b id="score">0</b></span>
+    <span>BEST <b id="best">0</b></span>
+  </div>
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div class="overlay" id="titleScreen">
+      <h1>GAME BASE</h1>
+      <p>Dodge the falling blocks. Arrow keys or A/D on desktop, tap left or right half on mobile.</p>
+      <button class="btn" id="startBtn" type="button">Play</button>
+    </div>
+    <div class="overlay" id="overScreen" hidden>
+      <h1>GAME OVER</h1>
+      <p>Score <b id="finalScore">0</b></p>
+      <button class="btn" id="againBtn" type="button">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   NEON ARCADE — GAME BASE
+   새 게임은 이 파일을 복사해 play/<slug>.html 로 두고
+   "GAME LOGIC" 구역만 교체한다. 그 위/아래(계약·입력·루프·포털 훅)는 그대로 둔다.
+   ============================================================ */
+
+const SLUG = 'game-base';                  // 새 게임에서 슬러그로 바꾼다
+const BEST_KEY = 'just1game:' + SLUG + ':best';
+
+/* ---------- 포털 SDK 훅 ----------
+   사이트 배포에서는 비활성 no-op. 포털 납품 빌드에서만 PORTAL.enabled를 켠다.
+   게임 로직은 아래 4개 함수만 부른다 — SDK가 무엇으로 바뀌어도 로직은 안 바뀐다. */
+const PORTAL = { enabled: false, gameId: '' };
+const Portal = {
+  ready() { if (!PORTAL.enabled) return Promise.resolve(); return Promise.resolve(window.gdsdk); },
+  gameplayStart() { if (PORTAL.enabled && window.gdsdk) window.gdsdk.preloadAd?.('rewarded'); },
+  gameplayStop() { /* 납품 빌드에서 SDK의 gameplayStop을 연결한다 */ },
+  adBreak(done) { done(); }   // 비활성 상태에서는 즉시 콜백. 게임이 광고를 기다리며 멈추지 않는다
+};
+
+/* ---------- 오디오: 사용자 제스처 이후에만 초기화 (모바일 정책) ---------- */
+let actx = null;
+function audioReady() {
+  if (actx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (AC) actx = new AC();
+}
+function beep(freq, ms) {
+  if (!actx) return;
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  osc.frequency.value = freq;
+  osc.type = 'square';
+  gain.gain.value = 0.04;
+  osc.connect(gain).connect(actx.destination);
+  osc.start();
+  osc.stop(actx.currentTime + ms / 1000);
+}
+
+/* ---------- 캔버스: 반응형 + DPR ---------- */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  W = Math.max(1, Math.round(rect.width));
+  H = Math.max(1, Math.round(rect.height));
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+
+/* ---------- 상태 ---------- */
+const S = { TITLE: 'title', PLAYING: 'playing', PAUSED: 'paused', OVER: 'over' };
+let state = S.TITLE;
+let score = 0;
+let tick = 0;
+let best = Number(localStorage.getItem(BEST_KEY) || 0);
+
+const el = {
+  score: document.getElementById('score'),
+  best: document.getElementById('best'),
+  finalScore: document.getElementById('finalScore'),
+  title: document.getElementById('titleScreen'),
+  over: document.getElementById('overScreen')
+};
+el.best.textContent = best;
+
+/* ---------- 입력: 키보드 + 터치 이중 ---------- */
+const input = { left: false, right: false };
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') input.left = true;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') input.right = true;
+  if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); if (state !== S.PLAYING) start(); }
+  if (e.code === 'KeyP') { state === S.PLAYING ? pause() : state === S.PAUSED ? resume() : 0; }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') input.left = false;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') input.right = false;
+});
+
+function touchAt(clientX) {
+  const rect = canvas.getBoundingClientRect();
+  const half = rect.left + rect.width / 2;
+  input.left = clientX < half;
+  input.right = clientX >= half;
+}
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault(); audioReady();
+  if (state !== S.PLAYING) { start(); return; }
+  touchAt(e.changedTouches[0].clientX);
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  touchAt(e.changedTouches[0].clientX);
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault(); input.left = input.right = false;
+}, { passive: false });
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'touch') return;      // 터치는 위에서 처리
+  audioReady();
+  if (state !== S.PLAYING) { start(); return; }
+  touchAt(e.clientX);
+});
+canvas.addEventListener('pointerup', () => { input.left = input.right = false; });
+
+document.getElementById('startBtn').addEventListener('click', () => { audioReady(); start(); });
+document.getElementById('againBtn').addEventListener('click', () => { audioReady(); start(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && state === S.PLAYING) pause(); });
+
+/* ============================================================
+   ===== GAME LOGIC — 새 게임에서 이 구역만 교체한다 =====
+   지켜야 할 계약:
+     reset()  : 새 판의 초기 상태를 만든다 (score는 호출자가 0으로 만든다)
+     step(dt) : dt(초)만큼 진행. 죽으면 gameOver()를 부른다.
+                입력을 주지 않으면 반드시 몇 초 안에 죽어야 한다 (게이트 2 방치 종결)
+     draw()   : 캔버스를 그린다. 단색 화면이면 게이트 1이 막는다
+   ============================================================ */
+const player = { x: 0.5, w: 34, h: 14, speed: 0.95 };
+let blocks = [];
+let spawnIn = 0;
+let fallSpeed = 0;
+
+function reset() {
+  player.x = 0.5;
+  blocks = [];
+  spawnIn = 0.35;
+  fallSpeed = 210;
+}
+
+function step(dt) {
+  if (input.left) player.x -= player.speed * dt;
+  if (input.right) player.x += player.speed * dt;
+  player.x = Math.min(0.94, Math.max(0.06, player.x));
+
+  spawnIn -= dt;
+  if (spawnIn <= 0) {
+    // 첫 블록과 3의 배수 블록은 플레이어를 겨냥한다 — 가만히 있으면 반드시 죽는다.
+    const aimed = blocks.length % 3 === 0;
+    blocks.push({ x: aimed ? player.x : 0.08 + Math.abs(Math.sin(tick * 0.37)) * 0.84, y: -0.05, scored: false });
+    spawnIn = 0.62;
+    fallSpeed = Math.min(520, fallSpeed + 6);
+  }
+
+  const py = H - 34;
+  for (const b of blocks) {
+    b.y += (fallSpeed * dt) / H;
+    const bx = b.x * W, by = b.y * H;
+    const hit = by + 13 > py && by - 13 < py + player.h &&
+                Math.abs(bx - player.x * W) < player.w / 2 + 13;
+    if (hit) { gameOver(); return; }
+    if (!b.scored && by > py + player.h) { b.scored = true; score++; beep(880, 40); }
+  }
+  blocks = blocks.filter(b => b.y < 1.3);
+}
+
+function draw() {
+  ctx.fillStyle = '#070912';
+  ctx.fillRect(0, 0, W, H);
+
+  // 배경 그리드 — 화면이 비지 않게 하고 속도감을 준다
+  ctx.strokeStyle = 'rgba(0,229,255,.10)';
+  ctx.lineWidth = 1;
+  const off = (tick * 1.6) % 40;
+  for (let y = off; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+
+  for (const b of blocks) {
+    ctx.fillStyle = '#ff2e88';
+    ctx.shadowColor = '#ff2e88';
+    ctx.shadowBlur = 14;
+    ctx.fillRect(b.x * W - 13, b.y * H - 13, 26, 26);
+  }
+
+  ctx.fillStyle = '#00e5ff';
+  ctx.shadowColor = '#00e5ff';
+  ctx.shadowBlur = 18;
+  ctx.fillRect(player.x * W - player.w / 2, H - 34, player.w, player.h);
+  ctx.shadowBlur = 0;
+}
+/* ===== GAME LOGIC 끝 ===== */
+
+/* ---------- 상태 전이 ---------- */
+function start() {
+  score = 0;
+  el.score.textContent = '0';
+  el.title.hidden = true;
+  el.over.hidden = true;
+  reset();
+  state = S.PLAYING;
+  Portal.gameplayStart();
+}
+function pause() { if (state === S.PLAYING) state = S.PAUSED; }
+function resume() { if (state === S.PAUSED) state = S.PLAYING; }
+function gameOver() {
+  state = S.OVER;
+  beep(160, 180);
+  Portal.gameplayStop();
+  if (score > best) { best = score; localStorage.setItem(BEST_KEY, String(best)); el.best.textContent = best; }
+  el.finalScore.textContent = score;
+  el.over.hidden = false;
+}
+
+/* ---------- 루프 ---------- */
+let last = 0;
+function frame(now) {
+  const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+  last = now;
+  tick++;
+  if (state === S.PLAYING) {
+    step(dt);
+    el.score.textContent = score;
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 관측 계약: 게이트 2가 읽는 유일한 인터페이스 ---------- */
+window.__GAME__ = {
+  api: 1,
+  get state() { return state; },
+  get score() { return score; },
+  get tick() { return tick; },
+  start, pause, resume
+};
+
+resize();
+Portal.ready().then(() => requestAnimationFrame(frame));
+</script>
+</body>
+</html>
