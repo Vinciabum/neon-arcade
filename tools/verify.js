@@ -59,7 +59,14 @@ async function collectTech(browser, target) {
   const loadMs = performance.now() - t0;
 
   await page.waitForTimeout(600);
-  await triggerStart(page);
+  // 계약이 있으면 휴리스틱보다 계약으로 시작한다 — 게이트 1의 픽셀 지표는
+  // state === 'playing' 에서만 의미가 있다 (타이틀·게임오버 화면은 분산이 낮고 해상도에 민감하다).
+  const contract = await page.evaluate(() => {
+    if (!window.__GAME__) return false;
+    window.__GAME__.start();
+    return true;
+  });
+  if (!contract) await triggerStart(page);
   await page.waitForTimeout(900);          // 실제로 그려질 시간을 준다
 
   const dom = await page.evaluate(() => {
@@ -71,6 +78,8 @@ async function collectTech(browser, target) {
     return {
       found: !!c,
       covered: !!c && !!top && top !== c && !c.contains(top),
+      // 촬영 시점의 상태. 게이트는 읽지 않는다 — 낮은 분산을 나중에 설명하기 위한 진단값이다.
+      state: window.__GAME__ ? window.__GAME__.state : null,
       cssWidth: r ? Math.round(r.width) : 0,
       cssHeight: r ? Math.round(r.height) : 0,
       inView: !!r && r.width > 0 && r.height > 0 && r.top < window.innerHeight && r.right <= window.innerWidth + 1,
@@ -96,6 +105,7 @@ async function collectTech(browser, target) {
     canvas: {
       found: dom.found,
       covered: dom.covered,
+      state: dom.state,
       cssWidth: dom.cssWidth,
       cssHeight: dom.cssHeight,
       inView: dom.inView,
