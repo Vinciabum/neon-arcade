@@ -341,3 +341,38 @@ test('휴리스틱 모드라도 프레임이 있으면 FPS를 판정한다', () 
   r.fpsWindows = [30, 30, 30];
   assert.ok(checkPlay(r).errors.some(e => e.includes('average fps')));
 });
+
+test('즉사를 반복하는 게임을 잡는다', () => {
+  const r = okPlay();
+  r.inputMs = 30_000;
+  r.stateSamples = Array(60).fill('over');     // 표본마다 죽어 있다
+  r.scoreSamples = [0, 1, 0, 1, 0, 1];         // 진행성 검사만으로는 통과한다
+  assert.ok(checkPlay(r).errors.some(e => e.includes('dies too fast')));
+});
+
+test('정상적인 사망 빈도는 통과한다', () => {
+  const r = okPlay();
+  r.inputMs = 30_000;
+  r.stateSamples = [...Array(54).fill('playing'), ...Array(6).fill('over')];  // 평균 생존 5초
+  assert.deepEqual(checkPlay(r).errors, []);
+});
+
+test('평균 생존 경계는 통과로 본다', () => {
+  const r = okPlay();
+  r.inputMs = 30_000;
+  r.stateSamples = Array(10).fill('over');     // 정확히 3000ms
+  assert.deepEqual(checkPlay(r).errors, []);
+});
+
+test('inputMs가 없으면 생존 판정을 하지 않는다', () => {
+  const r = okPlay();                          // 구형 리포트
+  r.stateSamples = Array(60).fill('over');
+  assert.ok(!checkPlay(r).errors.some(e => e.includes('dies too fast')));
+});
+
+test('한 번도 죽지 않으면 생존 판정을 하지 않는다', () => {
+  const r = okPlay();
+  r.inputMs = 30_000;
+  r.stateSamples = Array(60).fill('playing');
+  assert.deepEqual(checkPlay(r).errors, []);
+});

@@ -60,7 +60,9 @@ export const PLAY = {
   MIN_AVG_FPS: 50,          // 60fps 목표에서 프레임 드랍 여유 10. 이 밑은 조작이 눌리는 느낌이 난다
   MIN_WINDOW_FPS: 30,       // 평균이 괜찮아도 특정 구간에서 30 밑으로 떨어지면 체감은 "멈췄다"
   MAX_HEAP_RATIO: 2.5,      // 60초 플레이로 힙이 2.5배면 오브젝트를 회수하지 않는다는 뜻
-  MIN_LEGACY_DIFF: 6        // 휴리스틱 모드에서 "화면이 반응했다"로 볼 평균 픽셀차
+  MIN_LEGACY_DIFF: 6,       // 휴리스틱 모드에서 "화면이 반응했다"로 볼 평균 픽셀차
+  MIN_MEAN_SURVIVAL_MS: 3000   // 평균 생존 3초 미만이면 사람이 플레이할 수 없다.
+                               // 입력 단계에서 죽은 횟수로 나눠 구한다 (수집기가 죽으면 즉시 재시작한다)
 };
 
 // 게이트 2. { errors, skipped } 를 돌려준다 — checkTech와 반환 모양이 다르다.
@@ -121,6 +123,16 @@ export function checkPlay(r) {
   const distinct = new Set(r.scoreSamples ?? []);
   if (distinct.size < 2) {
     errors.push(`${at}: no progress — score never changed across ${(r.scoreSamples ?? []).length} samples`);
+  }
+
+  // 즉사 반복 게임 걸러내기. 수집기가 'over'를 보면 바로 재시작하므로
+  // 'over' 표본 수 = 죽은 횟수다. 점수는 한 번 오르므로 진행성 검사만으로는 통과해버린다.
+  const deaths = (r.stateSamples ?? []).filter(s => s === 'over').length;
+  if (r.inputMs && deaths > 0) {
+    const meanSurvivalMs = Math.round(r.inputMs / deaths);
+    if (meanSurvivalMs < PLAY.MIN_MEAN_SURVIVAL_MS) {
+      errors.push(`${at}: dies too fast — mean survival ${meanSurvivalMs}ms below ${PLAY.MIN_MEAN_SURVIVAL_MS}ms across ${deaths} deaths`);
+    }
   }
 
   if (!r.idle?.ended) {
