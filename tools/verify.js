@@ -278,10 +278,14 @@ async function collectPlayOn(page, target, T) {
 
   // 캔버스 비율 좌표에 마우스 클릭을 넣는다. 게이트 2 컨텍스트에는 hasTouch가 없어서
   // touchscreen.tap은 쓸 수 없다 — mouse.click이 pointerdown·mousedown·click을 발생시킨다.
+  // 캔버스가 없는 게임(DOM으로 그리는 게임)은 shotTarget이 page이고 Page에는 boundingBox가
+  // 없다. 그때는 뷰포트 기준으로 누른다 — 캔버스가 없다고 입력을 못 넣을 이유는 없다.
   const tapAt = async ([fx, fy]) => {
-    const box = await shotTarget.boundingBox().catch(() => null);
-    if (!box) return;
-    await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy).catch(() => {});
+    const box = typeof shotTarget.boundingBox === 'function'
+      ? await shotTarget.boundingBox().catch(() => null)
+      : null;
+    const area = box ?? { x: 0, y: 0, width: DESKTOP.width, height: DESKTOP.height };
+    await page.mouse.click(area.x + area.width * fx, area.y + area.height * fy).catch(() => {});
   };
 
   const inputEnd = performance.now() + T.inputMs;
