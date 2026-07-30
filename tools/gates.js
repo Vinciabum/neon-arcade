@@ -5,7 +5,8 @@
 export const TECH = {
   MAX_LOAD_MS: 2000,
   MIN_CANVAS_VARIANCE: 3,      // 그레이스케일 분산. 이하면 사실상 단색 화면
-  TOUCH_EVENTS: ['touchstart', 'touchend', 'touchmove', 'pointerdown']
+  TOUCH_EVENTS: ['touchstart', 'touchend', 'touchmove', 'pointerdown'],
+  MOBILE_VIEWPORT: { width: 390, height: 844 }   // verify.js가 게이트 1을 이 뷰포트에서 수집한다
 };
 
 const cap = (list, n = 3) => list.slice(0, n).join(' | ') + (list.length > n ? ` (+${list.length - n} more)` : '');
@@ -25,7 +26,7 @@ export function checkTech(r) {
       errors.push(`${at}: canvas appears blank — variance ${r.canvas.variance} below ${TECH.MIN_CANVAS_VARIANCE}`);
     }
     if (r.canvas.inView === false) {
-      errors.push(`${at}: canvas outside viewport on mobile (390x844)`);
+      errors.push(`${at}: canvas outside viewport on mobile (${TECH.MOBILE_VIEWPORT.width}x${TECH.MOBILE_VIEWPORT.height})`);
     }
   }
 

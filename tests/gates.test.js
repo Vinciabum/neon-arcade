@@ -78,3 +78,29 @@ test('캔버스가 화면 밖이면 잡는다', () => {
   r.canvas.inView = false;
   assert.ok(checkTech(r).some(e => e.includes('canvas outside viewport')));
 });
+
+test('빈 리포트에도 던지지 않는다 — 없는 필드는 검사를 건너뛴다', () => {
+  const errors = checkTech({});
+  assert.ok(errors.some(e => e.includes('no canvas')));
+  assert.ok(errors.some(e => e.includes('no touch input')));
+  assert.ok(!errors.some(e => e.includes('slow load')));
+  assert.ok(!errors.some(e => e.includes('horizontal overflow')));
+});
+
+test('임계값 경계는 통과로 본다', () => {
+  const r = okTech();
+  r.canvas.variance = 3;                              // MIN_CANVAS_VARIANCE와 같으면 통과
+  r.loadMs = 2000;                                    // MAX_LOAD_MS와 같으면 통과
+  r.mobile = { scrollWidth: 391, innerWidth: 390 };   // +1까지는 반올림 오차로 본다
+  assert.deepEqual(checkTech(r), []);
+});
+
+test('에러 목록이 길면 3개만 보여주고 남은 수를 알린다', () => {
+  const r = okTech();
+  r.consoleErrors = ['e1', 'e2', 'e3', 'e4', 'e5'];
+  const msg = checkTech(r).find(e => e.includes('console error'));
+  assert.ok(msg.includes('5 console error(s)'));
+  assert.ok(msg.includes('e1 | e2 | e3'));
+  assert.ok(msg.includes('(+2 more)'));
+  assert.ok(!msg.includes('e4'));
+});
