@@ -183,6 +183,7 @@ const player = { x: 0.5, speed: 0.55 };   // 크기는 M()이 화면 높이에�
 let blocks = [];
 let spawnIn = 0;
 let fallSpeed = 0;
+let spawnCount = 0;
 
 // 스프라이트·판정·격자 크기를 한 곳에서 화면 높이로부터 파생한다.
 // 픽셀 상수로 두면 큰 화면에서 그림이 먼지처럼 작아진다(4K에서 게이트1 분산이 1.5까지 떨어졌다).
@@ -205,6 +206,7 @@ function M() {
 function reset() {
   player.x = 0.5;
   blocks = [];
+  spawnCount = 0;
   spawnIn = 0.35;
   fallSpeed = 0.30;            // 화면 높이의 30%/초. px/s로 두면 큰 화면에서 낙하가 느려져
                                // 방치 종결이 게이트 예산(8초)을 넘긴다 — 높이에 무관하게 만든다
@@ -218,10 +220,17 @@ function step(dt) {
   spawnIn -= dt;
   if (spawnIn <= 0) {
     // 첫 블록은 겨냥하지 않는다. 겨냥이 너무 이르면 점수를 한 번도 못 얻고 죽어서
-    // "진행성 없음"으로 오판된다. 4번째 블록부터 겨냥하면(blocks.length가 3에 도달) 방치 종결은 5초 안에 오고
+    // "진행성 없음"으로 오판된다. 4번째 스폰부터 겨냥하면(spawnCount가 3에 도달) 방치 종결은 5초 안에 오고
     // 그 사이 앞선 블록들이 지나가며 점수가 오른다.
-    const aimed = blocks.length > 0 && blocks.length % 3 === 0;
-    blocks.push({ x: aimed ? player.x : 0.08 + Math.abs(Math.sin(tick * 0.37)) * 0.84, y: -0.05, scored: false });
+    // 프레임 카운터(tick)로 위치를 뽑으면 매 실행이 달라져 게이트 결과가 흔들린다.
+    // 판마다 0에서 시작하는 spawnCount로 뽑아 같은 입력이면 같은 판이 되게 한다.
+    // (blocks.length는 바닥을 지난 블록이 걸러지면 줄어들어 스폰 순번으로 쓸 수 없다)
+    const aimed = spawnCount > 0 && spawnCount % 3 === 0;
+    // 씨앗은 spawnCount+1로 돌린다. spawnCount=0이면 sin(0)=0이라 첫 블록이 x=0.08,
+    // 즉 왼쪽 클램프(0.06)에 붙어 있는 플레이어의 판정 범위 안에 정확히 떨어진다
+    // (왼쪽을 계속 누르고 있으면 첫 블록에서 점수 0으로 매번 죽는다).
+    blocks.push({ x: aimed ? player.x : 0.08 + Math.abs(Math.sin((spawnCount + 1) * 1.7)) * 0.84, y: -0.05, scored: false });
+    spawnCount++;
     spawnIn = 0.62;
     fallSpeed = Math.min(0.72, fallSpeed + 0.01);
   }
