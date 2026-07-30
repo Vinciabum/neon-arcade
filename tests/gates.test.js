@@ -262,3 +262,29 @@ test('휴리스틱 모드는 계약 항목 부재를 실패로 만들지 않는�
   const { errors } = checkPlay(okLegacy());   // scoreSamples / idle / restart 전부 없음
   assert.deepEqual(errors, []);
 });
+
+test('휴리스틱 모드: rAF를 안 쓰는 게임은 FPS를 보류한다', () => {
+  const r = okLegacy();
+  r.frames = 0;                 // setInterval 루프 — 프로브가 셀 프레임이 없다
+  r.avgFps = 0;
+  r.fpsWindows = [0, 0, 0];
+  const { errors, skipped } = checkPlay(r);
+  assert.ok(!errors.some(e => e.includes('fps')));
+  assert.ok(skipped.some(s => s.includes('fps not measurable')));
+});
+
+test('계약 모드에서는 프레임 0을 보류하지 않는다', () => {
+  const r = okPlay();
+  r.frames = 0;
+  r.avgFps = 0;
+  r.fpsWindows = [0];
+  assert.ok(checkPlay(r).errors.some(e => e.includes('average fps')));
+});
+
+test('휴리스틱 모드라도 프레임이 있으면 FPS를 판정한다', () => {
+  const r = okLegacy();
+  r.frames = 1200;
+  r.avgFps = 22;
+  r.fpsWindows = [30, 30, 30];
+  assert.ok(checkPlay(r).errors.some(e => e.includes('average fps')));
+});

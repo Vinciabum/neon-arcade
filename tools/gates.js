@@ -64,20 +64,27 @@ export function checkPlay(r) {
   const at = r.label ?? 'game';
 
   // --- 모든 모드 공통: rAF 프로브로 측정되므로 계약이 없어도 판정 가능 ---
-  // FPS는 수집 실패를 통과로 만들면 안 된다. 표본이 1개뿐이면 avgFps가 NaN이 되는데,
-  // 그때 조용히 통과시키면 게이트가 죽은 채로 초록불이 뜬다.
-  if (!Number.isFinite(r.avgFps)) {
-    errors.push(`${at}: fps not measured — collector reported ${r.avgFps}`);
-  } else if (r.avgFps < PLAY.MIN_AVG_FPS) {
-    errors.push(`${at}: average fps ${r.avgFps} below ${PLAY.MIN_AVG_FPS}`);
-  }
-  // 구간 표본에 숫자가 아닌 값이 하나라도 섞이면 Math.min이 NaN을 전파해
-  // 구간 검사 전체가 사라진다. 수집 실패는 통과가 아니라 실패로 본다.
-  const windows = r.fpsWindows?.length ? r.fpsWindows : [r.avgFps];
-  if (windows.some(w => !Number.isFinite(w))) {
-    errors.push(`${at}: fps not measured — window sample was not a number`);
-  } else if (Math.min(...windows) < PLAY.MIN_WINDOW_FPS) {
-    errors.push(`${at}: fps collapsed to ${Math.min(...windows)} in one window (min ${PLAY.MIN_WINDOW_FPS})`);
+  // rAF를 쓰지 않는 게임(setInterval 루프)은 프로브가 프레임을 셀 수 없다.
+  // 계약 모드는 rAF 루프를 전제하므로 0프레임을 실패로 두고, 기존 게임은 보류한다.
+  const unmeasurableFps = r.mode === 'legacy' && r.frames === 0;
+  if (unmeasurableFps) {
+    skipped.push(`${at}: fps not measurable — game does not drive requestAnimationFrame`);
+  } else {
+    // FPS는 수집 실패를 통과로 만들면 안 된다. 표본이 1개뿐이면 avgFps가 NaN이 되는데,
+    // 그때 조용히 통과시키면 게이트가 죽은 채로 초록불이 뜬다.
+    if (!Number.isFinite(r.avgFps)) {
+      errors.push(`${at}: fps not measured — collector reported ${r.avgFps}`);
+    } else if (r.avgFps < PLAY.MIN_AVG_FPS) {
+      errors.push(`${at}: average fps ${r.avgFps} below ${PLAY.MIN_AVG_FPS}`);
+    }
+    // 구간 표본에 숫자가 아닌 값이 하나라도 섞이면 Math.min이 NaN을 전파해
+    // 구간 검사 전체가 사라진다. 수집 실패는 통과가 아니라 실패로 본다.
+    const windows = r.fpsWindows?.length ? r.fpsWindows : [r.avgFps];
+    if (windows.some(w => !Number.isFinite(w))) {
+      errors.push(`${at}: fps not measured — window sample was not a number`);
+    } else if (Math.min(...windows) < PLAY.MIN_WINDOW_FPS) {
+      errors.push(`${at}: fps collapsed to ${Math.min(...windows)} in one window (min ${PLAY.MIN_WINDOW_FPS})`);
+    }
   }
   // 힙은 브라우저가 performance.memory를 안 주면 0으로 온다. 측정 불가와 누수 없음을
   // 구분할 방법이 없으니 여기서는 통과시킨다 — 누수 판정은 있는 데이터로만 한다.
