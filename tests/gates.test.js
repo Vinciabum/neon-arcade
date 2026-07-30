@@ -213,6 +213,8 @@ test('구간 붕괴는 NaN 가드에 가려지지 않는다', () => {
   assert.ok(checkPlay(r).errors.some(e => e.includes('fps collapsed to 12')));
 });
 
+// 계약(window.__GAME__)이 없는 기존 9개 게임의 리포트 모양.
+// api / scoreSamples / idle / restart가 없는 것이 핵심이다 — 관측할 방법이 없어 수집되지 않는다.
 const okLegacy = () => ({
   label: 'dino-jump',
   mode: 'legacy',
@@ -235,14 +237,31 @@ test('휴리스틱 모드: 화면이 반응하지 않으면 실패한다', () =>
   assert.ok(checkPlay(r).errors.some(e => e.includes('no progress')));
 });
 
+test('휴리스틱 모드: legacyDiff 경계는 통과로 본다', () => {
+  const r = okLegacy();
+  r.legacyDiff = 6;                   // MIN_LEGACY_DIFF와 같으면 통과
+  assert.deepEqual(checkPlay(r).errors, []);
+});
+
+test('휴리스틱 모드: legacyDiff가 없으면 통과시키지 않는다', () => {
+  const r = okLegacy();
+  delete r.legacyDiff;                // 수집 실패를 통과로 만들면 게이트가 죽는다
+  assert.ok(checkPlay(r).errors.some(e => e.includes('no progress')));
+});
+
 test('휴리스틱 모드에서도 FPS는 실패로 잡는다', () => {
   const r = okLegacy();
   r.avgFps = 22;
-  r.fpsWindows = [24, 22, 20];
-  assert.ok(checkPlay(r).errors.some(e => e.includes('average fps')));
+  r.fpsWindows = [30, 30, 30];        // 구간은 경계값이라 통과 — 평균만 실패해야 한다
+  const { errors } = checkPlay(r);
+  assert.ok(errors.some(e => e.includes('average fps')));
+  assert.ok(!errors.some(e => e.includes('fps collapsed')));
 });
 
 test('휴리스틱 모드는 계약 항목 부재를 실패로 만들지 않는다', () => {
-  const r = okLegacy();          // scoreSamples / idle / restart 전부 없음
-  assert.deepEqual(checkPlay(r).errors, []);
+  const { errors } = checkPlay(okLegacy());   // scoreSamples / idle / restart 전부 없음
+  assert.deepEqual(errors, []);
+  for (const word of ['contract api', 'never ends when idle', 'restart', 'score did not reset']) {
+    assert.ok(!errors.some(e => e.includes(word)), `계약 전용 검사가 새어나왔다: ${word}`);
+  }
 });
