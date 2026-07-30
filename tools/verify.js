@@ -44,6 +44,10 @@ const heapPrecise = true;   // HEAP_ARGS로 launch하므로 요청은 항상 이
 // 모두 벽시계에 의존한다. 같은 실패를 다시 만드는 것은 보장되지 않는다.
 const INPUT_PATTERN = ['ArrowLeft', 'ArrowRight', 'Space', 'ArrowRight', 'ArrowLeft', 'KeyA', 'KeyD', 'ArrowUp'];
 
+// 키보드만 넣으면 마우스로 조작하는 게임(cyber-memory)이 "정지 화면"과 구분되지 않는다.
+// 실측: 키보드 0.0000, 캔버스 클릭 0.0196. 좌표는 캔버스 비율로 고정한다 — 재현 가능해야 한다.
+const TAP_POINTS = [[0.5, 0.5], [0.3, 0.4], [0.7, 0.6], [0.5, 0.75], [0.25, 0.6], [0.75, 0.35]];
+
 class UsageError extends Error {}
 
 // 잘못된 인자는 조용히 다른 일을 하지 않고 즉시 멈춘다.
@@ -229,10 +233,20 @@ async function collectPlayOn(page, target, T) {
   const reactShots = [];
   let nextReactAt = performance.now() + REACT_EVERY_MS;
 
+  // 캔버스 비율 좌표에 마우스 클릭을 넣는다. 게이트 2 컨텍스트에는 hasTouch가 없어서
+  // touchscreen.tap은 쓸 수 없다 — mouse.click이 pointerdown·mousedown·click을 발생시킨다.
+  const tapAt = async ([fx, fy]) => {
+    const box = await shotTarget.boundingBox().catch(() => null);
+    if (!box) return;
+    await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy).catch(() => {});
+  };
+
   const inputEnd = performance.now() + T.inputMs;
   let k = 0;
   while (performance.now() < inputEnd) {
-    await page.keyboard.press(INPUT_PATTERN[k % INPUT_PATTERN.length]).catch(() => {});
+    // 키와 탭을 번갈아 넣는다 — 키보드 게임과 마우스 게임을 한 패스로 덮는다.
+    if (k % 2 === 0) await page.keyboard.press(INPUT_PATTERN[(k >> 1) % INPUT_PATTERN.length]).catch(() => {});
+    else await tapAt(TAP_POINTS[(k >> 1) % TAP_POINTS.length]);
     k++;
     await page.waitForTimeout(T.sampleMs);
     const s = await page.evaluate(() => ({
