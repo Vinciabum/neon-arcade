@@ -61,8 +61,10 @@ export const PLAY = {
   MIN_WINDOW_FPS: 30,       // 평균이 괜찮아도 특정 구간에서 30 밑으로 떨어지면 체감은 "멈췄다"
   MAX_HEAP_RATIO: 2.5,      // 60초 플레이로 힙이 2.5배면 오브젝트를 회수하지 않는다는 뜻
   MIN_LEGACY_DIFF: 6,       // 휴리스틱 모드에서 "화면이 반응했다"로 볼 평균 픽셀차
-  MIN_MEAN_SURVIVAL_MS: 3000   // 평균 생존 3초 미만이면 사람이 플레이할 수 없다.
-                               // 입력 단계에서 죽은 횟수로 나눠 구한다 (수집기가 죽으면 즉시 재시작한다)
+  MIN_MEAN_SURVIVAL_MS: 3000,  // 평균 생존 3초 미만이면 사람이 플레이할 수 없다.
+                                // 입력 단계에서 죽은 횟수로 나눠 구한다 (수집기가 죽으면 즉시 재시작한다)
+  MIN_DEATHS_TO_JUDGE: 2        // 죽음이 0~1번이면 평균을 추정할 신호가 부족하다. 진짜 즉사 게임은
+                                 // 짧은 세션에도 여러 번 죽으므로 2로 올려도 탐지력 손실이 없다
 };
 
 // 게이트 2. { errors, skipped } 를 돌려준다 — checkTech와 반환 모양이 다르다.
@@ -125,13 +127,21 @@ export function checkPlay(r) {
     errors.push(`${at}: no progress — score never changed across ${(r.scoreSamples ?? []).length} samples`);
   }
 
-  // 즉사 반복 게임 걸러내기. 수집기가 'over'를 보면 바로 재시작하므로
-  // 'over' 표본 수 = 죽은 횟수다. 점수는 한 번 오르므로 진행성 검사만으로는 통과해버린다.
+  // 즉사 반복 게임 걸러내기. 수집기가 'over'를 보면 바로 재시작하므로 'over' 표본 수 = 죽은 횟수다.
+  // N번 죽었으면 판은 N+1개(마지막 판은 안 끝났다)이고, 각 판은 사망 후 수집기가 알아채기까지
+  // 최대 sampleMs만큼 죽은 시간을 물고 있다. 그 둘을 보정하지 않으면 평균 생존이 최대 2배 부풀려져
+  // 이 규칙이 스스로 무력해진다 (실측: 실제 5.2초/2.8초 두 판이 8000ms로 보고됐다).
   const deaths = (r.stateSamples ?? []).filter(s => s === 'over').length;
-  if (r.inputMs && deaths > 0) {
-    const meanSurvivalMs = Math.round(r.inputMs / deaths);
-    if (meanSurvivalMs < PLAY.MIN_MEAN_SURVIVAL_MS) {
-      errors.push(`${at}: dies too fast — mean survival ${meanSurvivalMs}ms below ${PLAY.MIN_MEAN_SURVIVAL_MS}ms across ${deaths} deaths`);
+  if (r.inputMs) {
+    if (deaths < PLAY.MIN_DEATHS_TO_JUDGE) {
+      skipped.push(`${at}: survival not judged — only ${deaths} death(s) observed in ${r.inputMs}ms`);
+    } else {
+      // 죽은 시간 보정이 입력 시간 전체를 넘어설 수 있으니(부동소수 오차·짧은 세션) 0 밑으로는 내려가지 않는다.
+      const playedMs = Math.max(0, r.inputMs - deaths * (r.sampleMs ?? 0));
+      const meanSurvivalMs = Math.round(playedMs / (deaths + 1));
+      if (meanSurvivalMs < PLAY.MIN_MEAN_SURVIVAL_MS) {
+        errors.push(`${at}: dies too fast — mean survival ${meanSurvivalMs}ms below ${PLAY.MIN_MEAN_SURVIVAL_MS}ms across ${deaths} deaths`);
+      }
     }
   }
 

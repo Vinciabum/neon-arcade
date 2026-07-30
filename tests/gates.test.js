@@ -345,6 +345,8 @@ test('휴리스틱 모드라도 프레임이 있으면 FPS를 판정한다', () 
 test('즉사를 반복하는 게임을 잡는다', () => {
   const r = okPlay();
   r.inputMs = 30_000;
+  r.sampleMs = 500;
+  // playedMs = 30000 - 60*500 = 0 (죽은 시간이 입력 시간 전체를 먹었다), mean = round(0/61) = 0
   r.stateSamples = Array(60).fill('over');     // 표본마다 죽어 있다
   r.scoreSamples = [0, 1, 0, 1, 0, 1];         // 진행성 검사만으로는 통과한다
   assert.ok(checkPlay(r).errors.some(e => e.includes('dies too fast')));
@@ -353,26 +355,57 @@ test('즉사를 반복하는 게임을 잡는다', () => {
 test('정상적인 사망 빈도는 통과한다', () => {
   const r = okPlay();
   r.inputMs = 30_000;
-  r.stateSamples = [...Array(54).fill('playing'), ...Array(6).fill('over')];  // 평균 생존 5초
+  r.sampleMs = 500;
+  // playedMs = 30000 - 6*500 = 27000, mean = round(27000/7) = 3857
+  r.stateSamples = [...Array(54).fill('playing'), ...Array(6).fill('over')];
   assert.deepEqual(checkPlay(r).errors, []);
 });
 
 test('평균 생존 경계는 통과로 본다', () => {
   const r = okPlay();
-  r.inputMs = 30_000;
-  r.stateSamples = Array(10).fill('over');     // 정확히 3000ms
+  r.inputMs = 10_000;
+  r.sampleMs = 500;
+  // playedMs = 10000 - 2*500 = 9000, mean = round(9000/3) = 정확히 3000 (MIN_MEAN_SURVIVAL_MS와 같으면 통과)
+  r.stateSamples = ['over', 'over'];
   assert.deepEqual(checkPlay(r).errors, []);
 });
 
-test('inputMs가 없으면 생존 판정을 하지 않는다', () => {
-  const r = okPlay();                          // 구형 리포트
-  r.stateSamples = Array(60).fill('over');
-  assert.ok(!checkPlay(r).errors.some(e => e.includes('dies too fast')));
+test('죽음이 1번뿐이면 생존 판정을 보류한다', () => {
+  const r = okPlay();
+  r.inputMs = 8_000;
+  r.stateSamples = ['over'];                   // 죽음 1번 — 평균을 추정할 신호가 부족하다
+  const { errors, skipped } = checkPlay(r);
+  assert.ok(!errors.some(e => e.includes('dies too fast')));
+  assert.ok(skipped.some(s => s.includes('survival not judged')));
 });
 
-test('한 번도 죽지 않으면 생존 판정을 하지 않는다', () => {
+test('한 번도 죽지 않으면 생존 판정을 보류한다', () => {
   const r = okPlay();
   r.inputMs = 30_000;
   r.stateSamples = Array(60).fill('playing');
-  assert.deepEqual(checkPlay(r).errors, []);
+  const { errors, skipped } = checkPlay(r);
+  assert.deepEqual(errors, []);
+  assert.ok(skipped.some(s => s.includes('survival not judged')));
+});
+
+test('inputMs가 없으면 생존 판정을 하지도 보류하지도 않는다', () => {
+  const r = okPlay();                          // 구형 리포트
+  r.stateSamples = Array(60).fill('over');
+  const { errors, skipped } = checkPlay(r);
+  assert.ok(!errors.some(e => e.includes('dies too fast')));
+  assert.ok(!skipped.some(s => s.includes('survival not judged')));
+});
+
+test('sampleMs가 없으면 0으로 보고도 판정은 한다', () => {
+  const r = okPlay();
+  r.inputMs = 8_000;
+  // sampleMs 없음 → 죽은 시간을 보정하지 않는다. playedMs = 8000 - 2*0 = 8000, mean = round(8000/3) = 2667
+  r.stateSamples = ['over', 'over'];
+  assert.ok(checkPlay(r).errors.some(e => e.includes('dies too fast')));
+});
+
+test('기존 okPlay 리포트는 새 생존 판정에 걸리지 않는다', () => {
+  const { errors, skipped } = checkPlay(okPlay());   // inputMs 없음 — 새 판정 로직이 손대지 않아야 한다
+  assert.ok(!errors.some(e => e.includes('dies too fast')));
+  assert.ok(!skipped.some(s => s.includes('survival not judged')));
 });
