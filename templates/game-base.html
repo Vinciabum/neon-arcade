@@ -109,6 +109,7 @@ let state = S.TITLE;
 let score = 0;
 let tick = 0;
 let best = Number(localStorage.getItem(BEST_KEY) || 0);
+let autoPaused = false;      // 탭이 숨겨져서 우리가 멈춘 것인지 구분한다
 
 const el = {
   score: document.getElementById('score'),
@@ -161,7 +162,14 @@ canvas.addEventListener('pointerup', () => { input.left = input.right = false; }
 
 document.getElementById('startBtn').addEventListener('click', () => { audioReady(); start(); });
 document.getElementById('againBtn').addEventListener('click', () => { audioReady(); start(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden && state === S.PLAYING) pause(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (state === S.PLAYING) { autoPaused = true; pause(); }
+  } else if (autoPaused) {
+    autoPaused = false;
+    resume();
+  }
+});
 
 /* ============================================================
    ===== GAME LOGIC — 새 게임에서 이 구역만 교체한다 =====
@@ -171,7 +179,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && sta
                 입력을 주지 않으면 반드시 몇 초 안에 죽어야 한다 (게이트 2 방치 종결)
      draw()   : 캔버스를 그린다. 단색 화면이면 게이트 1이 막는다
    ============================================================ */
-const player = { x: 0.5, w: 34, h: 14, speed: 0.95 };
+const player = { x: 0.5, w: 34, h: 14, speed: 0.55 };
 let blocks = [];
 let spawnIn = 0;
 let fallSpeed = 0;
@@ -190,8 +198,10 @@ function step(dt) {
 
   spawnIn -= dt;
   if (spawnIn <= 0) {
-    // 첫 블록과 3의 배수 블록은 플레이어를 겨냥한다 — 가만히 있으면 반드시 죽는다.
-    const aimed = blocks.length % 3 === 0;
+    // 첫 블록은 겨냥하지 않는다. 겨냥이 너무 이르면 점수를 한 번도 못 얻고 죽어서
+    // "진행성 없음"으로 오판된다. 3번째 블록부터 겨냥하면 방치 종결은 5초 안에 오고
+    // 그 사이 앞선 블록들이 지나가며 점수가 오른다.
+    const aimed = blocks.length > 0 && blocks.length % 3 === 0;
     blocks.push({ x: aimed ? player.x : 0.08 + Math.abs(Math.sin(tick * 0.37)) * 0.84, y: -0.05, scored: false });
     spawnIn = 0.62;
     fallSpeed = Math.min(520, fallSpeed + 6);
@@ -238,6 +248,7 @@ function draw() {
 /* ---------- 상태 전이 ---------- */
 function start() {
   score = 0;
+  input.left = input.right = false;
   el.score.textContent = '0';
   el.title.hidden = true;
   el.over.hidden = true;
