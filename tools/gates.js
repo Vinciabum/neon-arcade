@@ -24,9 +24,12 @@ export function checkTech(r) {
   if (!r.canvas?.found) {
     errors.push(`${at}: no canvas element found`);
   } else {
-    // 정지 분산이 낮아도 프레임 간 변화가 있으면 그리고 있는 것이다.
-    // 파티클·스타필드처럼 미세한 화면이 "빈 화면"으로 오판되는 것을 막는다.
-    if (r.canvas.variance < TECH.MIN_CANVAS_VARIANCE && (r.canvas.motion ?? 0) < TECH.MIN_CANVAS_MOTION) {
+    // 캡처 자체가 실패했으면 픽셀에 대해 아무 말도 할 수 없다. 게임 결함으로 보고하면 오진이다.
+    if (r.canvas.captureFailed || typeof r.canvas.variance !== 'number') {
+      errors.push(`${at}: canvas capture failed — cannot judge the pixels`);
+    } else if (r.canvas.variance < TECH.MIN_CANVAS_VARIANCE && (r.canvas.motion ?? 0) < TECH.MIN_CANVAS_MOTION) {
+      // 정지 분산이 낮아도 프레임 간 변화가 있으면 그리고 있는 것이다.
+      // 파티클·스타필드처럼 미세한 화면이 "빈 화면"으로 오판되는 것을 막는다.
       errors.push(`${at}: canvas appears blank — variance ${r.canvas.variance}, motion ${r.canvas.motion ?? 0}`);
     }
     if (r.canvas.inView === false) {

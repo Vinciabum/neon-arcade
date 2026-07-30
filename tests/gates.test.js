@@ -91,6 +91,23 @@ test('캔버스가 없으면 덮임은 따지지 않는다', () => {
   assert.ok(!errors.some(e => e.includes('covered by an overlay')));
 });
 
+test('캡처 실패를 게임 결함으로 보고하지 않는다 (captureFailed 플래그)', () => {
+  const r = okTech();
+  r.canvas.captureFailed = true;
+  r.canvas.variance = 34.5;    // 숫자는 그럴듯해도 캡처 자체가 실패했으면 믿을 수 없다
+  const errors = checkTech(r);
+  assert.ok(errors.some(e => e.includes('canvas capture failed')));
+  assert.ok(!errors.some(e => e.includes('canvas appears blank')));
+});
+
+test('캡처 실패를 게임 결함으로 보고하지 않는다 (variance가 숫자가 아님)', () => {
+  const r = okTech();
+  r.canvas.variance = null;    // captureFailed 플래그 없이도 숫자가 아니면 판단 불가
+  const errors = checkTech(r);
+  assert.ok(errors.some(e => e.includes('canvas capture failed')));
+  assert.ok(!errors.some(e => e.includes('canvas appears blank')));
+});
+
 test('터치 핸들러 부재를 잡는다', () => {
   const r = okTech();
   r.listeners = ['keydown'];
