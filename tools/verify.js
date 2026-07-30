@@ -93,6 +93,14 @@ async function collectTechOn(page, target) {
   const loadMs = performance.now() - t0;
 
   await page.waitForTimeout(600);
+
+  // 리스너 목록은 어떤 Playwright 상호작용보다 먼저 떠야 한다.
+  // boundingBox()/click()이 hit-target 인터셉터를 심으면서 addEventListener로
+  // touchstart·pointerdown 등을 등록하는데, 프로브는 그것을 게임이 등록한 것과 구분할 수 없다.
+  // 실측: 키보드 전용 페이지가 boundingBox() 한 번에 touchstart를 갖게 됐다.
+  const listeners = await page.evaluate(() => (window.__PROBE__?.listeners ?? []).slice());
+  const listenersContaminated = listeners.includes('__playwright_global_listeners_check__');
+
   // 계약이 있으면 휴리스틱보다 계약으로 시작한다 — 게이트 1의 픽셀 지표는
   // state === 'playing' 에서만 의미가 있다 (타이틀·게임오버 화면은 분산이 낮고 해상도에 민감하다).
   const contract = await page.evaluate(() => {
@@ -117,7 +125,8 @@ async function collectTechOn(page, target) {
       cssWidth: r ? Math.round(r.width) : 0,
       cssHeight: r ? Math.round(r.height) : 0,
       inView: !!r && r.width > 0 && r.height > 0 && r.top < window.innerHeight && r.right <= window.innerWidth + 1,
-      listeners: window.__PROBE__?.listeners ?? [],
+      // 시작 뒤 목록. 진단용이다 — 늦게 등록하는 게임이 JSON에서 보이도록 남긴다.
+      listenersAfterStart: window.__PROBE__?.listeners ?? [],
       scrollWidth: document.documentElement.scrollWidth,
       innerWidth: window.innerWidth
     };
@@ -150,7 +159,10 @@ async function collectTechOn(page, target) {
       variance: shot ? Number((await variance(shot)).toFixed(1)) : null,
       motion: shotA && shotB ? Number((await diff(shotA, shotB)).toFixed(1)) : null
     },
-    listeners: dom.listeners,
+    // 게이트가 보는 목록은 Playwright가 손대기 전의 스냅샷이다.
+    listeners,
+    listenersContaminated,
+    listenersAfterStart: dom.listenersAfterStart,
     mobile: { scrollWidth: dom.scrollWidth, innerWidth: dom.innerWidth }
   };
   return report;
