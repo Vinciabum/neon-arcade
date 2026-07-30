@@ -170,7 +170,11 @@ function touchAt(clientX) {
 }
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault(); audioReady();
-  if (state !== S.PLAYING) { start(); return; }
+  // 일시정지 상태에서의 탭은 재시작이 아니라 재개다 (Space와 같은 규칙).
+  // 지금은 닿기 어려운 경로지만, 이 파일은 모든 새 게임에 복사된다 —
+  // 화면 내 일시정지 버튼을 붙이는 게임이 그대로 버그를 물려받는다.
+  if (state === S.PAUSED) { resume(); return; }
+  if (state === S.TITLE || state === S.OVER) { start(); return; }
   touchAt(e.changedTouches[0].clientX);
 }, { passive: false });
 canvas.addEventListener('touchmove', (e) => {
@@ -183,7 +187,8 @@ canvas.addEventListener('touchend', (e) => {
 canvas.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'touch') return;      // 터치는 위에서 처리
   audioReady();
-  if (state !== S.PLAYING) { start(); return; }
+  if (state === S.PAUSED) { resume(); return; }   // 위 touchstart와 같은 규칙
+  if (state === S.TITLE || state === S.OVER) { start(); return; }
   touchAt(e.clientX);
 });
 canvas.addEventListener('pointerup', () => { clearInput(); });
