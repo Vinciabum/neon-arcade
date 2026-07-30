@@ -15,7 +15,7 @@ import path from 'node:path';
 import { gamePath } from './paths.js';
 import { PROBE_SOURCE } from './probe.js';
 import { checkTech, checkPlay, TECH, PLAY } from './gates.js';
-import { diff, variance } from './framediff.js';
+import { diff, variance, changedFraction } from './framediff.js';
 import { triggerStart } from './start.js';
 
 // 게이트 1의 기준 뷰포트는 gates.js가 소유한다 — 에러 메시지도 같은 값을 쓰므로 여기서 다시 적지 않는다.
@@ -35,6 +35,9 @@ const HEAP_ARGS = ['--enable-precise-memory-info'];
 // (Playwright는 { exposeFunctions }만 받는다) 동기 루프에 걸린 evaluate는 이걸로 못 끊는다 —
 // 그건 대상별 마감(T.targetMs)이 막는다.
 const PAGE_OP_MS = 15_000;
+
+// 반응성 프레임을 몇 ms마다 찍을지. 입력 단계 8초에서 약 4장이 모인다.
+const REACT_EVERY_MS = 2_000;
 const heapPrecise = true;   // HEAP_ARGS로 launch하므로 요청은 항상 이뤄진다
 
 // 키 순서는 고정이지만 재생 가능한 실행은 아니다: 누르는 시점·dt·'over'일 때 재시작하는 분기가
@@ -221,6 +224,11 @@ async function collectPlayOn(page, target, T) {
   const stateSamples = [];
   const inputMarks = [{ t: performance.now(), frames: await page.evaluate(() => window.__PROBE__?.frames ?? 0) }];
 
+  // 반응성은 입력 단계 내내 반복해서 잰다. 시작-끝 두 장만 비교하면 제자리로 돌아온
+  // 스프라이트가 "반응 없음"으로 읽힌다.
+  const reactShots = [];
+  let nextReactAt = performance.now() + REACT_EVERY_MS;
+
   const inputEnd = performance.now() + T.inputMs;
   let k = 0;
   while (performance.now() < inputEnd) {
@@ -235,6 +243,11 @@ async function collectPlayOn(page, target, T) {
     inputMarks.push({ t: performance.now(), frames: s.frames });
     if (s.score !== null) scoreSamples.push(s.score);
     if (s.state !== null) stateSamples.push(s.state);
+    if (performance.now() >= nextReactAt) {
+      const shot = await shotTarget.screenshot().catch(() => null);
+      if (shot) reactShots.push(shot);
+      nextReactAt = performance.now() + REACT_EVERY_MS;
+    }
     // 계약 모드에서 도중에 죽으면 다시 시작해 입력 단계를 계속한다
     if (s.state === 'over') await safeStart('input-phase restart');
   }
@@ -242,6 +255,18 @@ async function collectPlayOn(page, target, T) {
   const afterInput = await shotTarget.screenshot().catch(() => null);
   // 촬영 실패는 0(=반응 없음)이 아니라 null(=측정 못 함)이다.
   const legacyDiff = beforeInput && afterInput ? Number((await diff(beforeInput, afterInput)).toFixed(1)) : null;
+
+  // 연속한 프레임 쌍마다 변화 픽셀 비율을 낸다. max는 "한 번이라도 확실히 반응했나",
+  // mean은 "계속 살아 있었나"를 본다.
+  if (afterInput) reactShots.push(afterInput);
+  const reactSamples = [];
+  for (let i = 1; i < reactShots.length; i++) {
+    reactSamples.push(Number((await changedFraction(reactShots[i - 1], reactShots[i])).toFixed(4)));
+  }
+  const reactMax = reactSamples.length ? Math.max(...reactSamples) : null;
+  const reactMean = reactSamples.length
+    ? Number((reactSamples.reduce((a, b) => a + b, 0) / reactSamples.length).toFixed(4))
+    : null;
 
   // --- 방치 단계: 입력 없이 게임오버가 오는지 ---
   // 프레임 마크를 입력 단계와 따로 모은다. 죽은 뒤에는 step()을 건너뛰어 프레임이 싸지므로
@@ -306,6 +331,8 @@ async function collectPlayOn(page, target, T) {
     startErrors,
     heap: { start: heapStart, end: heapEnd, precise: heapPrecise && heapStart > 0 && heapEnd > 0 },
     scoreSamples, stateSamples, idle, restart,
+    // 반응성 지표. reactMax/reactMean은 0~1 비율이다 (legacyDiff와 단위가 다르다).
+    reactMax, reactMean, reactSamples,
     // legacyDiff는 휴리스틱 모드에서만 뜻이 있다. 계약 모드에서는 아예 넣지 않는다 —
     // 아무도 읽지 않는 숫자가 리포트에 있으면 읽는 사람이 의미를 상상하게 된다.
     ...(mode === 'legacy' ? { legacyDiff } : {})
