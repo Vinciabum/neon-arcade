@@ -150,6 +150,23 @@ test('터치 핸들러 부재를 잡는다', () => {
   assert.ok(checkTech(r).errors.some(e => e.includes('no touch input')));
 });
 
+test('휴리스틱 모드: click만 거는 DOM 게임을 터치 없음으로 막지 않는다', () => {
+  // 실측 오판: cyber-memory·data-fall·synaptic-grid는 onclick만 쓴다.
+  // 모바일 탭은 click을 발생시키므로 실제로는 손가락으로 플레이된다.
+  const r = okTech();
+  r.mode = 'legacy';
+  r.listeners = ['click', 'resize'];
+  assert.ok(!checkTech(r).errors.some(e => e.includes('no touch input')));
+});
+
+test('계약 모드에서는 click만으로 통과시키지 않는다', () => {
+  // 새 게임은 캔버스 게임이다. click만으로는 드래그도 멀티터치도 못 받는다.
+  const r = okTech();
+  r.mode = 'contract';
+  r.listeners = ['click', 'keydown'];
+  assert.ok(checkTech(r).errors.some(e => e.includes('no touch input')));
+});
+
 test('pointerdown도 터치 입력으로 인정한다', () => {
   const r = okTech();
   r.listeners = ['keydown', 'pointerdown'];

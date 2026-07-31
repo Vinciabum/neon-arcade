@@ -111,7 +111,22 @@ async function collectTechOn(page, target) {
   // boundingBox()/click()이 hit-target 인터셉터를 심으면서 addEventListener로
   // touchstart·pointerdown 등을 등록하는데, 프로브는 그것을 게임이 등록한 것과 구분할 수 없다.
   // 실측: 키보드 전용 페이지가 boundingBox() 한 번에 touchstart를 갖게 됐다.
-  const listeners = await page.evaluate(() => (window.__PROBE__?.listeners ?? []).slice());
+  // 프로브는 addEventListener만 가로챈다. 인라인 핸들러 속성(onclick=...)은 그 경로를
+  // 타지 않아 보이지 않는다 — 실측 오판 3건이 전부 onclick만 쓰는 DOM 게임이었다.
+  // 속성을 직접 훑어 보탠다. Playwright가 심는 리스너는 속성이 아니므로 오염되지 않는다.
+  const listeners = await page.evaluate(() => {
+    const found = (window.__PROBE__?.listeners ?? []).slice();
+    const INLINE = ['onclick', 'onpointerdown', 'ontouchstart', 'onmousedown', 'onkeydown'];
+    for (const el of document.querySelectorAll('*')) {
+      for (const name of INLINE) {
+        if (el.hasAttribute(name)) {
+          const type = name.slice(2);
+          if (!found.includes(type)) found.push(type);
+        }
+      }
+    }
+    return found;
+  });
   const listenersContaminated = listeners.includes('__playwright_global_listeners_check__');
 
   // 계약이 있으면 휴리스틱보다 계약으로 시작한다 — 게이트 1의 픽셀 지표는

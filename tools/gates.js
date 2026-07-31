@@ -7,6 +7,8 @@ export const TECH = {
   MIN_CANVAS_STDDEV: 3,        // 그레이스케일 표준편차. 이하면 사실상 단색 화면
   MIN_CANVAS_MOTION: 2,        // 프레임 간 평균 픽셀차. 완전 정지 화면은 0에 가깝다
   TOUCH_EVENTS: ['touchstart', 'touchend', 'touchmove', 'pointerdown'],
+  // 계약 없는 기존 게임에서만 인정한다. 아래 checkTech의 주석 참고.
+  LEGACY_TOUCH_EVENTS: ['click'],
   MOBILE_VIEWPORT: { width: 390, height: 844 }   // verify.js가 게이트 1을 이 뷰포트에서 수집한다
 };
 
@@ -50,9 +52,15 @@ export function checkTech(r) {
     }
   }
 
-  const hasTouch = (r.listeners ?? []).some(t => TECH.TOUCH_EVENTS.includes(t));
+  // 모바일 탭은 click도 발생시킨다. 캔버스 없이 DOM 요소를 누르는 기존 게임은
+  // onclick만으로도 손가락으로 플레이된다 — 실측 오판 3건(cyber-memory·data-fall·synaptic-grid).
+  // 신규 게임은 캔버스 게임이라 드래그·멀티터치가 필요하므로 click을 인정하지 않는다.
+  const accepted = r.mode === 'legacy'
+    ? [...TECH.TOUCH_EVENTS, ...TECH.LEGACY_TOUCH_EVENTS]
+    : TECH.TOUCH_EVENTS;
+  const hasTouch = (r.listeners ?? []).some(t => accepted.includes(t));
   if (!hasTouch) {
-    errors.push(`${at}: no touch input — expected one of ${TECH.TOUCH_EVENTS.join(', ')}`);
+    errors.push(`${at}: no touch input — expected one of ${accepted.join(', ')}`);
   }
 
   if (r.loadMs > TECH.MAX_LOAD_MS) {
