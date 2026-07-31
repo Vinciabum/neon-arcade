@@ -9,6 +9,7 @@
     "test": "node --test",
     "shoot": "node tools/shoot.js",
     "og": "node tools/og.js",
+    "shots": "node tools/playshots.js",
     "verify": "node tools/verify.js",
     "verify:selftest": "node tools/selftest-verify.js"
   },
