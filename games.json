@@ -321,6 +321,81 @@
     ],
     "releasedAt": "2026-07-31",
     "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "signal-relay",
+    "title": "Signal Relay",
+    "tagline": "Turn the conduits to link the source to the sink before corruption spreads.",
+    "description": "Rotate conduit tiles to route a signal from source to sink. Corruption spreads across the board while you think, and turning a corrupted tile purges it.",
+    "tag": "Puzzle",
+    "genreTerm": "pipe connecting puzzle game",
+    "controls": { "keyboard": "WASD to move the marker, arrow keys to turn it", "touch": "Tap a conduit to turn it, or drag across several" },
+    "howToPlay": [
+      "Tap a conduit tile to rotate it a quarter turn.",
+      "Build an unbroken path from the source to the sink to complete the link.",
+      "Corruption spreads while you work — rotating a corrupted tile purges it and buys integrity."
+    ],
+    "tips": ["Trace backwards from the sink. Working from the source wastes turns on the decoy branches."],
+    "mechanics": { "input": "swipe-turn", "goal": "solve", "failure": "timeout", "world": "fixed-grid" },
+    "faq": [
+      { "q": "Is every board in Signal Relay solvable?", "a": "Yes. Each layout is generated from a real path first, then scrambled, so a solution always exists." },
+      { "q": "What does the pink hatching mean?", "a": "That tile is corrupted and draining your integrity. Rotating it clears the corruption." },
+      { "q": "How do you play it on a phone?", "a": "Tap a tile to turn it, or drag across a row to turn several in one motion. No keyboard needed." }
+    ],
+    "releasedAt": "2026-07-31",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "shard-weave",
+    "title": "Shard Weave",
+    "tagline": "Thread each shard to its twin without crossing the threads you already wove.",
+    "description": "Shards drift on the loom in pairs. Draw a thread from one to its twin, matching shape and colour, without crossing a thread already woven. Unwoven pairs fray and snap.",
+    "tag": "Puzzle",
+    "genreTerm": "connect the dots puzzle game",
+    "controls": { "keyboard": "Not required", "touch": "Drag from one shard to its twin, or tap one then the other" },
+    "howToPlay": [
+      "Find two shards that share a shape and colour.",
+      "Drag a thread from one to the other, or tap one and then its twin.",
+      "Threads must not cross. Pairs left unwoven fray and snap, costing integrity."
+    ],
+    "tips": ["Weave the outside pairs first. A thread across the middle blocks everything behind it for several seconds."],
+    "mechanics": { "input": "drag-object", "goal": "match-pairs", "failure": "wrong-input", "world": "fixed-arena" },
+    "faq": [
+      { "q": "How do I tell twins apart in Shard Weave?", "a": "Every kind has its own silhouette as well as its own colour, so shape alone is enough to pair them." },
+      { "q": "Do I have to drag, or can I tap?", "a": "Either works. Tap one shard and then its twin, or drag a thread between them in one motion." },
+      { "q": "What happens if my thread crosses another?", "a": "The weave fails and costs you. Woven threads stay on the loom for a few seconds, so order matters." }
+    ],
+    "releasedAt": "2026-07-31",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "null-cascade",
+    "title": "Null Cascade",
+    "tagline": "Tap the falling packets before they breach your firewall — but not the sealed ones.",
+    "description": "Corrupted packets fall toward your firewall. Tap one to null it before it lands. Armoured packets take more than one hit, and sealed traffic must be let through.",
+    "tag": "Action",
+    "genreTerm": "tap to destroy falling blocks game",
+    "controls": { "keyboard": "Not required", "touch": "Tap a falling packet to null it" },
+    "howToPlay": [
+      "Tap a falling square to null it before it reaches the firewall line.",
+      "Armoured packets show extra outlines and need more than one tap.",
+      "Circles with a tick are sealed traffic — tapping one costs you. Let them land."
+    ],
+    "tips": ["Let a packet fall into the hatched band before you tap it. It pays double, and you still have time if you commit early."],
+    "mechanics": { "input": "tap-target", "goal": "survive", "failure": "collision", "world": "falling-column" },
+    "faq": [
+      { "q": "Which packets should I not tap?", "a": "The circles with a tick through them. They are sealed traffic, and nulling one costs firewall integrity." },
+      { "q": "Why did one packet take two taps?", "a": "It was armoured. The concentric outlines show how many layers are left, so you can see it before you commit." },
+      { "q": "Does letting a packet fall further help?", "a": "Yes. Nulling inside the hatched band near the floor pays double, but you get one chance at it." }
+    ],
+    "releasedAt": "2026-07-31",
+    "status": "published",
     "featured": true,
     "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
   }
