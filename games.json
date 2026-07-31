@@ -221,6 +221,31 @@
     ],
     "releasedAt": "2026-02-18",
     "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "flux-sort",
+    "title": "Flux Sort",
+    "tagline": "Drag falling data shards into the matching channel before the core overflows.",
+    "description": "Shards pile up in a spinning core. Drag each one out to the channel matching its colour and shape. Every sort buys time, and the core fills faster the longer you last.",
+    "tag": "Puzzle",
+    "genreTerm": "colour sorting puzzle game",
+    "controls": { "keyboard": "Not required", "touch": "Drag a shard from the core into one of the four channels" },
+    "howToPlay": [
+      "Grab a shard from the core with your finger or the mouse.",
+      "Drag it out to the channel that matches its colour and shape — up, right, down or left.",
+      "Each correct sort buys time. Let the core overflow and the run ends."
+    ],
+    "tips": ["Clear the shard nearest a full channel first — the core overflows before the clock runs out."],
+    "mechanics": { "input": "drag-object", "goal": "clear-board", "failure": "timeout", "world": "fixed-arena" },
+    "faq": [
+      { "q": "How do you play Flux Sort on a phone?", "a": "Drag a shard out of the core with one finger and release it over the matching channel. No keyboard is needed." },
+      { "q": "What ends a run?", "a": "The core overflowing, or the clock reaching zero. Overflow is what usually gets you, so keep the core clear." },
+      { "q": "What happens if I drop a shard in the wrong channel?", "a": "It bounces back into the core and you lose a little time, so a wrong guess costs less than a slow one." }
+    ],
+    "releasedAt": "2026-07-31",
+    "status": "published",
     "featured": true,
     "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
   }
