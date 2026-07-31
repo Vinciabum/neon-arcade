@@ -17,3 +17,7 @@ Thumbs.db
 
 # design/plan docs — local only until you decide to publish (public repo)
 /docs/superpowers/
+
+# agent + skill definitions — local only. 공개 리포라 자동 생성 파이프라인이
+# 그대로 보이면 포털 심사에서 불리하게 읽힐 수 있다.
+/.claude/

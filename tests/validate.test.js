@@ -11,12 +11,14 @@ const validGame = {
   tagline: 'A high-speed endless runner.',
   description: 'Run, jump and dodge cacti in this neon endless runner. Collect coins, buy power-ups in the shop and chase your best distance.',
   tag: 'Runner',
+  genreTerm: 'endless runner game',
   controls: { keyboard: 'Space to jump', touch: 'Tap to jump' },
   howToPlay: ['Tap or press Space to jump over cacti.'],
   faq: [
     { q: 'How is the score calculated?', a: 'The score is the distance you cover before you hit something.' },
     { q: 'Does it work on a phone?', a: 'Yes. Tap anywhere on the screen to jump.' }
   ],
+  mechanics: { input: 'one-button', goal: 'survive', failure: 'collision', world: 'auto-scroll' },
   releasedAt: '2026-02-18',
   status: 'published'
 };
@@ -133,4 +135,44 @@ test('draft 게임에는 FAQ를 요구하지 않는다 — 페이지를 만들�
   const { faq, ...noFaq } = validGame;
   const errors = validateGames([{ ...noFaq, status: 'draft' }], okEnv);
   assert.ok(!errors.some(e => e.includes('faq')));
+});
+
+/* ---------- 메커니즘 ---------- */
+
+test('mechanics 부재를 잡는다', () => {
+  const { mechanics, ...noMech } = validGame;
+  const errors = validateGames([noMech], okEnv);
+  assert.ok(errors.some(e => e.includes('mechanics is missing')));
+});
+
+test('알 수 없는 축 값을 잡는다', () => {
+  const game = { ...validGame, mechanics: { input: 'wiggle', goal: 'survive', failure: 'collision', world: 'auto-scroll' } };
+  const errors = validateGames([game], okEnv);
+  assert.ok(errors.some(e => e.includes('mechanics.input "wiggle"')));
+});
+
+test('축 하나가 빠진 것을 잡는다', () => {
+  const game = { ...validGame, mechanics: { input: 'one-button', goal: 'survive', failure: 'collision' } };
+  const errors = validateGames([game], okEnv);
+  assert.ok(errors.some(e => e.includes('mechanics.world is missing')));
+});
+
+test('draft 게임에는 mechanics를 요구하지 않는다', () => {
+  const { mechanics, ...noMech } = validGame;
+  const errors = validateGames([{ ...noMech, status: 'draft' }], okEnv);
+  assert.ok(!errors.some(e => e.includes('mechanics')));
+});
+
+/* ---------- 검색되는 장르 단어 ---------- */
+
+test('genreTerm 부재를 잡는다', () => {
+  const { genreTerm, ...noTerm } = validGame;
+  const errors = validateGames([noTerm], okEnv);
+  assert.ok(errors.some(e => e.includes('genreTerm')));
+});
+
+test('브랜드명을 genreTerm에 넣은 것을 잡는다 — 검색 수요가 없는 단어다', () => {
+  const game = { ...validGame, genreTerm: 'Dino Jump game' };
+  const errors = validateGames([game], okEnv);
+  assert.ok(errors.some(e => e.includes('genreTerm')));
 });

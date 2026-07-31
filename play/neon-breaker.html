@@ -269,11 +269,26 @@
 
         // Controls
         let isDragging = false;
+        // 방향키 상태. 랜딩 페이지가 방향키 조작을 안내하는데 실제로는 없었다.
+        const keyMove = { left: false, right: false };
+        const KEY_PADDLE_SPEED = 620;   // px/s. 마우스처럼 순간이동하지 않도록 속도를 준다
+
+        function clampPaddle() {
+            if (paddle.x < 0) paddle.x = 0;
+            if (paddle.x > w - paddle.w) paddle.x = w - paddle.w;
+        }
+
         function updatePaddlePos(cx) {
             if (state !== 'PLAYING') return;
             paddle.x = cx - paddle.w / 2;
-            if (paddle.x < 0) paddle.x = 0;
-            if (paddle.x > w - paddle.w) paddle.x = w - paddle.w;
+            clampPaddle();
+        }
+
+        function movePaddleByKeys(dt) {
+            if (state !== 'PLAYING') return;
+            if (keyMove.left === keyMove.right) return;   // 둘 다 눌렸거나 둘 다 안 눌림
+            paddle.x += (keyMove.right ? 1 : -1) * KEY_PADDLE_SPEED * dt;
+            clampPaddle();
         }
 
         // Touch Setup
@@ -295,6 +310,9 @@
 
         // Start Key Logic
         document.addEventListener('keydown', e => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keyMove.left = true;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') keyMove.right = true;
+
             if (state === 'LOBBY' || state === 'GAMEOVER') {
                 if (e.code === 'Space' || e.code === 'Enter') {
                     GameJuice.initAudio();
@@ -303,6 +321,10 @@
             } else if (state === 'PLAYING' && ball.vx === 0 && ball.vy === 0) {
                 launchBall();
             }
+        });
+        document.addEventListener('keyup', e => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keyMove.left = false;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') keyMove.right = false;
         });
 
         function initLevel() {
@@ -390,8 +412,15 @@
             setTimeout(launchBall, 500);
         }
 
-        function loop() {
+        let lastFrame = 0;
+        function loop(now) {
             requestAnimationFrame(loop);
+
+            // 방향키 이동만 델타타임으로 돈다. 공은 기존 프레임 단위 로직을 그대로 두었다 —
+            // 여기서 함께 바꾸면 벽돌 충돌 판정까지 전부 다시 맞춰야 한다.
+            const dt = lastFrame ? Math.min((now - lastFrame) / 1000, 0.05) : 0;
+            lastFrame = now;
+            movePaddleByKeys(dt);
 
             // Draw BG
             ctx.fillStyle = '#050510';

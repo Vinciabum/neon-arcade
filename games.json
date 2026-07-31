@@ -5,6 +5,7 @@
     "tagline": "A high-speed endless runner with power-ups and a shop.",
     "description": "Run, jump and dodge obstacles in this neon endless runner. Collect coins, unlock power-ups in the shop and push for your best distance.",
     "tag": "Runner",
+    "genreTerm": "dinosaur runner game",
     "controls": { "keyboard": "Space or Up Arrow to jump", "touch": "Tap anywhere to jump" },
     "howToPlay": [
       "Press Space or tap the screen to jump over incoming obstacles.",
@@ -12,6 +13,7 @@
       "The longer you survive, the faster the game gets."
     ],
     "tips": ["Save coins for the shield power-up before pushing for a long run."],
+    "mechanics": { "input": "one-button", "goal": "survive", "failure": "collision", "world": "auto-scroll" },
     "faq": [
       { "q": "How is the score calculated in Dino Jump?", "a": "The score is the distance you cover. The run keeps speeding up, so the last stretch of a good run is worth more than the whole start." },
       { "q": "What should I spend coins on first?", "a": "The shield. It absorbs one hit, and one hit is what usually ends a long run." },
@@ -28,6 +30,7 @@
     "tagline": "Classic bullet-hell action with retro vibes.",
     "description": "Pilot a neon starfighter through waves of enemies. Dodge incoming fire, upgrade your weapons and survive as long as you can in this retro shooter.",
     "tag": "Action",
+    "genreTerm": "retro arcade shooter game",
     "controls": { "keyboard": "Arrow keys to move, Space to fire", "touch": "Drag to move, auto-fire enabled" },
     "howToPlay": [
       "Move your ship to dodge enemy fire.",
@@ -35,6 +38,7 @@
       "Enemy waves get denser as the game progresses."
     ],
     "tips": ["Stay near the bottom of the screen for more reaction time."],
+    "mechanics": { "input": "steer-free", "goal": "destroy", "failure": "collision", "world": "free-arena" },
     "faq": [
       { "q": "How do you survive longer in Space Shooter?", "a": "Fly low. Sitting near the bottom of the screen buys you the most time to read incoming fire before it reaches you." },
       { "q": "Do I have to press fire on mobile?", "a": "No. Auto-fire is on for touch controls, so you only drag to move and the ship keeps shooting." },
@@ -51,6 +55,7 @@
     "tagline": "Test your survival instincts in fast obstacle avoidance.",
     "description": "Survive as long as you can in an arena filling with hazards. Read the patterns, weave through the gaps and beat your personal best time.",
     "tag": "Survival",
+    "genreTerm": "obstacle dodging survival game",
     "controls": { "keyboard": "Arrow keys or WASD to move", "touch": "Drag to move your marker" },
     "howToPlay": [
       "Move your marker to avoid every incoming hazard.",
@@ -58,6 +63,7 @@
       "Hazards spawn faster the longer you last."
     ],
     "tips": ["Keep to the centre of the arena so you have escape routes on both sides."],
+    "mechanics": { "input": "steer-free", "goal": "survive", "failure": "collision", "world": "free-arena" },
     "faq": [
       { "q": "What is the goal in Neon Dodge?", "a": "Stay alive. Your score is how long you last, and hazards spawn faster the longer you survive." },
       { "q": "Where is the safest place to stand?", "a": "Near the centre. You keep an escape route on both sides there, while a corner cuts your options in half." },
@@ -74,6 +80,7 @@
     "tagline": "The timeless classic reborn with a cybernetic skin.",
     "description": "Guide a growing neon snake around the grid, eat data nodes and avoid crashing into your own tail in this smooth take on the arcade classic.",
     "tag": "Classic",
+    "genreTerm": "online snake game",
     "controls": { "keyboard": "Arrow keys or WASD to turn", "touch": "Swipe in the direction you want to turn" },
     "howToPlay": [
       "Steer the snake to eat the glowing nodes.",
@@ -81,6 +88,7 @@
       "Hitting a wall or your own tail ends the run."
     ],
     "tips": ["Plan a loop around the outside before the snake gets long."],
+    "mechanics": { "input": "swipe-turn", "goal": "collect", "failure": "collision", "world": "fixed-grid" },
     "faq": [
       { "q": "Is Cyber Snake the same as the classic Snake game?", "a": "The rules are the same — eat, grow, do not crash. The grid, the movement and the visuals are rebuilt from scratch." },
       { "q": "How do you stop crashing into your own tail?", "a": "Commit to a loop around the outside early. A long snake needs a predictable path, not tight turns in the middle of the grid." },
@@ -97,6 +105,7 @@
     "tagline": "A strategic brick-breaker built on physics and precision.",
     "description": "Bounce the ball off your paddle to clear every neon brick. Angle your shots carefully, chain rebounds and clear the board without losing the ball.",
     "tag": "Puzzle",
+    "genreTerm": "brick breaker game",
     "controls": { "keyboard": "Left and Right arrows to move the paddle", "touch": "Drag left and right to move the paddle" },
     "howToPlay": [
       "Move the paddle to keep the ball in play.",
@@ -104,6 +113,7 @@
       "The ball angle depends on where it hits the paddle."
     ],
     "tips": ["Hit the ball with the paddle edge for sharp angles into corner bricks."],
+    "mechanics": { "input": "steer-horizontal", "goal": "clear-board", "failure": "ball-lost", "world": "fixed-arena" },
     "faq": [
       { "q": "How do you control the angle of the ball?", "a": "By where it lands on the paddle. A centre hit sends the ball straight up; an edge hit sends it out at a sharp angle." },
       { "q": "How do you clear bricks stuck in the corners?", "a": "Use the paddle edge to push the ball wide, then let it rebound between the side wall and the brick." },
@@ -120,6 +130,7 @@
     "tagline": "Match holographic data fragments and build combos.",
     "description": "Flip holographic tiles to find matching pairs. Build combos for bonus points and unlock larger grids as your memory sharpens in this brain trainer.",
     "tag": "Brain",
+    "genreTerm": "matching pairs memory game",
     "controls": { "keyboard": "Not required", "touch": "Tap a tile to flip it" },
     "howToPlay": [
       "Tap two tiles to reveal them.",
@@ -127,6 +138,7 @@
       "Consecutive matches build a combo multiplier."
     ],
     "tips": ["Clear the outer edges first so the remaining tiles are easier to track."],
+    "mechanics": { "input": "tap-target", "goal": "match-pairs", "failure": "none", "world": "fixed-grid" },
     "faq": [
       { "q": "How does the combo multiplier work?", "a": "Matches made one after another raise it. A wrong pair breaks the chain, so it pays to be sure before the second tap." },
       { "q": "Is there a trick to remembering the tiles?", "a": "Clear the outer edges first. What is left then sits in one block, which is easier to hold than a scattered grid." },
@@ -143,6 +155,7 @@
     "tagline": "Solve equations to shoot lasers at falling numbers.",
     "description": "Defend the system from falling data. Solve each equation before it reaches the floor and fire your laser to destroy the numbers in this math arcade game.",
     "tag": "Math",
+    "genreTerm": "math game",
     "controls": { "keyboard": "Number keys to answer, Enter to fire", "touch": "Tap the on-screen keypad" },
     "howToPlay": [
       "Read the equation attached to each falling block.",
@@ -150,6 +163,7 @@
       "Blocks that reach the floor damage the system."
     ],
     "tips": ["Target the lowest block first, not the easiest one."],
+    "mechanics": { "input": "type-answer", "goal": "destroy", "failure": "timeout", "world": "falling-column" },
     "faq": [
       { "q": "What kind of maths does Data Fall use?", "a": "Short arithmetic you can answer in a couple of seconds. The pressure comes from the falling blocks, not from the difficulty of the sums." },
       { "q": "Which block should I answer first?", "a": "The lowest one. An easy sum near the top scores the same as a hard one about to hit the floor." },
@@ -166,6 +180,7 @@
     "tagline": "Follow the rhythm and repeat the light patterns.",
     "description": "Watch the grid light up, then repeat the sequence in order. Each round adds a step in this musical memory challenge that tests focus and timing.",
     "tag": "Focus",
+    "genreTerm": "memory sequence game",
     "controls": { "keyboard": "Not required", "touch": "Tap the tiles in the order they lit up" },
     "howToPlay": [
       "Watch the sequence of lit tiles.",
@@ -173,6 +188,7 @@
       "Each successful round adds one more step."
     ],
     "tips": ["Say the pattern out loud — audio memory holds longer sequences than visual memory."],
+    "mechanics": { "input": "tap-target", "goal": "recall-sequence", "failure": "wrong-input", "world": "fixed-grid" },
     "faq": [
       { "q": "Is Synaptic Grid like Simon?", "a": "Yes. Watch the tiles light up, repeat the order, and one more step is added every round." },
       { "q": "How do I remember longer sequences?", "a": "Say the pattern out loud as it plays. Audio memory holds longer strings than visual memory does." },
@@ -189,6 +205,7 @@
     "tagline": "Climb through the clouds in a procedural platformer.",
     "description": "Jump from platform to platform and climb as high as you can. Every run generates a new tower, so no two climbs are the same in this endless platformer.",
     "tag": "Endless",
+    "genreTerm": "endless jumping platformer",
     "controls": { "keyboard": "Left and Right arrows to steer", "touch": "Tilt or drag to steer while jumping" },
     "howToPlay": [
       "Your character jumps automatically on landing.",
@@ -196,12 +213,38 @@
       "Falling off the bottom of the screen ends the run."
     ],
     "tips": ["Small corrections beat large ones — overshooting is the most common way to fall."],
+    "mechanics": { "input": "steer-horizontal", "goal": "climb", "failure": "fall", "world": "vertical-scroll" },
     "faq": [
       { "q": "Do I have to press jump in Neon Rise?", "a": "No. The character jumps by itself every time it lands. You only steer left and right." },
       { "q": "Why do I keep falling off the platforms?", "a": "Overshooting. Small steering corrections land the next platform far more often than big ones." },
       { "q": "Is every run the same tower?", "a": "No. The tower is generated fresh for each run, so the platform layout is never the same twice." }
     ],
     "releasedAt": "2026-02-18",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "flux-sort",
+    "title": "Flux Sort",
+    "tagline": "Drag falling data shards into the matching channel before the core overflows.",
+    "description": "Shards pile up in a spinning core. Drag each one out to the channel matching its colour and shape. Every sort buys time, and the core fills faster the longer you last.",
+    "tag": "Puzzle",
+    "genreTerm": "colour sorting puzzle game",
+    "controls": { "keyboard": "Not required", "touch": "Drag a shard from the core into one of the four channels" },
+    "howToPlay": [
+      "Grab a shard from the core with your finger or the mouse.",
+      "Drag it out to the channel that matches its colour and shape — up, right, down or left.",
+      "Each correct sort buys time. Let the core overflow and the run ends."
+    ],
+    "tips": ["Clear the shard nearest a full channel first — the core overflows before the clock runs out."],
+    "mechanics": { "input": "drag-object", "goal": "clear-board", "failure": "timeout", "world": "fixed-arena" },
+    "faq": [
+      { "q": "How do you play Flux Sort on a phone?", "a": "Drag a shard out of the core with one finger and release it over the matching channel. No keyboard is needed." },
+      { "q": "What ends a run?", "a": "The core overflowing, or the clock reaching zero. Overflow is what usually gets you, so keep the core clear." },
+      { "q": "What happens if I drop a shard in the wrong channel?", "a": "It bounces back into the core and you lose a little time, so a wrong guess costs less than a slow one." }
+    ],
+    "releasedAt": "2026-07-31",
     "status": "published",
     "featured": true,
     "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
