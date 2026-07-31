@@ -1,0 +1,36 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>fixture: blank canvas</title>
+<style>html,body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh;touch-action:none}</style></head>
+<body><canvas id="c"></canvas><script>
+// 단 하나의 결함: 매 프레임 캔버스를 검은색으로 덮기만 한다. 게이트 1이 막아야 한다.
+//
+// 계약(window.__GAME__)이 load-bearing인 이유 — 이게 없으면 엉뚱한 규칙에 걸린다:
+// 계약이 없으면 legacy 모드가 되고, legacy에서는 캔버스 세 규칙(부재·빈 화면·덮임)이
+// 보류(skipped)로 내려간다 (DOM으로 그리는 게임을 픽셀로 판정할 수 없어서다).
+// 그러면 이 픽스처는 게이트 2의 반응성 규칙에 걸려 막히고, "빈 화면 규칙이 살아 있다"는
+// 사실은 아무도 증명하지 못한다. 그래서 게이트 2가 보는 것은 모두 건강하게 유지한다:
+// 진행성(점수 변화)·종결성(무입력 종료)·재시작·fps·터치 리스너.
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+let state = 'title', score = 0, tick = 0, lastInput = 0;
+// 수집기는 키 패스와 포인터 패스를 따로 돌린다. 두 채널 모두에서 점수가 오르고 무입력 타이머가
+// 풀려야 한다 — 한쪽만 받으면 다른 패스에서 계속 죽어 "너무 빨리 죽는다"에도 걸린다.
+const bump = () => { if (state === 'playing') { score++; lastInput = tick; } };
+c.addEventListener('touchstart', bump);
+window.addEventListener('pointerdown', bump);
+window.addEventListener('keydown', bump);
+function frame() {
+  tick++;
+  if (state === 'playing' && tick - lastInput > 300) state = 'over';   // 무입력 5초면 종료
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 4000, 4000);              // 결함은 이 한 줄뿐이다
+  requestAnimationFrame(frame);
+}
+window.__GAME__ = {
+  api: 1,
+  get state() { return state; },
+  get score() { return score; },
+  get tick() { return tick; },
+  start() { state = 'playing'; score = 0; lastInput = tick; },
+  pause() {}, resume() {}
+};
+requestAnimationFrame(frame);
+</script></body></html>

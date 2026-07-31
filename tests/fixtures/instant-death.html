@@ -1,0 +1,28 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>fixture: instant death</title>
+<style>html,body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh;touch-action:none}</style></head>
+<body><canvas id="c"></canvas><script>
+const c = document.getElementById('c');
+c.addEventListener('touchstart', () => {});
+const ctx = c.getContext('2d');
+let state = 'title', score = 0, tick = 0, scoreAt = 0, diesAt = 0;
+function frame() {
+  tick++;
+  // 시작 1초 뒤 1점을 주고 1.3초 뒤 죽는다 — 진행성·종결성·재시작은 모두 통과하고
+  // "평균 생존시간" 규칙 하나만 걸린다. (점수를 즉시 1로 올리고 300ms에 죽이면
+  // 표본이 늘 score=1·state=over여서 진행성·재시작 규칙까지 같이 걸린다 — 실측 확인.)
+  if (state === 'playing' && tick > scoreAt) score = 1;
+  if (state === 'playing' && tick > diesAt) state = 'over';
+  ctx.fillStyle = '#123'; ctx.fillRect(0, 0, 4000, 4000);
+  ctx.fillStyle = '#f44'; ctx.fillRect((tick * 4) % 300, 100, 40, 40);   // 기본 300x150 버퍼 안에 그린다
+  requestAnimationFrame(frame);
+}
+window.__GAME__ = {
+  api: 1,
+  get state() { return state; },
+  get score() { return score; },
+  get tick() { return tick; },
+  start() { state = 'playing'; score = 0; scoreAt = tick + 60; diesAt = tick + 78; },   // 약 1.3초 뒤 사망
+  pause() {}, resume() {}
+};
+requestAnimationFrame(frame);
+</script></body></html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>fixture: never ends</title>
+<style>html,body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh;touch-action:none}</style></head>
+<body><canvas id="c"></canvas><script>
+const c = document.getElementById('c');
+c.addEventListener('touchstart', () => {});
+const ctx = c.getContext('2d');
+let state = 'title', score = 0, tick = 0;
+window.addEventListener('keydown', () => { if (state === 'playing') score++; });
+function frame() {
+  tick++;
+  ctx.fillStyle = '#123'; ctx.fillRect(0, 0, 4000, 4000);
+  ctx.fillStyle = '#0f8'; ctx.fillRect((tick * 2) % 300, 140, 40, 40);
+  requestAnimationFrame(frame);
+}
+window.__GAME__ = {
+  api: 1,
+  get state() { return state; },
+  get score() { return score; },
+  get tick() { return tick; },
+  start() { state = 'playing'; score = 0; },   // 죽지 않는다 — 게이트 2가 막아야 한다
+  pause() {}, resume() {}
+};
+requestAnimationFrame(frame);
+</script></body></html>

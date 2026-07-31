@@ -7,7 +7,9 @@
   "scripts": {
     "build": "node build.js",
     "test": "node --test",
-    "shoot": "node tools/shoot.js"
+    "shoot": "node tools/shoot.js",
+    "verify": "node tools/verify.js",
+    "verify:selftest": "node tools/selftest-verify.js"
   },
   "devDependencies": {
     "sharp": "^0.35.0",
