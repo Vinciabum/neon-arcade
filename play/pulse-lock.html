@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- ===== PAGE TEXT — 새 게임에서 이 블록을 교체한다 ===== -->
+<title>Pulse Lock — Neon Arcade</title>
+<!-- ===== PAGE TEXT 끝 ===== -->
+<style>
+  :root { --neon: #00e5ff; --bg: #05060a; --ink: #e8f6ff; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  #wrap { position: fixed; inset: 0; display: flex; flex-direction: column; }
+  #hud { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 10px 14px; font-variant-numeric: tabular-nums; font-size: 14px; }
+  #hud b { color: var(--neon); font-weight: 700; }
+  #stage { position: relative; flex: 1; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; background: #070912; }
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; text-align: center;
+    background: rgba(5, 6, 10, .82); padding: 20px; }
+  .overlay[hidden] { display: none; }
+  .overlay h1 { margin: 0; font-size: clamp(22px, 7vw, 38px); letter-spacing: .04em; color: var(--neon); }
+  .overlay p { margin: 0; max-width: 30ch; line-height: 1.5; opacity: .85; font-size: 14px; }
+  .btn { appearance: none; border: 1px solid var(--neon); background: transparent; color: var(--neon);
+    padding: 12px 26px; border-radius: 999px; font: inherit; font-weight: 700; cursor: pointer;
+    min-width: 160px; min-height: 48px; }
+  .btn:active { background: rgba(0, 229, 255, .16); }
+</style>
+<meta name="robots" content="noindex,follow">
+<link rel="canonical" href="https://just1game.com/games/pulse-lock/">
+</head>
+<body>
+<div id="wrap">
+  <!-- ===== HUD & OVERLAYS — 새 게임에서 이 블록을 교체한다 =====
+       id는 스크립트가 참조한다. HUD에 목숨·레벨을 더하면 아래 el 조회도 같이 늘려야 한다.
+       canvas#c 와 두 오버레이의 id(titleScreen·overScreen)는 그대로 두는 편이 안전하다.
+       이 게임은 남은 충전량과 판정 눈금을 캔버스 안(링과 눈금자)에 그린다 — 타이밍 게임에서
+       눈이 HUD로 올라가는 순간 한 박자를 놓친다. -->
+  <div id="hud">
+    <span>SCORE <b id="score">0</b></span>
+    <span>BEST <b id="best">0</b></span>
+  </div>
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div class="overlay" id="titleScreen">
+      <h1>PULSE LOCK</h1>
+      <p>A pointer sweeps the ring. Tap, click or hit any key the instant it crosses a lit lock — dead centre pays most. Leave the hatched guards alone. One button, nothing else.</p>
+      <button class="btn" id="startBtn" type="button">Play</button>
+    </div>
+    <div class="overlay" id="overScreen" hidden>
+      <h1>CHARGE DRAINED</h1>
+      <p>Score <b id="finalScore">0</b></p>
+      <button class="btn" id="againBtn" type="button">Lock in again</button>
+    </div>
+  </div>
+  <!-- ===== HUD & OVERLAYS 끝 ===== -->
+</div>
+
+<script>
+/* ============================================================
+   NEON ARCADE — GAME BASE
+   새 게임은 이 파일을 복사해 play/<slug>.html 로 두고
+   "GAME LOGIC" 구역만 교체한다. 그 위/아래(계약·입력·FX·루프·포털 훅)는 그대로 둔다.
+   ============================================================ */
+
+const SLUG = 'pulse-lock';                 // 새 게임에서 슬러그로 바꾼다
+const BEST_KEY = 'just1game:' + SLUG + ':best';
+
+/* ---------- 최고점 저장 ----------
+   localStorage는 샌드박스 iframe이나 서드파티 저장소가 차단된 환경에서
+   읽기만 해도 throw한다 — 이 파일이 SDK 훅을 들고 가는 포털 임베드가 정확히 그 환경이다.
+   막히면 메모리에만 유지한다(그 세션 동안은 최고점이 동작하고, 다음 방문에 사라진다). */
+function loadBest() {
+  try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch { return 0; }
+}
+function saveBest(v) {
+  try { localStorage.setItem(BEST_KEY, String(v)); } catch { /* 메모리에만 유지한다 */ }
+}
+
+/* ---------- 포털 SDK 훅 ----------
+   사이트 배포에서는 비활성 no-op. 포털 납품 빌드에서만 PORTAL.enabled를 켠다.
+   게임 로직은 아래 4개 함수만 부른다 — SDK가 무엇으로 바뀌어도 로직은 안 바뀐다. */
+const PORTAL = { enabled: false, gameId: '' };
+const Portal = {
+  ready() { if (!PORTAL.enabled) return Promise.resolve(); return Promise.resolve(window.gdsdk); },
+  gameplayStart() { if (PORTAL.enabled && window.gdsdk) window.gdsdk.preloadAd?.('rewarded'); },
+  gameplayStop() { /* 납품 빌드에서 SDK의 gameplayStop을 연결한다 */ },
+  adBreak(done) { done(); }   // 비활성 상태에서는 즉시 콜백. 게임이 광고를 기다리며 멈추지 않는다
+};
+
+/* ---------- 오디오: 사용자 제스처 이후에만 초기화 (모바일 정책) ---------- */
+let actx = null;
+function audioReady() {
+  if (actx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  actx = new AC();
+  // 제스처 안에서 만들어도 suspended로 시작할 수 있다 (특히 iOS·임베드).
+  // 깨우지 않으면 모든 복제 게임이 조용히 무음이 된다. 거부는 무시한다 — 소리는 부가 기능이다.
+  Promise.resolve(actx.resume?.()).catch(() => {});
+}
+function beep(freq, ms) {
+  if (!actx) return;
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  osc.frequency.value = freq;
+  osc.type = 'square';
+  gain.gain.value = 0.04;
+  osc.connect(gain).connect(actx.destination);
+  osc.start();
+  osc.stop(actx.currentTime + ms / 1000);
+}
+
+/* ---------- 캔버스: 반응형 + DPR ---------- */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  W = Math.max(1, Math.round(rect.width));
+  H = Math.max(1, Math.round(rect.height));
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+
+/* ============================================================
+   FX — 파티클·화면 흔들림·플래시. 프레임의 일부이므로 새 게임이 그대로 물려받는다.
+   에셋도 라이브러리도 쓰지 않는다: 이 파이프라인의 게임은 캔버스로만 그린다
+   (에셋 라이선스가 기존 게임의 상업적 사용을 막았고, 그 실수를 반복하지 않는다).
+
+   GAME LOGIC이 부르는 것은 이 셋뿐이다:
+     FX.burst(x, y, color[, count])  — (x,y)에서 파편이 터진다. 캔버스 픽셀 좌표
+     FX.shake(px)                    — 화면을 px만큼 흔든다 (여러 번 부르면 큰 쪽이 이긴다)
+     FX.flash(color[, sec, peak])    — 화면 전체를 잠깐 덮는다. peak은 가장 진할 때의 알파
+     FX.trail(x, y, color, w, h[, sec]) — 잔상 하나. 매 프레임 불러 이동 흔적을 만든다
+   루프가 부르는 것: FX.update(dt) / FX.begin(ctx) / FX.draw(ctx) / FX.end(ctx)
+
+   begin/end로 감싸는 이유: 흔들림은 화면 전체를 옮기는 것이라
+   옮긴 만큼 가장자리에 빈 띠가 생긴다. begin이 먼저 FX.bg로 캔버스를 덮고 옮긴다.
+   그래서 FX.bg는 게임 배경색과 같아야 한다 — 새 게임에서 배경을 바꾸면 이 값도 바꾼다.
+   ============================================================ */
+const FX = (() => {
+  // 파티클은 고정 풀에서만 꺼낸다. 폭발마다 객체를 새로 만들면 60초 플레이에서
+  // 힙이 계속 자라 게이트 2의 누수 판정(2.5배)에 걸린다. 다 차면 오래된 것부터 덮어쓴다.
+  const MAX = 220;
+  const pool = new Array(MAX);
+  for (let i = 0; i < MAX; i++) pool[i] = { life: 0, ttl: 1, x: 0, y: 0, vx: 0, vy: 0, g: 0, w: 2, h: 2, color: '#fff' };
+  let head = 0;
+
+  let amp = 0, sx = 0, sy = 0;
+  let flashT = 0, flashDur = 1, flashPeak = 0.55, flashColor = '#fff';
+
+  // 난수는 자체 시드로 돌린다. Math.random을 쓰면 같은 조작으로 돌린 게이트 실행이
+  // 매번 달라져 실패를 다시 만들어낼 수 없다.
+  let seed = 22222;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+
+  const take = () => { const p = pool[head]; head = (head + 1) % MAX; return p; };
+
+  return {
+    bg: '#070912',
+
+    burst(x, y, color, count = 14) {
+      // 속도·크기·중력을 화면 높이에서 파생한다. 픽셀 상수로 두면 4K에서 먼지가 된다
+      // (M()이 스프라이트에 대해 하는 것과 같은 이유).
+      const spd = H * 0.42, grav = H * 0.9, size = Math.max(1.5, H * 0.0055);
+      for (let i = 0; i < count; i++) {
+        const a = rnd() * Math.PI * 2;
+        const v = spd * (0.35 + rnd() * 0.85);
+        const p = take();
+        p.x = x; p.y = y;
+        p.vx = Math.cos(a) * v; p.vy = Math.sin(a) * v - spd * 0.25;
+        p.g = grav; p.w = p.h = size * (0.7 + rnd() * 0.9);
+        p.ttl = p.life = 0.45 + rnd() * 0.5;
+        p.color = color;
+      }
+    },
+
+    trail(x, y, color, w, h, sec = 0.26) {
+      const p = take();
+      p.x = x; p.y = y; p.vx = 0; p.vy = 0; p.g = 0;
+      p.w = w; p.h = h; p.ttl = p.life = sec; p.color = color;
+    },
+
+    shake(px) { amp = Math.max(amp, px); },
+
+    // peak은 가장 진할 때의 알파. 사망처럼 화면을 끊는 순간은 세게, 등장·획득처럼
+    // 자주 일어나는 순간은 약하게 — 약한 값이 없으면 흔한 사건이 화면을 계속 세탁한다.
+    flash(color, sec = 0.2, peak = 0.55) { flashColor = color; flashDur = sec; flashT = sec; flashPeak = peak; },
+
+    update(dt) {
+      for (let i = 0; i < MAX; i++) {
+        const p = pool[i];
+        if (p.life <= 0) continue;
+        p.life -= dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += p.g * dt;
+      }
+      // 흔들림은 지수 감쇠. 매 프레임 새 오프셋을 뽑아야 '떨림'으로 보인다.
+      amp *= Math.exp(-dt * 9);
+      if (amp < 0.35) amp = 0;
+      sx = amp ? (rnd() * 2 - 1) * amp : 0;
+      sy = amp ? (rnd() * 2 - 1) * amp : 0;
+      if (flashT > 0) flashT -= dt;
+    },
+
+    begin(ctx) {
+      if (sx || sy) { ctx.fillStyle = this.bg; ctx.fillRect(0, 0, W, H); }
+      ctx.save();
+      ctx.translate(sx, sy);
+    },
+
+    draw(ctx) {
+      // 가산 합성. 어두운 배경에서 파편이 겹칠수록 밝아져 네온처럼 보인다.
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < MAX; i++) {
+        const p = pool[i];
+        if (p.life <= 0) continue;
+        ctx.globalAlpha = p.life / p.ttl;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - p.w / 2, p.y - p.h / 2, p.w, p.h);
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    },
+
+    end(ctx) {
+      ctx.restore();
+      // 플래시는 흔들림 밖에서 그린다 — 화면 전체를 덮는 판이라 같이 흔들리면 띠가 생긴다.
+      if (flashT > 0) {
+        ctx.globalAlpha = Math.min(1, (flashT / flashDur) * flashPeak);
+        ctx.fillStyle = flashColor;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = 1;
+      }
+    }
+  };
+})();
+
+/* ---------- 상태 ---------- */
+const S = { TITLE: 'title', PLAYING: 'playing', PAUSED: 'paused', OVER: 'over' };
+let state = S.TITLE;
+let score = 0;
+let tick = 0;
+let best = loadBest();
+let autoPaused = false;      // 탭이 숨겨져서 우리가 멈춘 것인지 구분한다
+
+const el = {
+  score: document.getElementById('score'),
+  best: document.getElementById('best'),
+  finalScore: document.getElementById('finalScore'),
+  title: document.getElementById('titleScreen'),
+  over: document.getElementById('overScreen')
+};
+el.best.textContent = best;
+
+/* ---------- 입력: 키보드 + 터치 이중 ----------
+   left/right는 '방향을 누르고 있다', aimX는 '이 지점을 짚었다'(0~1, 캔버스 폭 비율)이다.
+   두 채널을 함께 두는 이유: 손가락은 화면 절반을 누르는 것보다 원하는 자리를 짚는 쪽이
+   훨씬 정확한데, 키보드에는 그런 좌표가 없다. 게임 로직이 둘 다 읽고 하나로 합친다. */
+const input = { left: false, right: false, aimX: null };
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') input.left = true;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') input.right = true;
+  // Space/Enter: 일시정지 중이면 재개한다. state !== PLAYING 하나로 묶으면
+  // 멈춰 둔 판이 새 판으로 날아가고, 죽은 직후 프레임에 스스로 재시작해
+  // 수집기가 'over'를 한 번도 못 보는 일이 생긴다.
+  if (e.code === 'Space' || e.code === 'Enter') {
+    e.preventDefault();
+    if (state === S.PAUSED) resume();
+    else if (state === S.TITLE || state === S.OVER) start();
+  }
+  if (e.code === 'KeyP') { state === S.PLAYING ? pause() : state === S.PAUSED ? resume() : 0; }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') input.left = false;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') input.right = false;
+});
+
+// 짚은 지점을 캔버스 폭 비율로 바꾼다. 화면 절반 비교(왼쪽/오른쪽)로 두면
+// 손가락이 '방향 버튼 두 개'가 되어 원하는 자리에 설 수 없다 — 드래그가 곧 조준이 되게 한다.
+function aimAt(clientX) {
+  const rect = canvas.getBoundingClientRect();
+  input.aimX = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+}
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault(); audioReady();
+  // 일시정지 상태에서의 탭은 재시작이 아니라 재개다 (Space와 같은 규칙).
+  // 지금은 닿기 어려운 경로지만, 이 파일은 모든 새 게임에 복사된다 —
+  // 화면 내 일시정지 버튼을 붙이는 게임이 그대로 버그를 물려받는다.
+  if (state === S.PAUSED) { resume(); return; }
+  if (state === S.TITLE || state === S.OVER) { start(); return; }
+  aimAt(e.changedTouches[0].clientX);
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  aimAt(e.changedTouches[0].clientX);
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault(); clearInput();
+}, { passive: false });
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'touch') return;      // 터치는 위에서 처리
+  audioReady();
+  if (state === S.PAUSED) { resume(); return; }   // 위 touchstart와 같은 규칙
+  if (state === S.TITLE || state === S.OVER) { start(); return; }
+  aimAt(e.clientX);
+});
+canvas.addEventListener('pointermove', (e) => {
+  // 마우스는 누르고 끌 때만 조준한다. 그냥 지나가는 커서까지 따라가면
+  // 키보드로 놀던 사람의 플레이어가 제멋대로 끌려간다.
+  if (e.pointerType !== 'touch' && e.buttons === 1 && state === S.PLAYING) aimAt(e.clientX);
+});
+// 캔버스 밖에서 손을 떼도 반드시 풀린다. 캔버스에만 걸면 오버레이 위에서 뗀 포인터가
+// aimX를 붙잡은 채로 남아 다음 판이 한쪽으로 끌려간 채 시작한다.
+window.addEventListener('pointerup', () => { clearInput(); });
+window.addEventListener('pointercancel', () => { clearInput(); });
+
+document.getElementById('startBtn').addEventListener('click', () => { audioReady(); start(); });
+document.getElementById('againBtn').addEventListener('click', () => { audioReady(); start(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (state === S.PLAYING) { autoPaused = true; pause(); }
+  } else if (autoPaused) {
+    autoPaused = false;
+    resume();
+  }
+});
+
+/* ---- Axis: 좌우 한 축의 조작감 (프레임 레벨) ----
+   가로 이동을 쓰는 게임이면 값만 바꿔 그대로 쓴다. 여기 있는 이유가 중요하다 —
+   조작감 수식이 GAME LOGIC 안에 있으면 새 게임이 그 구역을 지우는 순간
+   가속·마찰·조준 추종이 전부 같이 사라진다. 그러면 템플릿을 손본 의미가 없다.
+
+   Axis.step(p, { dir, aimX }, dt) 는 p.x(0~1)와 p.vx를 갱신한다.
+   dir: -1|0|1 (키보드), aimX: 0~1 또는 null (터치·포인터가 짚은 위치).
+   가로 이동이 없는 게임(격자·탭 방식)은 이 블록을 안 부르면 그만이다. */
+const Axis = {
+  ACCEL: 7.0,        // 가속도 (화면 폭 배수/초²)
+  MAX_SPD: 1.15,     // 최고 속도 (화면 폭/초)
+  FRICTION: 9.0,     // 입력이 없을 때 속도가 죽는 비율/초
+  TURN_BOOST: 2.4,   // 반대로 꺾을 때 가속 배수. 없으면 방향 전환이 마찰만큼 늦게 먹힌다
+  AIM_ACCEL: 26.0,   // 짚은 지점을 향한 가속. 속도를 직접 넣지 않는 이유는 아래 참고
+  AIM_SNAP: 0.004,   // 이 거리 안이면 붙인다 — 손가락 밑에서 미세하게 떠는 것을 막는다
+  MIN_X: 0.06,
+  MAX_X: 0.94,
+
+  step(p, { dir = 0, aimX = null }, dt) {
+    if (aimX !== null) {
+      const d = aimX - p.x;
+      if (Math.abs(d) < this.AIM_SNAP) {
+        p.x = aimX;
+        p.vx = 0;
+      } else {
+        // 속도를 바로 대입하면 손가락이 조금만 멀어져도 최고속에 붙어버려서
+        // 터치에는 관성이 사라진다. 키보드와 같은 가속 경로를 태워야 두 조작이
+        // 같은 게임처럼 느껴진다. 목표를 지나치지 않도록 마찰도 같이 건다.
+        p.vx += Math.sign(d) * this.AIM_ACCEL * Math.min(1, Math.abs(d) * 6) * dt;
+        p.vx -= p.vx * Math.min(1, this.FRICTION * 0.5 * dt);
+        p.vx = Math.max(-this.MAX_SPD, Math.min(this.MAX_SPD, p.vx));
+      }
+    } else if (dir !== 0) {
+      // 이미 반대로 가고 있으면 더 세게 민다. 안 그러면 방향 전환에 마찰이 죽을 때까지
+      // 기다려야 해서 가속을 넣은 순간 조작이 오히려 굼떠진다.
+      const turning = dir * p.vx < 0;
+      p.vx += dir * this.ACCEL * (turning ? this.TURN_BOOST : 1) * dt;
+      p.vx = Math.max(-this.MAX_SPD, Math.min(this.MAX_SPD, p.vx));
+    } else {
+      // dt에 비례한 감쇠. 1을 넘지 않게 막아야 프레임이 튈 때 속도가 반대로 뒤집히지 않는다.
+      p.vx -= p.vx * Math.min(1, this.FRICTION * dt);
+    }
+
+    p.x += p.vx * dt;
+    if (p.x < this.MIN_X) { p.x = this.MIN_X; p.vx = 0; }   // 벽에 붙으면 속도도 죽인다 —
+    if (p.x > this.MAX_X) { p.x = this.MAX_X; p.vx = 0; }   // 안 그러면 벽에서 떼는 순간 튄다
+  }
+};
+
+/* ---- Curve: 시간에 따라 오르는 값 (프레임 레벨) ----
+   한 축만 올리면 그 축이 상한에 닿는 순간 화면이 더 이상 변하지 않아
+   유능한 플레이어가 같은 패턴을 반복하게 된다. 축마다 다른 시점에 상한에 닿게 두면
+   난이도가 계속 바뀐다. elapsed(경과 초)를 넣으면 현재 값이 나온다. */
+const Curve = (start, limit, ramp) => (elapsed) =>
+  limit > start ? Math.min(limit, start + ramp * elapsed)
+                : Math.max(limit, start - ramp * elapsed);
+
+/* ============================================================
+   ===== GAME LOGIC — 새 게임에서 이 구역만 교체한다 =====
+   지켜야 할 계약:
+     reset()     : 새 판의 초기 상태를 만든다 (score는 호출자가 0으로 만든다)
+     step(m, dt) : dt(초)만큼 진행. 죽으면 gameOver()를 부른다.
+                   입력을 주지 않으면 반드시 몇 초 안에 죽어야 한다 (게이트 2 방치 종결)
+     draw(m, dt) : 캔버스를 그린다. 모든 상태에서 매 프레임 불린다.
+                   단색이고 정지한 화면이면 게이트 1이 막는다
+     m 은 루프가 프레임당 한 번 만든 M() 결과다 — step과 draw가 같은 값을 본다
+   쓸 수 있는 것: FX.burst / FX.shake / FX.flash / FX.trail (위 FX 블록 참고).
+   파티클과 잔상은 루프가 알아서 갱신·렌더하므로 여기서는 부르기만 한다.
+
+   PULSE LOCK — 링을 도는 바늘 하나, 버튼 하나. 링 위에 자물쇠가 켜지고,
+   바늘이 그 위를 지나는 순간 두드리면 부서진다. 한가운데를 맞출수록 값이 크다.
+   빗금 친 가드는 두드리면 안 된다 — 그냥 지나 보내는 것이 정답이다.
+
+   왜 각도인가: 원버튼 게임에서 플레이어가 조작할 수 있는 것은 '언제'뿐이다.
+   목표를 원 위에 놓으면 남은 시간이 거리로 보여서, 화면이 곧 시계가 된다 —
+   무엇을 눌러야 하는지가 아니라 언제 눌러야 하는지를 눈이 먼저 읽는다.
+   ============================================================ */
+
+/* ---- 난이도 곡선 ----
+   다섯 축이 서로 다른 시점에 상한에 닿는다: 판정폭 22초, 회전 34초, 유입 48초, 가드 비율 77초.
+   마지막 하나(누설)는 실질적으로 상한이 없다 — 480초에야 닿으므로 어떤 판도 그 전에 끝난다.
+   전부 1분 안에 상한에 닿으면 그 뒤로는 판이 같은 리듬으로 굳어버린다. */
+const widthAt = Curve(0.30, 0.125, 0.00795);   // 자물쇠 반폭(라디안) — 22초
+const spinAt  = Curve(1.05, 2.10, 0.0309);     // 바늘 각속도(라디안/초) — 34초
+const gapAt   = Curve(0.90, 0.45, 0.009375);   // 유입 간격(초) — 48초
+// 가드 비율은 0이 아니라 쓸 만한 값에서 시작한다. 0에서 시작하면 누산기가 1에 닿는 데만
+// 30초 가까이 걸려서 — 대부분의 판이 끝난 뒤다 — 가드가 사실상 없는 게임이 된다.
+const guardAt = Curve(0.30, 0.46, 0.0021);     // 가드 비율 — 81초(등장 4.5초 + 76초)
+const bleedAt = Curve(2.70, 30.0, 0.057);      // 상시 누설(충전/초) — 479초, 사실상 무제한.
+                                               // 잘 치는 사람의 판을 결국 끝내는 것은 이 축뿐이다:
+                                               // 200초면 정확도 74%, 400초면 90%를 요구한다
+
+/* ---- 방치 종결은 플레이어의 시계가 아니라 충전량이 맡는다 ----
+   게이트 2는 입력이 없으면 약 8초 안에 끝날 것을 요구한다. 이 파이프라인의 첫 게임은
+   그걸 플레이어의 제한시간으로 만족시켰다가 실제 플레이도 7~10초에 끝났다 — 세션 9/20.
+   여기서는 손대지 않으면 저절로 나빠지는 상태를 쓴다: 자물쇠가 깨지지 않은 채 지나가면
+   충전이 크게 깎이고, 그 위에 상시 누설이 얹힌다. 아무것도 안 하면 여섯 번째 통과에서
+   0이 되어 약 6.6초에 끝난다. 반대로 계속 맞히는 사람에게는 충전이 도로 차오르므로
+   판이 몇 분이고 이어진다 — 게이트가 요구한 것은 "끝이 있다"이지 "빨리 끝난다"가 아니다. */
+const CHARGE_MAX = 100;
+const PASS_COST = 11;      // 자물쇠를 그냥 흘려보냈다.
+                           // 유입 간격과 한 몸이다: 방치 7초는 "초당 14가 빠진다"로 고정돼 있어서
+                           // 자물쇠가 촘촘할수록 한 개의 값이 싸져야 한다. 그리고 촘촘한 쪽이
+                           // 띄엄띄엄 치는 사람에게 유리하다 — 판정 창이 주기에서 차지하는
+                           // 비율이 커져서 아무 때나 눌러도 걸릴 확률이 오른다.
+const MISFIRE_COST = 4;    // 아무것도 없는 곳을 두드렸다. 난타가 이기지 못할 만큼만 아프다
+const GUARD_COST = 10;     // 가드를 두드렸다
+// 한 방의 보상이 큰 이유: 방치 종결 7초는 곧 "초당 14 이상이 빠진다"는 뜻이라,
+// 회수량이 작으면 띄엄띄엄 치는 사람은 무엇을 해도 7초 안에 죽는다 —
+// 조작이 결과를 바꾸지 못하는 게임이 된다. 다섯 발이면 가득 차게 두고,
+// 대신 헛방과 통과를 아프게 해서 난사가 아니라 정확도가 이기게 만든다.
+const HIT_GAIN = [22, 15, 8];   // 정중앙 / 안쪽 / 가장자리
+const HIT_PTS  = [12, 6, 2];
+const GUARD_PTS = 4;       // 가드를 참고 흘려보낸 값. 원버튼 게임에서 '안 누르기'도 행동이다.
+                           // 점수만 주고 충전은 주지 않는다 — 충전을 주면 아무것도 안 하는 판이
+                           // 가드로 되살아나 방치 종결이 예산 밖으로 나간다
+
+const CORE = 0.30;         // |오차|/반폭 이 값 미만이면 정중앙
+const GOOD = 0.66;
+const MIN_LEAD = 3.4;      // 새 자물쇠는 바늘보다 이만큼 앞에 놓인다(라디안).
+                           // 좁히면 반응할 시간이 사라지고, 넓히면 화면이 자물쇠로 덮인다
+const GUARD_AFTER = 4.5;   // 가드는 이 시각 뒤부터 놓인다. 자물쇠 대여섯 개를 겪은 뒤이고,
+                           // 첫 가드가 실제로 바늘을 지나는 것은 10초쯤이라 방치 종결(7.5초)과 겹치지 않는다
+const TAP_GRACE = 0.12;    // 판을 시작시킨 그 누름이 곧바로 헛방으로 세지 않게 막는다
+const TAP_DEBOUNCE = 0.07; // 한 동작이 두 채널로 들어오는 것을 한 번으로 친다. 아래 tap() 참고
+const FADE = 0.45;         // 부서진/놓친 자물쇠가 남아 있는 시간
+const RULER_SEC = 0.45;    // 눈금자의 좌우 끝이 뜻하는 오차(초)
+
+/* ---- 상태 ----
+   바늘의 각도는 감지 않고 계속 키운다. 자물쇠도 절대 각도로 들고 있어서
+   '지났는가'가 (ang - a) 부호 하나로 끝난다 — ±π로 접는 순간 그 판정이 조건문 늪이 된다. */
+let ang = 0;
+let charge = 0;
+let elapsed = 0;
+let spawnIn = 0;
+let spawnCount = 0;
+let frontier = 0;      // 가장 바깥에 놓인 자물쇠의 각도. 새 자물쇠가 겹치지 않게 하는 기준
+let chain = 0;
+let guardAcc = 0;      // 가드 비율 누산기. 난수로 뽑으면 게이트 실행이 매번 달라져 실패를 못 만든다
+let lastGuard = false; // 가드 두 개를 연달아 놓지 않는다 — 두 번째는 함정이 아니라 사고다
+let guardSeen = false; // 이번 판에서 가드가 처음 나왔는가. 규칙을 한 번은 글로 알려준다
+let round = 0;
+let ripple = 0;        // 코어에서 퍼지는 링의 위상
+let deco = 0;          // 바깥 눈금 링의 위상. 판이 바뀌어도 이어진다 —
+                       // 리셋하면 심사용 스크린샷 10장에서 재시작 직후 장면들이 서로 똑같아진다
+let hubPulse = 0;      // 맞힌 순간 코어가 부푸는 정도
+let lastTapAt = -1;    // 마지막으로 두드린 시각(판 기준 초). 채널 중복을 걸러내는 데만 쓴다
+
+const LMAX = 20;       // 자물쇠 풀. 동시 생존은 많아야 4개 남짓이고 나머지는 잔상 여유분
+const locks = new Array(LMAX);
+for (let i = 0; i < LMAX; i++) locks[i] = { live: false, a: 0, w: 0, guard: false, st: 0, fade: 0 };
+// st: 0 살아 있음 · 1 부숨 · 2 놓침 · 3 가드 통과(정답) · 4 가드 오타
+
+// 판정 눈금자에 남는 최근 탭 자국. 왜 빗나갔는지 말해주는 유일한 장치라 넉넉히 남긴다
+const TMAX = 10;
+const ticks = new Array(TMAX);
+for (let i = 0; i < TMAX; i++) ticks[i] = { life: 0, off: 0, kind: 0 };
+let tickHead = 0;
+
+// 헛방의 잔상 — 두드린 자리와 자물쇠가 있던 자리를 선으로 잇는다
+const ghost = { a: 0, target: 0, hasTarget: false, life: 0 };
+const msg = { text: '', color: '#fff', life: 0 };
+
+const mult = () => 1 + Math.min(4, (chain / 5) | 0);
+
+// 이 게임이 쓰는 입력 필드를 비운다. 구역 밖(start)에서 input을 직접 건드리면
+// jump·fire 같은 필드를 쓰는 다음 게임이 "누른 채로 죽으면 다음 판이 움직인 채 시작"
+// 버그를 조용히 물려받는다. 필드를 아는 쪽은 이 구역뿐이다.
+function clearInput() {
+  input.left = input.right = false;
+  input.aimX = null;
+}
+
+/* ---- 원버튼 입력 ----
+   프레임의 input은 가로 한 축짜리라 '두드렸다'를 표현할 수 없다. 프레임을 고치는 대신
+   여기서 리스너를 더 단다 — 프레임의 핸들러는 그대로 살아 있어서 타이틀·게임오버에서
+   누르면 판이 시작된다. 판을 시작시킨 그 누름이 첫 헛방이 되는 것은 TAP_GRACE가 막는다.
+
+   키는 거의 전부 받는다. 원버튼 게임에서 "어느 키냐"를 묻는 순간 원버튼이 아니게 된다.
+   빼는 것은 판 자체를 조작하는 키들뿐이다. */
+const NO_TAP = ['KeyP', 'Escape', 'Tab', 'F5', 'F11', 'F12',
+  'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
+  'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'];
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'touch') return;   // 터치는 아래에서 처리 (프레임과 같은 분기)
+  tap(e.timeStamp);
+});
+canvas.addEventListener('touchstart', (e) => { tap(e.timeStamp); }, { passive: false });
+window.addEventListener('keydown', (e) => {
+  if (e.repeat || NO_TAP.includes(e.code)) return;   // 누르고 있는 것은 한 번의 탭이다
+  tap(e.timeStamp);
+});
+
+// 스프라이트·판정·눈금자 위치를 한 곳에서 화면의 짧은 변에서 파생한다.
+// 픽셀 상수로 두면 큰 화면에서 그림이 먼지처럼 작아진다. 높이가 아니라 min(W,H)인 이유는
+// 이 게임의 판이 원이라서다 — 세로로 긴 폰에서 높이를 기준으로 잡으면 링이 화면 폭을 뚫는다.
+// 결과를 캐시한다: 이벤트 핸들러(tap)도 M()을 부르므로 매번 새 객체를 만들면 탭마다 쓰레기가 생긴다.
+let _m = null, _mW = -1, _mH = -1;
+function M() {
+  if (_m && _mW === W && _mH === H) return _m;
+  const U = Math.min(W, H);
+  _m = {
+    U,
+    cx: W / 2, cy: H / 2,
+    R: U * 0.30,             // 자물쇠 띠의 중심 반경
+    band: U * 0.058,         // 띠 두께
+    hub: U * 0.185,          // 안쪽 원반(충전 표시가 사는 곳)
+    line: Math.max(0.8, U / 560),
+    rulerY: H / 2 + U * 0.415,
+    rulerW: U * 0.62,
+    // ctx.font은 대입할 때마다 문자열을 파싱한다. 프레임마다 이어 붙이면 쓰레기가 같이 는다
+    fontBig: '700 ' + Math.round(U * 0.15) + 'px ui-sans-serif, system-ui, sans-serif',
+    fontMid: '700 ' + Math.round(U * 0.05) + 'px ui-sans-serif, system-ui, sans-serif',
+    fontSmall: '700 ' + Math.round(U * 0.031) + 'px ui-sans-serif, system-ui, sans-serif'
+  };
+  _mW = W; _mH = H;
+  return _m;
+}
+
+function place(a, guard) {
+  let L = null;
+  for (let i = 0; i < LMAX; i++) if (!locks[i].live && locks[i].fade <= 0) { L = locks[i]; break; }
+  if (!L) return;   // 풀이 비면 조용히 거른다. 억지로 덮어쓰면 플레이어가 보던 자물쇠가 사라진다
+  L.live = true;
+  L.a = a;
+  L.w = widthAt(elapsed);
+  L.guard = guard;
+  L.st = 0;
+  L.fade = 0;
+  if (a > frontier) frontier = a;
+  const m = M();
+  FX.burst(m.cx + Math.cos(a) * m.R, m.cy + Math.sin(a) * m.R, guard ? '#ff9500' : '#39ff8b', 6);
+}
+
+function spawn() {
+  // 바늘 앞 고정 거리에 놓되, 앞 자물쇠와 겹치지는 않게 한다. 겹치면 하나를 두드렸는데
+  // 다른 하나가 판정되어 "왜 저게 부서졌지"가 된다 — 타이밍 게임에서 가장 나쁜 종류의 거짓말이다
+  const w = widthAt(elapsed);
+  let a = ang + MIN_LEAD;
+  const minA = frontier + 2 * w + 0.34;
+  if (a < minA) a = minA;
+
+  let guard = false;
+  if (elapsed > GUARD_AFTER && !lastGuard) {
+    guardAcc += guardAt(elapsed - GUARD_AFTER);
+    if (guardAcc >= 1) { guardAcc -= 1; guard = true; }
+  }
+  lastGuard = guard;
+  // 처음 나온 가드만 글로 설명한다. 규칙을 스스로 알아내게 두면 첫 판은 가드에 당하는 판이 된다
+  if (guard && !guardSeen) { guardSeen = true; say('GUARD — DO NOT TAP', '#ff9500'); }
+  place(a, guard);
+  spawnCount++;
+}
+
+function say(text, color) { msg.text = text; msg.color = color; msg.life = 0.85; }
+
+function addTick(off, kind) {
+  const t = ticks[tickHead];
+  tickHead = (tickHead + 1) % TMAX;
+  t.life = 1.6;
+  t.off = Math.max(-RULER_SEC, Math.min(RULER_SEC, off));
+  t.kind = kind;
+}
+
+// 두드린 '그 순간'의 바늘 각도. ang은 프레임 첫머리에서 한 번 갱신되므로 그대로 쓰면
+// 모든 판정이 최대 한 프레임만큼 이르게 읽힌다 — 60Hz에서 0.034rad, 가장 좁은 판정 폭이
+// 0.125rad이니 무시할 수 없고, 프레임이 느린 기기일수록 커진다. 타이밍 게임에서 이건
+// 눈금자가 가르치려는 바로 그것을 망가뜨린다. 이벤트 시각까지 바늘을 이어 돌려서 잰다.
+function angAtEvent(evTime) {
+  if (!Number.isFinite(evTime) || !last) return ang;
+  const since = Math.max(0, Math.min(0.05, (evTime - last) / 1000));
+  return ang + spinAt(elapsed) * since;
+}
+
+function tap(evTime) {
+  // 판을 시작시킨 누름과 같은 이벤트에서 들어오면 elapsed는 아직 0이다 — 그것은 조작이 아니다
+  if (state !== S.PLAYING || elapsed < TAP_GRACE) return;
+  // 한 번의 동작이 두 채널로 들어오는 경우를 한 번으로 친다 — 터치가 pointerdown까지
+  // 발생시키는 브라우저, 키와 클릭이 같이 잡히는 입력 장치. 안 막으면 두 번째가 반드시
+  // 헛방이 되어 플레이어가 하지도 않은 실수를 뒤집어쓴다.
+  if (elapsed - lastTapAt < TAP_DEBOUNCE) return;
+  lastTapAt = elapsed;
+  audioReady();
+  const m = M();
+  const spin = spinAt(elapsed);
+  const tapAng = angAtEvent(evTime);
+
+  let best = -1, bd = 1e9, bsign = 0;
+  for (let i = 0; i < LMAX; i++) {
+    const L = locks[i];
+    if (!L.live) continue;
+    const d = tapAng - L.a;            // 음수 = 이르다, 양수 = 늦다
+    const ad = Math.abs(d);
+    if (ad < bd) { bd = ad; bsign = d; best = i; }
+  }
+
+  const hx = m.cx + Math.cos(tapAng) * m.R;
+  const hy = m.cy + Math.sin(tapAng) * m.R;
+  const L = best >= 0 ? locks[best] : null;
+
+  if (L && bd <= L.w) {
+    L.live = false;
+    L.fade = FADE;
+    if (L.guard) {
+      // 가드를 두드렸다. 색을 못 봐도 빗금과 X로 알아볼 수 있게 그려 뒀으므로 이건 오독이 아니라 오판이다
+      L.st = 4;
+      chain = 0;
+      charge -= GUARD_COST;
+      say('GUARD', '#ff9500');
+      addTick(bsign / spin, 3);
+      FX.burst(hx, hy, '#ff9500', 16);
+      FX.shake(m.U * 0.018);
+      FX.flash('#ff9500', 0.16, 0.20);
+      beep(140, 90);
+    } else {
+      const rel = bd / L.w;
+      const tier = rel < CORE ? 0 : rel < GOOD ? 1 : 2;
+      L.st = 1;
+      chain++;
+      score += HIT_PTS[tier] * mult();
+      charge = Math.min(CHARGE_MAX, charge + HIT_GAIN[tier]);
+      hubPulse = 1;
+      say(tier === 0 ? 'PERFECT' : tier === 1 ? 'LOCKED' : (bsign < 0 ? 'EDGE / EARLY' : 'EDGE / LATE'),
+        tier === 0 ? '#ffffff' : tier === 1 ? '#39ff8b' : '#8be9ff');
+      addTick(bsign / spin, tier);
+      FX.burst(hx, hy, tier === 0 ? '#ffffff' : '#39ff8b', 10 + (2 - tier) * 8);
+      if (tier === 0) { FX.flash('#ffffff', 0.10, 0.12); FX.shake(m.U * 0.008); }
+      beep(560 + (2 - tier) * 180 + Math.min(6, chain) * 25, 40);
+    }
+    return;
+  }
+
+  // 헛방. 얼마나 이르거나 늦었는지를 눈금자와 잔상 두 곳에 남긴다 —
+  // 타이밍 게임에서 "왜 안 맞았는지 모르겠다"는 곧 조작이 부정직하다는 뜻이다
+  chain = 0;
+  charge -= MISFIRE_COST;
+  ghost.a = ang;
+  ghost.life = 0.55;
+  ghost.hasTarget = L !== null && bd < 1.4;
+  ghost.target = L ? L.a : ang;
+  if (ghost.hasTarget) {
+    say(bsign < 0 ? 'EARLY' : 'LATE', '#ff2e88');
+    addTick(bsign / spin, 4);
+  } else {
+    say('NO LOCK', '#ff2e88');
+  }
+  FX.burst(hx, hy, '#ff2e88', 8);
+  beep(190, 55);
+}
+
+function endRun() {
+  const m = M();
+  FX.burst(m.cx, m.cy, '#ff2e88', 34);
+  FX.shake(m.U * 0.04);
+  FX.flash('#ff2e88', 0.3, 0.55);
+  gameOver();
+}
+
+function reset() {
+  clearInput();
+  for (let i = 0; i < LMAX; i++) { locks[i].live = false; locks[i].fade = 0; }
+  for (let i = 0; i < TMAX; i++) ticks[i].life = 0;
+  ang = -Math.PI / 2;          // 바늘은 12시에서 출발한다 — 어디서 시작했는지가 한눈에 남는다
+  frontier = ang;
+  charge = CHARGE_MAX;
+  elapsed = 0;
+  chain = 0;
+  guardAcc = 0;
+  lastGuard = false;
+  guardSeen = false;
+  spawnCount = 0;
+  hubPulse = 0;
+  lastTapAt = -1;
+  msg.life = 0;
+  ghost.life = 0;
+  round++;
+  // 판을 빈 링으로 시작하지 않는다. 첫 유입까지 1.3초라 그 사이에 찍힌 스크린샷은
+  // 배경뿐인 '디버그 캔버스'가 된다. 플레이어에게도 첫 프레임부터 노릴 것을 준다.
+  // 판마다 조금씩 어긋내는 이유: 모든 판이 같으면 두 판째에 박자를 외우고,
+  // 심사용 스크린샷 10장도 같은 장면 몇 개로 접힌다. 난수가 아니라 판 번호로 어긋낸다.
+  const j = (round % 4) * 0.14;
+  place(ang + 1.15 + j, false);
+  place(ang + 2.45 + j, false);
+  place(ang + 3.75 + j, false);
+  spawnIn = gapAt(0);
+  const m = M();
+  FX.burst(m.cx, m.cy, '#00e5ff', 20);
+  FX.flash('#00e5ff', 0.16, 0.20);
+}
+
+function step(m, dt) {
+  elapsed += dt;
+  ang += spinAt(elapsed) * dt;
+  charge -= bleedAt(elapsed) * dt;
+
+  spawnIn -= dt;
+  if (spawnIn <= 0) {
+    spawn();
+    spawnIn = gapAt(elapsed);
+  }
+
+  for (let i = 0; i < LMAX; i++) {
+    const L = locks[i];
+    if (L.fade > 0) L.fade -= dt;
+    if (!L.live) continue;
+    if (ang - L.a <= L.w) continue;      // 아직 바늘이 지나가지 않았다
+
+    L.live = false;
+    L.fade = FADE;
+    const lx = m.cx + Math.cos(L.a) * m.R, ly = m.cy + Math.sin(L.a) * m.R;
+    if (L.guard) {
+      // 참고 흘려보냈다. 원버튼 게임에서 유일하게 '누르지 않는 것'이 정답인 순간
+      L.st = 3;
+      score += GUARD_PTS * mult();
+      FX.burst(lx, ly, '#39ff8b', 8);
+    } else {
+      L.st = 2;
+      chain = 0;
+      charge -= PASS_COST;
+      say('MISSED', '#ff2e88');
+      FX.burst(lx, ly, '#ff2e88', 14);
+      FX.shake(m.U * 0.012);
+      beep(120, 70);
+    }
+  }
+
+  if (charge <= 0) { charge = 0; endRun(); }
+}
+
+/* ---- 그리기 도우미 ---- */
+function bandArc(m, a0, a1, r, lw, style, alpha) {
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = style;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.arc(m.cx, m.cy, r, a0, a1);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+const rulerX = (m, off) => m.cx + Math.max(-1, Math.min(1, off / RULER_SEC)) * m.rulerW / 2;
+
+function drawLock(m, L) {
+  const live = L.live;
+  const f = live ? 1 : Math.max(0, L.fade / FADE);
+  // 부서진 자물쇠는 밖으로 번지며 사라지고, 놓친 자물쇠는 안으로 꺼지며 사라진다.
+  // 방향이 다르면 정지 프레임 하나만 봐도 둘을 구분할 수 있다
+  const grow = L.st === 1 ? (1 - f) * m.band * 1.5 : L.st === 2 ? -(1 - f) * m.band * 0.8 : 0;
+  const r = m.R + grow;
+  const a0 = L.a - L.w, a1 = L.a + L.w;
+
+  if (L.guard) {
+    const col = L.st === 4 ? '#ff4d4d' : '#ff9500';
+    // 가드는 속이 빈 띠 + 빗금 + X. 색을 못 봐도 '두드리면 안 되는 것'이 형태로 읽혀야 한다
+    bandArc(m, a0, a1, r - m.band * 0.5, m.line * 2, col, 0.75 * f);
+    bandArc(m, a0, a1, r + m.band * 0.5, m.line * 2, col, 0.75 * f);
+    ctx.globalAlpha = 0.5 * f;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = m.line * 1.6;
+    ctx.beginPath();
+    const steps = Math.max(2, Math.round(L.w / 0.05));
+    for (let k = 0; k <= steps; k++) {
+      const a = a0 + (a1 - a0) * (k / steps);
+      ctx.moveTo(m.cx + Math.cos(a) * (r - m.band * 0.5), m.cy + Math.sin(a) * (r - m.band * 0.5));
+      ctx.lineTo(m.cx + Math.cos(a + 0.07) * (r + m.band * 0.5), m.cy + Math.sin(a + 0.07) * (r + m.band * 0.5));
+    }
+    ctx.stroke();
+    // 한가운데의 X. 빗금이 좁아져도 이건 남는다
+    const g = m.band * 0.34;
+    const gx = m.cx + Math.cos(L.a) * r, gy = m.cy + Math.sin(L.a) * r;
+    ctx.globalAlpha = 0.95 * f;
+    ctx.lineWidth = m.line * 2.4;
+    ctx.beginPath();
+    ctx.moveTo(gx - g, gy - g); ctx.lineTo(gx + g, gy + g);
+    ctx.moveTo(gx + g, gy - g); ctx.lineTo(gx - g, gy + g);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  const col = L.st === 2 ? '#ff2e88' : L.st === 1 ? '#ffffff' : '#39ff8b';
+  ctx.save();
+  ctx.shadowColor = col;
+  ctx.shadowBlur = m.band * (live ? 0.7 : 1.3);
+  bandArc(m, a0, a1, r, m.band, col, (live ? 0.5 : 0.75) * f);
+  ctx.restore();
+  // 정중앙 구역 — '여기가 만점'이 띠 안에 그대로 그려져 있다. 색이 아니라 위치와 밝기로 말한다
+  bandArc(m, L.a - L.w * CORE, L.a + L.w * CORE, r, m.band, '#ffffff', 0.5 * f);
+  // 중심선. 띠가 아무리 좁아져도 노릴 지점 하나는 남는다
+  ctx.globalAlpha = 0.95 * f;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = m.line * 1.6;
+  ctx.beginPath();
+  ctx.moveTo(m.cx + Math.cos(L.a) * (r - m.band * 0.85), m.cy + Math.sin(L.a) * (r - m.band * 0.85));
+  ctx.lineTo(m.cx + Math.cos(L.a) * (r + m.band * 0.85), m.cy + Math.sin(L.a) * (r + m.band * 0.85));
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+function draw(m, dt) {
+  // 위상은 여기서 진행시킨다 — draw는 모든 상태에서 매 프레임 불리므로
+  // 타이틀·게임오버 화면에서도 링이 살아 있다 (게이트 1의 motion은 어디서 찍어도 0이 아니어야 한다).
+  ripple = (ripple + dt * 0.32) % 1;
+  deco += dt * 0.14;
+  if (msg.life > 0) msg.life -= dt;
+  if (ghost.life > 0) ghost.life -= dt;
+  if (hubPulse > 0) hubPulse = Math.max(0, hubPulse - dt * 3.2);
+  for (let i = 0; i < TMAX; i++) if (ticks[i].life > 0) ticks[i].life -= dt;
+  // 판이 아닐 때도 바늘은 돈다. 타이틀 화면이 정지 화면이면 게이트 1이 아슬아슬해지고,
+  // 사람 눈에도 '꺼진 기계'로 보인다
+  if (state === S.TITLE || state === S.OVER) ang += 1.05 * dt;
+
+  const spin = spinAt(elapsed);
+  const cf = Math.max(0, Math.min(1, charge / CHARGE_MAX));
+  const low = cf < 0.34;
+  const crit = cf < 0.17;
+  const chargeCol = crit ? '#ff4d4d' : low ? '#ffb020' : '#00e5ff';
+
+  ctx.fillStyle = '#070912';
+  ctx.fillRect(0, 0, W, H);
+
+  // 코어에서 퍼져 나가는 파문. 정지 프레임에서도 '기계가 돌고 있다'가 읽히고,
+  // 게이트 1의 motion(400~500ms 간격 두 장의 평균 픽셀차)은 면적이 넓은 요소만 값을 만든다 —
+  // 링 몇 개와 숫자만으로는 임계값 근처에서 아슬아슬하다. 화면을 가로지르는 파문이 여유를 번다.
+  ctx.strokeStyle = crit ? 'rgba(255,77,77,.5)' : 'rgba(0,229,255,.5)';
+  ctx.lineWidth = m.line * 2.2;
+  for (let k = 0; k < 3; k++) {
+    const t = (ripple + k / 3) % 1;
+    ctx.globalAlpha = (1 - t) * (1 - t) * 0.6;
+    ctx.beginPath();
+    ctx.arc(m.cx, m.cy, m.hub + t * m.U * 1.2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // 안쪽 살. 링이 '기계의 일부'로 보이게 하는 값싼 배경이다
+  ctx.strokeStyle = 'rgba(0,229,255,.07)';
+  ctx.lineWidth = m.line;
+  ctx.beginPath();
+  for (let k = 0; k < 24; k++) {
+    const a = deco + k * (Math.PI / 12);
+    ctx.moveTo(m.cx + Math.cos(a) * m.hub * 1.05, m.cy + Math.sin(a) * m.hub * 1.05);
+    ctx.lineTo(m.cx + Math.cos(a) * (m.R - m.band * 0.7), m.cy + Math.sin(a) * (m.R - m.band * 0.7));
+  }
+  ctx.stroke();
+
+  // 바깥 눈금 링 — 반대로 돈다. 두 방향이 겹쳐야 회전이 '방향'으로 읽힌다
+  ctx.strokeStyle = 'rgba(232,246,255,.16)';
+  ctx.lineWidth = m.line * 1.4;
+  ctx.beginPath();
+  const or = m.R + m.band * 1.5;
+  for (let k = 0; k < 48; k++) {
+    const a = -deco * 0.75 + k * (Math.PI / 24);
+    const len = k % 6 === 0 ? m.U * 0.028 : m.U * 0.014;
+    ctx.moveTo(m.cx + Math.cos(a) * or, m.cy + Math.sin(a) * or);
+    ctx.lineTo(m.cx + Math.cos(a) * (or + len), m.cy + Math.sin(a) * (or + len));
+  }
+  ctx.stroke();
+
+  // 자물쇠가 지나다니는 궤도. 비어 있어도 트랙이 보여야 다음이 어디서 올지 눈이 준비한다
+  bandArc(m, 0, Math.PI * 2, m.R, m.band, 'rgba(232,246,255,.05)', 1);
+  bandArc(m, 0, Math.PI * 2, m.R - m.band * 0.5, m.line, 'rgba(232,246,255,.12)', 1);
+  bandArc(m, 0, Math.PI * 2, m.R + m.band * 0.5, m.line, 'rgba(232,246,255,.12)', 1);
+
+  for (let i = 0; i < LMAX; i++) {
+    const L = locks[i];
+    if (L.live || L.fade > 0) drawLock(m, L);
+  }
+
+  // 헛방 잔상 — 두드린 자리(속 빈 표식)와 자물쇠가 있던 자리를 호로 잇는다.
+  // "얼마나 빗나갔나"를 문장이 아니라 거리로 보여주는 쪽이 훨씬 빨리 읽힌다
+  if (ghost.life > 0) {
+    const gf = ghost.life / 0.55;
+    ctx.globalAlpha = gf * 0.9;
+    ctx.strokeStyle = '#ff2e88';
+    ctx.lineWidth = m.line * 2;
+    ctx.beginPath();
+    ctx.moveTo(m.cx + Math.cos(ghost.a) * (m.R - m.band * 0.8), m.cy + Math.sin(ghost.a) * (m.R - m.band * 0.8));
+    ctx.lineTo(m.cx + Math.cos(ghost.a) * (m.R + m.band * 0.8), m.cy + Math.sin(ghost.a) * (m.R + m.band * 0.8));
+    ctx.stroke();
+    if (ghost.hasTarget) {
+      ctx.globalAlpha = gf * 0.55;
+      ctx.lineWidth = m.line * 3;
+      ctx.beginPath();
+      const a0 = Math.min(ghost.a, ghost.target), a1 = Math.max(ghost.a, ghost.target);
+      ctx.arc(m.cx, m.cy, m.R + m.band * 1.05, a0, a1);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // 충전량 — 안쪽 원반 둘레의 호. 숫자를 읽지 않아도 줄어드는 게 보인다
+  ctx.lineCap = 'round';
+  bandArc(m, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * cf, m.hub * 1.12, m.band * 0.5, chargeCol, 0.9);
+  ctx.lineCap = 'butt';
+
+  // 바늘. 이 게임에서 유일하게 플레이어가 읽어야 하는 것이라 가장 밝다
+  ctx.save();
+  ctx.shadowColor = '#00e5ff';
+  ctx.shadowBlur = m.U * 0.03;
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = m.line * 2.4;
+  ctx.beginPath();
+  ctx.moveTo(m.cx + Math.cos(ang) * m.hub * 0.5, m.cy + Math.sin(ang) * m.hub * 0.5);
+  ctx.lineTo(m.cx + Math.cos(ang) * (m.R + m.band * 1.1), m.cy + Math.sin(ang) * (m.R + m.band * 1.1));
+  ctx.stroke();
+  ctx.fillStyle = '#e8f6ff';
+  ctx.beginPath();
+  ctx.arc(m.cx + Math.cos(ang) * m.R, m.cy + Math.sin(ang) * m.R, m.band * 0.34, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  // 바늘 머리의 잔상. 회전이 정지 프레임에서도 방향으로 읽힌다. 풀에서 꺼내므로 할당이 없다
+  FX.trail(m.cx + Math.cos(ang) * m.R, m.cy + Math.sin(ang) * m.R, '#00e5ff', m.band * 0.4, m.band * 0.4, 0.22);
+
+  // 안쪽 원반. 맞힌 순간 부푼다
+  const hub = m.hub * (1 + hubPulse * 0.07);
+  ctx.strokeStyle = crit ? 'rgba(255,77,77,.6)' : 'rgba(0,229,255,.3)';
+  ctx.lineWidth = m.line * (1.4 + (1 - cf) * 2.6);
+  ctx.beginPath();
+  ctx.arc(m.cx, m.cy, hub, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = crit ? 'rgba(255,77,77,.75)' : low ? 'rgba(255,176,32,.55)' : 'rgba(232,246,255,.32)';
+  ctx.font = m.fontBig;
+  ctx.fillText(Math.ceil(charge), m.cx, m.cy - m.U * 0.012);
+  ctx.font = m.fontSmall;
+  ctx.fillStyle = 'rgba(232,246,255,.30)';
+  ctx.fillText('CHARGE', m.cx, m.cy + m.U * 0.075);
+  if (chain >= 5) {
+    ctx.font = m.fontMid;
+    ctx.fillStyle = 'rgba(57,255,139,.75)';
+    ctx.fillText('x' + mult(), m.cx, m.cy - m.U * 0.115);
+  }
+
+  // 마지막 판정. 링 바로 위에 둔다 — 아래는 눈금자가 쓰고 있고, 겹치면 둘 다 못 읽는다.
+  // 위쪽은 어차피 비어 있어서 폭 걱정 없이 문장을 쓸 수 있다
+  if (msg.life > 0) {
+    ctx.globalAlpha = Math.min(1, msg.life / 0.4);
+    ctx.fillStyle = msg.color;
+    ctx.font = m.fontMid;
+    ctx.fillText(msg.text, m.cx, m.cy - m.R - m.band * 2.8);
+    ctx.globalAlpha = 1;
+  }
+
+  /* ---- 판정 눈금자 ----
+     가운데가 정확히 맞은 순간, 좌우가 이르고 늦은 정도다. 지금의 판정 폭이 밝은 띠로 그려져
+     있어서 시간이 갈수록 그 띠가 좁아지는 게 눈에 보인다 — 난이도가 숫자가 아니라 그림으로 온다.
+     최근 탭 자국이 남으므로 "나는 계속 이르게 친다"를 스스로 알아챌 수 있다. */
+  // 폭은 자물쇠마다 태어날 때 고정된다(L.w). 여기서 widthAt(지금)을 그리면 난이도가 오르는
+  // 구간에서 눈금자가 실제로 적용될 폭보다 좁게 보인다 — 눈금자가 거짓말을 하는 셈이다.
+  // 다음에 만날 자물쇠의 폭을 그린다.
+  let nextW = widthAt(elapsed), nd = 1e9;
+  for (let i = 0; i < LMAX; i++) {
+    const L = locks[i];
+    if (!L.live) continue;
+    const ad = Math.abs(ang - L.a);
+    if (ad < nd) { nd = ad; nextW = L.w; }
+  }
+  const halfW = nextW / spin;
+  ctx.fillStyle = 'rgba(0,229,255,.10)';
+  ctx.fillRect(rulerX(m, -halfW), m.rulerY - m.U * 0.016, rulerX(m, halfW) - rulerX(m, -halfW), m.U * 0.032);
+  ctx.fillStyle = 'rgba(255,255,255,.18)';
+  ctx.fillRect(rulerX(m, -halfW * CORE), m.rulerY - m.U * 0.016, rulerX(m, halfW * CORE) - rulerX(m, -halfW * CORE), m.U * 0.032);
+  ctx.fillStyle = 'rgba(232,246,255,.16)';
+  ctx.fillRect(m.cx - m.rulerW / 2, m.rulerY - m.line / 2, m.rulerW, m.line);
+  ctx.fillStyle = 'rgba(232,246,255,.55)';
+  ctx.fillRect(m.cx - m.line, m.rulerY - m.U * 0.022, m.line * 2, m.U * 0.044);
+
+  ctx.font = m.fontSmall;
+  ctx.fillStyle = 'rgba(232,246,255,.28)';
+  // 눈금자 아래에 쓴다. 위에 두면 링 바깥 눈금과 겹쳐 둘 다 지저분해진다
+  ctx.fillText('EARLY', m.cx - m.rulerW * 0.36, m.rulerY + m.U * 0.045);
+  ctx.fillText('LATE', m.cx + m.rulerW * 0.36, m.rulerY + m.U * 0.045);
+
+  const TICK_COL = ['#ffffff', '#39ff8b', '#8be9ff', '#ff9500', '#ff2e88'];
+  for (let i = 0; i < TMAX; i++) {
+    const t = ticks[i];
+    if (t.life <= 0) continue;
+    ctx.globalAlpha = Math.min(1, t.life / 1.6);
+    ctx.fillStyle = TICK_COL[t.kind];
+    const x = rulerX(m, t.off);
+    ctx.fillRect(x - m.line, m.rulerY - m.U * 0.019, m.line * 2, m.U * 0.038);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.textAlign = 'start';
+  ctx.textBaseline = 'alphabetic';
+}
+/* ===== GAME LOGIC 끝 ===== */
+
+/* ---------- 상태 전이 ---------- */
+function start() {
+  score = 0;
+  el.score.textContent = '0';
+  el.title.hidden = true;
+  el.over.hidden = true;
+  reset();
+  state = S.PLAYING;
+  Portal.gameplayStart();
+}
+function pause() { if (state === S.PLAYING) state = S.PAUSED; }
+function resume() { if (state === S.PAUSED) state = S.PLAYING; }
+function gameOver() {
+  state = S.OVER;
+  beep(160, 180);
+  Portal.gameplayStop();
+  if (score > best) { best = score; saveBest(best); el.best.textContent = best; }
+  el.finalScore.textContent = score;
+  el.over.hidden = false;
+}
+
+/* ---------- 루프 ---------- */
+let last = 0;
+function frame(now) {
+  // dt 상한 0.05는 장식이 아니라 판정 방어다. 바늘의 최고 각속도 2.10과 곱하면 프레임당
+  // 0.105rad인데, 가장 좁아진 판정 폭은 ±0.125rad다 (여유 1.19배). 상한을 올리거나
+  // spinAt 상한을 올리면 한 프레임 만에 자물쇠를 건너뛰어 두드릴 기회가 아예 없는 판이 된다 —
+  // 세 값(0.05 · 2.10 · 0.125)은 함께 움직인다. 하나만 만지지 말 것.
+  const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+  last = now;
+  tick++;
+  const m = M();               // 프레임당 한 번만 만든다 (step·draw가 같은 값을 본다)
+  if (state === S.PLAYING) {
+    step(m, dt);
+    el.score.textContent = score;
+  }
+  // FX는 모든 상태에서 돈다 — 죽은 뒤에도 파편과 흔들림이 끝까지 재생돼야
+  // 사망이 '멈춤'이 아니라 '사건'으로 보인다.
+  FX.update(dt);
+  FX.begin(ctx);
+  draw(m, dt);
+  FX.draw(ctx);
+  FX.end(ctx);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 관측 계약: 게이트 2가 읽는 유일한 인터페이스 ---------- */
+window.__GAME__ = {
+  api: 1,
+  get state() { return state; },
+  get score() { return score; },
+  get tick() { return tick; },
+  start, pause, resume
+};
+
+resize();
+// SDK가 거부하거나 던져도 루프는 시작한다. 여기서 멈추면 화면이 영원히 검은 채로 남는데,
+// 포털 빌드에서 그게 가장 나쁜 실패다 — 광고 SDK 하나 때문에 게임이 아예 안 뜬다.
+const startLoop = () => requestAnimationFrame(frame);
+try {
+  Portal.ready().then(startLoop, startLoop);
+} catch {
+  startLoop();
+}
+</script>
+</body>
+</html>
