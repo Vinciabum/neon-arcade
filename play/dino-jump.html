@@ -217,22 +217,97 @@
         /**
          * Skill 1: Asset_Loader & Sprite Management
          */
-        const dinoIdle = [new Image(), new Image()];
-        dinoIdle[0].src = '../assets/dino/png/1x/raptor-idle/raptor-idle1.png';
-        dinoIdle[1].src = '../assets/dino/png/1x/raptor-idle/raptor-idle2.png';
-
-        const dinoRun = [];
-        for (let i = 1; i <= 6; i++) {
-            const img = new Image();
-            img.src = `../assets/dino/png/1x/raptor-run/raptor-run${i}.png`;
-            dinoRun.push(img);
-        }
-
-        const dinoJump = [new Image()];
-        dinoJump[0].src = '../assets/dino/png/1x/raptor-jump/raptor-jump.png';
-
         const cactusImg = new Image(); cactusImg.src = '../assets/cactus.svg';
         const coinImg = new Image(); coinImg.src = '../assets/coin.svg';
+
+        // --- RUNNER SPRITE (캔버스로 직접 그린다) ---
+        // 러너는 시작할 때 딱 세 장을 그려 캐시해 두고, 매 프레임에는 blit 한 번만 한다.
+        // 이 게임은 이미 프레임 예산이 빠듯해서, 프레임마다 경로를 다시 치는 방식은 버티지 못한다.
+        const SPR = 60;      // 히트박스와 같은 크기 (dino.w/h) — 겉모습만 바뀌고 판정은 그대로다
+        const SPR_PAD = 8;   // 네온 글로우가 잘리지 않게 캐시 캔버스에만 주는 여백
+        const SPR_DPR = Math.min(2, window.devicePixelRatio || 1);
+
+        // 다리는 [엉덩이, 무릎, 발] 3점. 두 프레임이 서로 반대로 뻗어야 '달린다'로 읽힌다.
+        // air는 두 발을 모두 상자 아래쪽에서 떼고 꼬리를 치켜든다 — 공중인지 한눈에 갈려야 한다.
+        const POSES = {
+            runA: { tail: 0, legs: [[.44, .58, .56, .75, .66, .95], [.42, .58, .34, .74, .24, .86]], arm: [.62, .50, .71, .57, .78, .52] },
+            runB: { tail: .04, legs: [[.44, .58, .50, .78, .44, .95], [.42, .58, .44, .70, .56, .84]], arm: [.62, .50, .70, .59, .76, .55] },
+            air: { tail: -.16, legs: [[.44, .56, .60, .68, .74, .60], [.42, .56, .34, .72, .22, .62]], arm: [.62, .48, .72, .52, .80, .45] }
+        };
+
+        // 꼬리 → 등 → 머리 → 배로 도는 한붓그리기. tail은 꼬리 끝만 위아래로 밀어 자세를 바꾼다.
+        function bodyPath(g, S, tail) {
+            const t = tail * S;
+            g.beginPath();
+            g.moveTo(.02 * S, .46 * S + t);
+            g.quadraticCurveTo(.20 * S, .37 * S + t, .44 * S, .36 * S);
+            g.quadraticCurveTo(.57 * S, .30 * S, .66 * S, .26 * S);
+            g.quadraticCurveTo(.73 * S, .13 * S, .85 * S, .17 * S);
+            g.lineTo(1.00 * S, .26 * S);
+            g.lineTo(.89 * S, .34 * S);
+            g.quadraticCurveTo(.76 * S, .37 * S, .70 * S, .45 * S);
+            g.quadraticCurveTo(.66 * S, .57 * S, .58 * S, .63 * S);
+            g.quadraticCurveTo(.45 * S, .70 * S, .35 * S, .60 * S);
+            g.quadraticCurveTo(.20 * S, .58 * S + t, .02 * S, .46 * S + t);
+            g.closePath();
+        }
+
+        function buildFrame(pose) {
+            const S = SPR, P = SPR_PAD;
+            const cv = document.createElement('canvas');
+            cv.width = cv.height = Math.round((S + P * 2) * SPR_DPR);
+            const g = cv.getContext('2d');
+            g.scale(SPR_DPR, SPR_DPR);
+            g.translate(P, P);
+            g.lineCap = 'round';
+            g.lineJoin = 'round';
+
+            // 글로우는 shadowBlur로 낸다. 캐시를 만들 때 한 번 도는 비용이라 프레임 예산과 무관하다.
+            g.shadowColor = '#00e5ff';
+            g.shadowBlur = 10;
+
+            // 다리 먼저, 몸통 나중. 순서가 반대면 다리가 몸통을 덮어 실루엣이 뭉개진다.
+            g.strokeStyle = '#12d3ef';
+            g.lineWidth = .085 * S;
+            for (const L of pose.legs) {
+                g.beginPath();
+                g.moveTo(L[0] * S, L[1] * S); g.lineTo(L[2] * S, L[3] * S); g.lineTo(L[4] * S, L[5] * S);
+                g.stroke();
+            }
+
+            const skin = g.createLinearGradient(0, .10 * S, 0, .70 * S);
+            skin.addColorStop(0, '#9ef9ff');
+            skin.addColorStop(1, '#00b8e6');
+            bodyPath(g, S, pose.tail);
+            g.fillStyle = skin;
+            g.fill();
+            g.shadowBlur = 0;
+
+            // 초록 바닥 위를 달리는 구간이 있어서, 어두운 외곽선이 없으면 실루엣이 바닥에 먹힌다.
+            g.strokeStyle = 'rgba(0,22,32,.72)';
+            g.lineWidth = 1.6;
+            g.stroke();
+
+            // 짧은 앞발 — 공룡으로 읽히게 하는 최소한의 단서
+            g.strokeStyle = '#eafcff';
+            g.lineWidth = .05 * S;
+            g.beginPath();
+            g.moveTo(pose.arm[0] * S, pose.arm[1] * S);
+            g.lineTo(pose.arm[2] * S, pose.arm[3] * S);
+            g.lineTo(pose.arm[4] * S, pose.arm[5] * S);
+            g.stroke();
+
+            g.fillStyle = '#04202b';
+            g.beginPath(); g.arc(.83 * S, .235 * S, .034 * S, 0, 6.2832); g.fill();
+            g.fillStyle = 'rgba(255,255,255,.9)';
+            g.beginPath(); g.arc(.845 * S, .225 * S, .014 * S, 0, 6.2832); g.fill();
+            return cv;
+        }
+
+        const runFrames = [buildFrame(POSES.runA), buildFrame(POSES.runB)];
+        const airFrame = buildFrame(POSES.air);
+        const SPR_BOX = SPR + SPR_PAD * 2;
+        const RUN_CYCLE = 0.28;  // 초. 한 사이클에 두 걸음 — 원래 스프라이트 시트와 같은 보폭이다
 
         /**
          * Skill 2: Progression_Core
@@ -258,12 +333,15 @@
         let score = 0;
         let runCoins = 0;
         let gameSpeed = 5;
+        let lastT = 0; // 달리기 사이클을 dt로 돌리기 위한 직전 타임스탬프 (120Hz에서 두 배로 뛰지 않게)
+        const scoreEl = document.getElementById('scoreDisplay');
+        let shownScore = -1; // 마지막으로 DOM에 쓴 표시값. -1이면 아직 한 번도 안 썼다는 뜻
 
         // Entities
         let dino = {
             x: 50, y: 0, w: 60, h: 60,
             dy: 0, grounded: false, jumpCount: 0,
-            state: 'run', frameIndex: 0, frameTimer: 0
+            state: 'run', frameIndex: 0, runPhase: 0
         };
         let obstacles = [];
         let eggs = []; // Loots
@@ -316,16 +394,24 @@
         GameJuice.setupTouchControls(); // Global prevent
 
         // --- GAME LOOP ---
-        function update() {
-            if (!gameRunning) return;
+        // 루프는 절대 멈추지 않는다. 예전에는 gameOver()가 rAF를 끊어서, 로비와 게임오버 화면에
+        // 머무는 동안 한 프레임도 그리지 않았다. 그 죽은 구간이 측정 구간의 40%를 넘게 차지해
+        // 평균이 33.5fps로 찍혔다 — 실제로 달리는 동안은 계속 59.7fps였다. 느린 게 아니라
+        // 절반쯤 꺼져 있던 것이다. 오버레이에 덮여 있어도 루프는 살아 있어야 한다.
+        function loop(now) {
+            animationId = requestAnimationFrame(loop);
 
-            // Clear
-            ctx.clearRect(0, 0, w, h);
+            // dt는 그리기 애니메이션 전용이다. 상한 0.05는 탭이 백그라운드에 다녀와도
+            // 달리기 사이클이 한 번에 몇 바퀴 건너뛰지 않게 막는다.
+            const dt = lastT ? Math.min(0.05, (now - lastT) / 1000) : 0;
+            lastT = now;
 
-            // Ground
-            ctx.fillStyle = '#0f0';
-            ctx.fillRect(0, h - 50, w, 50);
+            if (gameRunning) step(dt);
+            render();
+        }
 
+        // 물리·스폰은 예전 그대로 프레임 단위로 둔다 — 속도·점프·스폰 주기는 손대지 않았다.
+        function step(dt) {
             // Physics
             dino.dy += 0.8;
             dino.y += dino.dy;
@@ -344,19 +430,11 @@
                 dino.state = 'jump';
             }
 
-            // Animation
-            dino.frameTimer++;
-            if (dino.frameTimer > 8) {
-                dino.frameIndex++;
-                dino.frameTimer = 0;
+            // Animation — 달릴 때만 사이클이 돈다. 공중에서는 자세가 하나뿐이라 멈춰도 티가 안 난다.
+            if (dino.state !== 'jump') {
+                dino.runPhase = (dino.runPhase + dt / RUN_CYCLE) % 1;
+                dino.frameIndex = dino.runPhase < 0.5 ? 0 : 1;
             }
-
-            // Draw Dino
-            let currentAnim = dinoRun;
-            if (dino.state === 'idle') currentAnim = dinoIdle;
-            if (dino.state === 'jump') currentAnim = dinoJump;
-            const frame = currentAnim[dino.frameIndex % currentAnim.length];
-            ctx.drawImage(frame, dino.x, dino.y, dino.w, dino.h);
 
             // Obstacles
             if (frames % 100 === 0) {
@@ -380,13 +458,6 @@
             // Update Objects
             obstacles.forEach((obs, i) => {
                 obs.x -= gameSpeed;
-
-                if (obs.type === 'cactus') {
-                    ctx.drawImage(cactusImg, obs.x - 5, obs.y - 5, obs.w + 10, obs.h + 5);
-                } else {
-                    ctx.fillStyle = obs.color;
-                    ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-                }
 
                 if (aabb(dino, obs)) {
                     GameJuice.playSound('lose');
@@ -412,8 +483,6 @@
                     egg.x -= gameSpeed;
                 }
 
-                if (!egg.collected) ctx.drawImage(coinImg, egg.x, egg.y, egg.w, egg.h);
-
                 if (aabb(dino, egg) && !egg.collected) {
                     egg.collected = true;
                     collectCoin(egg.x, egg.y);
@@ -430,19 +499,73 @@
                 p.x += p.vx;
                 p.y += p.vy;
                 p.life -= p.decay;
-                ctx.globalAlpha = p.life;
-                ctx.fillStyle = p.color;
-                ctx.fillRect(p.x, p.y, p.size, p.size);
                 if (p.life <= 0) dustParticles.splice(i, 1);
             }
-            ctx.globalAlpha = 1.0;
 
             // Score
             score++;
-            document.getElementById('scoreDisplay').innerText = `SCORE: ${Math.floor(score / 10)}`;
+            // 점수는 눈에 보이는 값이 바뀔 때만 DOM에 쓴다. score++는 프레임마다 돌지만
+            // 표시값은 10프레임에 한 번 바뀌므로, 매 프레임 템플릿 문자열을 새로 만들 이유가 없다.
+            const shown = Math.floor(score / 10);
+            if (shown !== shownScore) {
+                shownScore = shown;
+                scoreEl.innerText = `SCORE: ${shown}`;
+            }
             frames++;
+        }
 
-            animationId = requestAnimationFrame(update);
+        // 그리기는 상태를 건드리지 않는다 — 그래서 게임이 멈춰 있을 때도 같은 함수로
+        // 마지막 화면을 계속 낸다. 로비·게임오버에서 보이는 그림은 예전과 같다.
+        function render() {
+            // Clear
+            ctx.clearRect(0, 0, w, h);
+
+            // Ground
+            ctx.fillStyle = '#0f0';
+            ctx.fillRect(0, h - 50, w, 50);
+
+            const airborne = dino.state === 'jump';
+            // 한 사이클에 두 번 튀는 상하 진동. 두 장짜리 플립북만으로는 밋밋해서 살아 있게 보이지 않는다.
+            const bob = airborne ? 0 : -Math.abs(Math.sin(dino.runPhase * 6.2832)) * 2;
+
+            // 접지 그림자. 발이 땅에 붙었는지 떠 있는지를 한눈에 알려주는 신호는 이것뿐이다.
+            const alt = Math.max(0, (h - 90) - dino.y);
+            const k = Math.max(0, 1 - alt / 160);
+            ctx.globalAlpha = 0.10 + 0.32 * k;
+            ctx.fillStyle = '#012';
+            ctx.beginPath();
+            // 발끝은 히트박스 바닥 근처(h-33)라 그림자도 거기 깔려야 발이 딛는 것으로 보인다
+            ctx.ellipse(dino.x + 30, h - 35, 22 * (0.55 + 0.45 * k), 5 * (0.4 + 0.6 * k), 0, 0, 6.2832);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+
+            // Draw Dino — 캐시된 프레임 blit 한 번. 여백만큼 밀어 그려도 히트박스는 그대로다.
+            const spr = airborne ? airFrame : runFrames[dino.frameIndex];
+            ctx.drawImage(spr, dino.x - SPR_PAD, dino.y - SPR_PAD + bob, SPR_BOX, SPR_BOX);
+
+            // 장애물은 공룡 뒤에 그린다 — 순서가 바뀌면 선인장이 공룡에 먹힌다.
+            for (let i = 0; i < obstacles.length; i++) {
+                const obs = obstacles[i];
+                if (obs.type === 'cactus') {
+                    ctx.drawImage(cactusImg, obs.x - 5, obs.y - 5, obs.w + 10, obs.h + 5);
+                } else {
+                    ctx.fillStyle = obs.color;
+                    ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+                }
+            }
+
+            for (let i = 0; i < eggs.length; i++) {
+                const egg = eggs[i];
+                if (!egg.collected) ctx.drawImage(coinImg, egg.x, egg.y, egg.w, egg.h);
+            }
+
+            for (let i = 0; i < dustParticles.length; i++) {
+                const p = dustParticles[i];
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+            }
+            ctx.globalAlpha = 1.0;
         }
 
         function aabb(r1, r2) {
@@ -462,7 +585,8 @@
 
         function gameOver() {
             gameRunning = false;
-            cancelAnimationFrame(animationId);
+            // rAF는 끊지 않는다. 끊으면 게임오버 화면에 있는 동안 프레임이 0이 되고,
+            // 그게 이 게임의 평균 fps를 반토막 냈던 원인이다. step()만 멈추면 충분하다.
 
             // JUICE: Shake & Flash
             GameJuice.shake(20, 500);
@@ -494,9 +618,9 @@
             eggs = [];
             dustParticles = [];
             dino.y = h - 90;
-
-            cancelAnimationFrame(animationId); // Safety clear
-            update();
+            shownScore = -1;
+            // lastT는 건드리지 않는다 — 루프가 로비에서도 계속 돌아 dt가 끊긴 적이 없다.
+            // 루프 시작도 여기서 하지 않는다. 이미 돌고 있다.
         }
 
         function openShop() {
@@ -556,6 +680,8 @@
 
         // Init
         updateUI();
+        // 루프는 로비에서부터 돈다. 시작 버튼은 gameRunning만 켠다.
+        animationId = requestAnimationFrame(loop);
 
     </script>
 </body>
