@@ -89,8 +89,8 @@ async function buildLanding(game, games, templates) {
 
   const html = fill(templates.landing, {
     HEAD: headTags({
-      title: `${game.title} — Play Free Online | ${SITE_NAME}`,
-      ogTitle: `${game.title} — Play Free Online`,
+      title: `${game.title} — Free ${game.genreTerm} | ${SITE_NAME}`,
+      ogTitle: `${game.title} — Free ${game.genreTerm}`,
       description: game.description,
       canonical: absUrl(landingUrl(game.slug)),
       ogImage: absUrl(`/${ogPath(game.slug)}`),

@@ -5,6 +5,7 @@
     "tagline": "A high-speed endless runner with power-ups and a shop.",
     "description": "Run, jump and dodge obstacles in this neon endless runner. Collect coins, unlock power-ups in the shop and push for your best distance.",
     "tag": "Runner",
+    "genreTerm": "dinosaur runner game",
     "controls": { "keyboard": "Space or Up Arrow to jump", "touch": "Tap anywhere to jump" },
     "howToPlay": [
       "Press Space or tap the screen to jump over incoming obstacles.",
@@ -29,6 +30,7 @@
     "tagline": "Classic bullet-hell action with retro vibes.",
     "description": "Pilot a neon starfighter through waves of enemies. Dodge incoming fire, upgrade your weapons and survive as long as you can in this retro shooter.",
     "tag": "Action",
+    "genreTerm": "retro arcade shooter game",
     "controls": { "keyboard": "Arrow keys to move, Space to fire", "touch": "Drag to move, auto-fire enabled" },
     "howToPlay": [
       "Move your ship to dodge enemy fire.",
@@ -53,6 +55,7 @@
     "tagline": "Test your survival instincts in fast obstacle avoidance.",
     "description": "Survive as long as you can in an arena filling with hazards. Read the patterns, weave through the gaps and beat your personal best time.",
     "tag": "Survival",
+    "genreTerm": "obstacle dodging survival game",
     "controls": { "keyboard": "Arrow keys or WASD to move", "touch": "Drag to move your marker" },
     "howToPlay": [
       "Move your marker to avoid every incoming hazard.",
@@ -77,6 +80,7 @@
     "tagline": "The timeless classic reborn with a cybernetic skin.",
     "description": "Guide a growing neon snake around the grid, eat data nodes and avoid crashing into your own tail in this smooth take on the arcade classic.",
     "tag": "Classic",
+    "genreTerm": "online snake game",
     "controls": { "keyboard": "Arrow keys or WASD to turn", "touch": "Swipe in the direction you want to turn" },
     "howToPlay": [
       "Steer the snake to eat the glowing nodes.",
@@ -101,6 +105,7 @@
     "tagline": "A strategic brick-breaker built on physics and precision.",
     "description": "Bounce the ball off your paddle to clear every neon brick. Angle your shots carefully, chain rebounds and clear the board without losing the ball.",
     "tag": "Puzzle",
+    "genreTerm": "brick breaker game",
     "controls": { "keyboard": "Left and Right arrows to move the paddle", "touch": "Drag left and right to move the paddle" },
     "howToPlay": [
       "Move the paddle to keep the ball in play.",
@@ -125,6 +130,7 @@
     "tagline": "Match holographic data fragments and build combos.",
     "description": "Flip holographic tiles to find matching pairs. Build combos for bonus points and unlock larger grids as your memory sharpens in this brain trainer.",
     "tag": "Brain",
+    "genreTerm": "matching pairs memory game",
     "controls": { "keyboard": "Not required", "touch": "Tap a tile to flip it" },
     "howToPlay": [
       "Tap two tiles to reveal them.",
@@ -149,6 +155,7 @@
     "tagline": "Solve equations to shoot lasers at falling numbers.",
     "description": "Defend the system from falling data. Solve each equation before it reaches the floor and fire your laser to destroy the numbers in this math arcade game.",
     "tag": "Math",
+    "genreTerm": "math game",
     "controls": { "keyboard": "Number keys to answer, Enter to fire", "touch": "Tap the on-screen keypad" },
     "howToPlay": [
       "Read the equation attached to each falling block.",
@@ -173,6 +180,7 @@
     "tagline": "Follow the rhythm and repeat the light patterns.",
     "description": "Watch the grid light up, then repeat the sequence in order. Each round adds a step in this musical memory challenge that tests focus and timing.",
     "tag": "Focus",
+    "genreTerm": "memory sequence game",
     "controls": { "keyboard": "Not required", "touch": "Tap the tiles in the order they lit up" },
     "howToPlay": [
       "Watch the sequence of lit tiles.",
@@ -197,6 +205,7 @@
     "tagline": "Climb through the clouds in a procedural platformer.",
     "description": "Jump from platform to platform and climb as high as you can. Every run generates a new tower, so no two climbs are the same in this endless platformer.",
     "tag": "Endless",
+    "genreTerm": "endless jumping platformer",
     "controls": { "keyboard": "Left and Right arrows to steer", "touch": "Tilt or drag to steer while jumping" },
     "howToPlay": [
       "Your character jumps automatically on landing.",

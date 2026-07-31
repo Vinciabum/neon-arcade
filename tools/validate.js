@@ -95,6 +95,14 @@ export function validateGames(games, { exists, sizeOf }) {
       errors.push(`${where}: ${err}`);
     }
 
+    // 사람이 실제로 검색하는 장르 단어. 게임 이름은 우리가 지어낸 말이라 검색 수요가 없다.
+    const term = String(game.genreTerm ?? '').trim();
+    if (!term) {
+      errors.push(`${where}: genreTerm is missing — the title needs a phrase people actually search for`);
+    } else if (game.title && term.toLowerCase().includes(game.title.toLowerCase())) {
+      errors.push(`${where}: genreTerm "${term}" contains the game's own name — that phrase has no search demand`);
+    }
+
     const faq = game.faq;
     if (!Array.isArray(faq) || faq.length < FAQ_MIN_ITEMS) {
       errors.push(`${where}: faq needs at least ${FAQ_MIN_ITEMS} entries — it is the only unique copy on the landing page`);
