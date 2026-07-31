@@ -12,6 +12,8 @@ Thumbs.db
 /privacy/
 /sitemap.xml
 /robots.txt
+/404.html
+/llms.txt
 
 # design/plan docs — local only until you decide to publish (public repo)
 /docs/superpowers/

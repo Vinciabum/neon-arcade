@@ -1,13 +1,20 @@
-import { gamePath, thumbPath } from './paths.js';
+import { gamePath, thumbPath, ogPath } from './paths.js';
 
 const REQUIRED_FIELDS = ['slug', 'title', 'tagline', 'description', 'tag', 'controls', 'howToPlay', 'releasedAt', 'status'];
 const VALID_STATUS = ['draft', 'published', 'demoted', 'removed'];
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 const THUMB_MAX_BYTES = 200 * 1024;
+const OG_MAX_BYTES = 600 * 1024;
 const GAME_MAX_BYTES = 500 * 1024;
 const DESC_MIN = 80;
 const DESC_MAX = 200;
+
+// FAQ는 랜딩 페이지의 유일한 고유 본문이자, 검색·AI 답변에 인용되는 부분이다.
+const FAQ_MIN_ITEMS = 2;
+const FAQ_MIN_ANSWER = 25;
+// 페이지를 만드는 상태. draft·removed는 산출물이 없으므로 본문 요건을 묻지 않는다.
+const PUBLISHED_STATUS = ['published', 'demoted'];
 
 // 프로덕션에 새어나가면 안 되는 작성 흔적.
 // 2026-02-18 커밋에서 실제로 40줄이 배포된 사고의 재발 방지 장치.
@@ -72,6 +79,29 @@ export function validateGames(games, { exists, sizeOf }) {
       errors.push(`${where}: missing thumbnail ${tp}`);
     } else if (sizeOf(tp) > THUMB_MAX_BYTES) {
       errors.push(`${where}: thumbnail too large — ${sizeOf(tp)} bytes exceeds ${THUMB_MAX_BYTES}`);
+    }
+
+    const op = ogPath(game.slug);
+    if (!exists(op)) {
+      errors.push(`${where}: missing share image ${op} — run: npm run og -- ${game.slug}`);
+    } else if (sizeOf(op) > OG_MAX_BYTES) {
+      errors.push(`${where}: share image too large — ${sizeOf(op)} bytes exceeds ${OG_MAX_BYTES}`);
+    }
+
+    if (!PUBLISHED_STATUS.includes(game.status)) continue;
+
+    const faq = game.faq;
+    if (!Array.isArray(faq) || faq.length < FAQ_MIN_ITEMS) {
+      errors.push(`${where}: faq needs at least ${FAQ_MIN_ITEMS} entries — it is the only unique copy on the landing page`);
+    } else {
+      for (const [j, item] of faq.entries()) {
+        if (!item?.q?.trim()) errors.push(`${where}: faq[${j}] has an empty question`);
+        if (!item?.a?.trim()) {
+          errors.push(`${where}: faq[${j}] has an empty answer`);
+        } else if (item.a.trim().length < FAQ_MIN_ANSWER) {
+          errors.push(`${where}: faq[${j}] answer is ${item.a.trim().length} chars — under ${FAQ_MIN_ANSWER} it cannot stand on its own when quoted`);
+        }
+      }
     }
   }
 

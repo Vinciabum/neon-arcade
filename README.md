@@ -19,15 +19,18 @@ Everything else at the repo root is **generated** — do not edit by hand.
 ## Adding a game
 
 1. Drop the self-contained game at `play/<slug>.html`
-2. Add an entry to `games.json`
+2. Add an entry to `games.json` — including at least two `faq` entries
 3. `npm run shoot -- <slug>` to capture the thumbnail
-4. `npm run build`
-5. Commit and push — GitHub Actions deploys
+4. `npm run og -- <slug>` to build the 1200x630 share card
+5. `npm run verify -- <slug>` to run the technical and play-test gates
+6. `npm run build`
+7. Commit and push — GitHub Actions deploys
 
-The build **fails** if a thumbnail is missing, a slug is duplicated, a file is
-oversized, a required field is absent, or authoring comments leaked into the output.
-This is deliberate: each of those checks exists because that exact mistake shipped
-to production once.
+The build **fails** if a thumbnail or share image is missing, a slug is duplicated,
+a file is oversized, a required field is absent, the FAQ is thin, authoring comments
+leaked into the output, or a generated page is missing its canonical, share image,
+single `h1` or valid JSON-LD. This is deliberate: each of those checks exists because
+that exact mistake shipped to production once.
 
 ## Commands
 
@@ -37,6 +40,8 @@ npx playwright install chromium
 npm test          # validation and render tests
 npm run build     # generate the site
 npm run shoot     # regenerate all thumbnails from live gameplay
+npm run og        # regenerate all 1200x630 share cards from the thumbnails
+npm run verify    # run every game through the technical and play-test gates
 ```
 
 ## Games

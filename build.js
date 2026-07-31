@@ -3,7 +3,8 @@ import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { validateGames, validateOutput } from './tools/validate.js';
 import { fill, esc } from './tools/render.js';
-import { gamePath, thumbPath, landingUrl, landingOutPath, absUrl, SITE_ORIGIN } from './tools/paths.js';
+import { gamePath, thumbPath, ogPath, landingUrl, landingOutPath, absUrl, SITE_ORIGIN } from './tools/paths.js';
+import { homeJsonLd, landingJsonLd, faqSection, headTags, validateSeo, SITE_NAME } from './tools/seo.js';
 
 const SITE_TITLE = 'Neon Arcade — Free Original Browser Games';
 const SITE_DESC = 'Play original HTML5 arcade games free in your browser. No download, no sign-up, works on mobile and desktop.';
@@ -15,8 +16,10 @@ const VERIFICATION = process.env.GOOGLE_SITE_VERIFICATION
   ? `<meta name="google-site-verification" content="${process.env.GOOGLE_SITE_VERIFICATION.trim().replace(/^google-site-verification=/, '')}">`
   : '';
 
+// preconnect가 먼저 와야 태그 요청이 DNS·TLS를 기다리지 않는다.
 const ANALYTICS = process.env.GA_ID
-  ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${process.env.GA_ID}"></script>
+  ? `<link rel="preconnect" href="https://www.googletagmanager.com">
+<script async src="https://www.googletagmanager.com/gtag/js?id=${process.env.GA_ID}"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${process.env.GA_ID}');</script>`
   : '';
 
@@ -30,33 +33,40 @@ const die = (errors) => {
 const readTemplate = (name) => readFile(path.join('templates', name), 'utf8');
 
 async function write(outPath, html) {
-  const errors = validateOutput(html, outPath);
+  const errors = [...validateOutput(html, outPath), ...validateSeo(html, outPath)];
   if (errors.length) die(errors);
   await mkdir(path.dirname(outPath), { recursive: true });
   await writeFile(outPath, html, 'utf8');
   console.log(`  -> ${outPath}`);
 }
 
+// 카드 전체가 링크다. onclick만 걸면 크롤러가 따라갈 링크가 없고,
+// 키보드로도 열 수 없다 — 홈에서 랜딩으로 가는 유일한 경로가 본문 목록뿐이 된다.
 function card(game) {
-  return `      <article class="card" onclick="location.href='${landingUrl(game.slug)}'">
-        <div class="card-thumb">
-          <img src="/${thumbPath(game.slug)}" alt="${esc(game.title)} screenshot" width="600" height="400" loading="lazy">
-        </div>
-        <div class="card-content">
-          <div class="card-tag">${esc(game.tag)}</div>
-          <div class="card-title">${esc(game.title)}</div>
-          <p class="card-desc">${esc(game.tagline)}</p>
-        </div>
+  return `      <article class="card">
+        <a class="card-link" href="${landingUrl(game.slug)}">
+          <div class="card-thumb">
+            <img src="/${thumbPath(game.slug)}" alt="${esc(game.title)} gameplay screenshot" width="600" height="400" loading="lazy" decoding="async">
+          </div>
+          <div class="card-content">
+            <div class="card-tag">${esc(game.tag)}</div>
+            <div class="card-title">Play ${esc(game.title)}</div>
+            <p class="card-desc">${esc(game.tagline)}</p>
+          </div>
+        </a>
       </article>`;
 }
 
 async function buildHome(games, templates) {
   const featured = games.find(g => g.featured) ?? games[0];
   const html = fill(templates.home, {
-    TITLE: esc(SITE_TITLE),
-    DESCRIPTION: esc(SITE_DESC),
-    CANONICAL: `${SITE_ORIGIN}/`,
-    OG_IMAGE: absUrl(`/${thumbPath(featured.slug)}`),
+    HEAD: headTags({
+      title: SITE_TITLE,
+      description: SITE_DESC,
+      canonical: `${SITE_ORIGIN}/`,
+      ogImage: absUrl(`/${ogPath(featured.slug)}`)
+    }),
+    JSONLD: JSON.stringify(homeJsonLd(games)),
     ANALYTICS,
 
     VERIFICATION,
@@ -77,28 +87,21 @@ async function buildLanding(game, games, templates) {
     ? `    <h2>Tips</h2>\n    <ul>\n${game.tips.map(t => `      <li>${esc(t)}</li>`).join('\n')}\n    </ul>\n`
     : '';
 
-  const jsonld = JSON.stringify({
-    '@context': 'https://schema.org',
-    '@type': 'VideoGame',
-    name: game.title,
-    description: game.description,
-    url: absUrl(landingUrl(game.slug)),
-    image: absUrl(`/${thumbPath(game.slug)}`),
-    genre: game.tag,
-    datePublished: game.releasedAt,
-    applicationCategory: 'Game',
-    operatingSystem: 'Any (web browser)',
-    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }
-  });
-
   const html = fill(templates.landing, {
+    HEAD: headTags({
+      title: `${game.title} — Play Free Online | ${SITE_NAME}`,
+      ogTitle: `${game.title} — Play Free Online`,
+      description: game.description,
+      canonical: absUrl(landingUrl(game.slug)),
+      ogImage: absUrl(`/${ogPath(game.slug)}`),
+      ogType: 'article'
+    }),
     TITLE: esc(game.title),
     TAGLINE: esc(game.tagline),
     DESCRIPTION: esc(game.description),
-    CANONICAL: absUrl(landingUrl(game.slug)),
-    OG_IMAGE: absUrl(`/${thumbPath(game.slug)}`),
     GAME_SRC: `/${gamePath(game.slug)}`,
-    JSONLD: jsonld,
+    JSONLD: JSON.stringify(landingJsonLd(game)),
+    FAQ: faqSection(game),
     ANALYTICS,
 
     VERIFICATION,
@@ -112,13 +115,18 @@ async function buildLanding(game, games, templates) {
 }
 
 // 게임 본체는 색인 대상이 아니다. 랜딩 페이지가 canonical이다.
+// robots.txt로 /play/를 막지는 않는다 — 막으면 크롤러가 이 noindex를 읽을 수 없고,
+// 랜딩의 iframe 안(=게임 본체)이 통째로 보이지 않게 된다.
 async function markGameNoindex(game) {
   const file = gamePath(game.slug);
   let html = await readFile(file, 'utf8');
-  if (html.includes('name="robots"')) return;
-  const inject = `<meta name="robots" content="noindex">\n<link rel="canonical" href="${absUrl(landingUrl(game.slug))}">\n`;
-  html = html.replace(/<\/head>/i, `${inject}</head>`);
-  await writeFile(file, html, 'utf8');
+  if (!html.includes('name="robots"')) {
+    const inject = `<meta name="robots" content="noindex,follow">\n<link rel="canonical" href="${absUrl(landingUrl(game.slug))}">\n`;
+    html = html.replace(/<\/head>/i, `${inject}</head>`);
+    await writeFile(file, html, 'utf8');
+  }
+  const errors = validateSeo(html, file);
+  if (errors.length) die(errors);
 }
 
 async function buildPages(templates) {
@@ -165,9 +173,15 @@ visits to this or other websites. You can opt out of personalised advertising th
 
   for (const page of pages) {
     const html = fill(templates.page, {
+      HEAD: headTags({
+        // "About Neon Arcade | Neon Arcade" 처럼 브랜드가 두 번 들어가지 않게 한다.
+        title: page.title.includes(SITE_NAME) ? page.title : `${page.title} | ${SITE_NAME}`,
+        ogTitle: page.title,
+        description: page.description,
+        canonical: absUrl(`/${page.slug}/`),
+        ogImage: absUrl(`/${ogPath(defaultOgSlug)}`)
+      }),
       TITLE: esc(page.title),
-      DESCRIPTION: esc(page.description),
-      CANONICAL: absUrl(`/${page.slug}/`),
       ANALYTICS,
 
       VERIFICATION,
@@ -177,9 +191,35 @@ visits to this or other websites. You can opt out of personalised advertising th
   }
 }
 
+// 없는 주소로 들어온 사람을 그냥 놓치지 않는다. GitHub Pages는 루트의 404.html을 쓴다.
+async function build404(games, templates) {
+  const html = fill(templates.page, {
+    HEAD: headTags({
+      title: `Page not found | ${SITE_NAME}`,
+      ogTitle: 'Page not found',
+      description: 'That page does not exist on Neon Arcade. Pick a game from the list and keep playing.',
+      canonical: `${SITE_ORIGIN}/404.html`,
+      ogImage: absUrl(`/${ogPath(defaultOgSlug)}`)
+    }).replace('content="index,follow', 'content="noindex,follow'),
+    TITLE: 'Page not found',
+    ANALYTICS,
+
+    VERIFICATION,
+    BODY: `<p>That address does not exist. It may have been a game that was taken down, or a typo.</p>
+<p>Everything that is live right now:</p>
+<ul>
+${games.map(g => `<li><a href="${landingUrl(g.slug)}">${esc(g.title)}</a> — ${esc(g.tagline)}</li>`).join('\n')}
+</ul>
+<p><a href="/">Back to the home page</a></p>`
+  });
+  await write('404.html', html);
+}
+
 async function buildSitemap(games) {
+  // 홈은 게임이 하나라도 바뀌면 바뀐다. 가장 최근 게임 날짜를 그대로 쓴다.
+  const newest = games.map(g => g.releasedAt).sort().at(-1);
   const urls = [
-    { loc: `${SITE_ORIGIN}/`, priority: '1.0' },
+    { loc: `${SITE_ORIGIN}/`, priority: '1.0', lastmod: newest },
     ...games.map(g => ({ loc: absUrl(landingUrl(g.slug)), priority: '0.8', lastmod: g.releasedAt })),
     { loc: `${SITE_ORIGIN}/about/`, priority: '0.3' },
     { loc: `${SITE_ORIGIN}/contact/`, priority: '0.3' },
@@ -196,14 +236,40 @@ ${urls.map(u => `  <url>
   await writeFile('sitemap.xml', xml, 'utf8');
   console.log('  -> sitemap.xml');
 
+  // /play/ 를 Disallow 하지 않는다. 막으면 두 가지를 동시에 잃는다.
+  //  - 게임 본체 안의 noindex를 크롤러가 읽지 못해, 외부 링크가 생기면 URL만 색인될 수 있다
+  //  - 랜딩 페이지의 주요 콘텐츠(iframe 안의 게임)를 렌더링 단계에서 못 본다
+  // 색인 제어는 robots.txt가 아니라 페이지의 noindex가 한다.
   const robots = `User-agent: *
 Allow: /
-Disallow: /play/
 
 Sitemap: ${SITE_ORIGIN}/sitemap.xml
 `;
   await writeFile('robots.txt', robots, 'utf8');
   console.log('  -> robots.txt');
+}
+
+// LLM이 사이트 구조를 사람 문서처럼 읽어가는 관행에 맞춘 목록.
+// 표준은 아니지만 비용이 거의 없고, 게임 목록은 어차피 공개 정보다.
+async function buildLlmsTxt(games) {
+  const body = `# ${SITE_NAME}
+
+> Original HTML5 browser games, free to play with no download and no sign-up.
+> Every game is built in-house and runs on desktop and mobile.
+
+## Games
+
+${games.map(g => `- [${g.title}](${absUrl(landingUrl(g.slug))}): ${g.tagline} Genre: ${g.tag}.`).join('\n')}
+
+## Site
+
+- [Home](${SITE_ORIGIN}/): all games
+- [About](${SITE_ORIGIN}/about/): who makes these games
+- [Contact](${SITE_ORIGIN}/contact/): bugs, feedback, licensing
+- [Privacy](${SITE_ORIGIN}/privacy/): data, cookies, local storage
+`;
+  await writeFile('llms.txt', body, 'utf8');
+  console.log('  -> llms.txt');
 }
 
 // --- main ---
@@ -224,6 +290,9 @@ const ordered = [...live].sort((a, b) => {
   return b.releasedAt.localeCompare(a.releasedAt);
 });
 
+// 게임 페이지가 아닌 곳(홈·about·404)의 공유 카드. 대표 게임 것을 쓴다.
+const defaultOgSlug = (ordered.find(g => g.featured) ?? ordered[0]).slug;
+
 console.log('\nBuilding...');
 const templates = {
   home: await readTemplate('home.html'),
@@ -241,6 +310,8 @@ for (const game of ordered) {
   await markGameNoindex(game);
 }
 await buildPages(templates);
+await build404(ordered, templates);
 await buildSitemap(ordered);
+await buildLlmsTxt(ordered);
 
 console.log(`\nDone. ${ordered.length} games, ${ordered.length + 4} indexable URLs.\n`);
