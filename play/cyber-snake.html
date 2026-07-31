@@ -196,7 +196,6 @@
         // --- 1. ASSETS ---
         const svgHead = `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="20" rx="5" fill="#00ffcc" filter="drop-shadow(0 0 4px #00ffcc)"/><circle cx="6" cy="6" r="2" fill="black"/><circle cx="14" cy="6" r="2" fill="black"/></svg>`;
         const svgBody = `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="16" height="16" rx="4" fill="#008866" stroke="#00ffcc" stroke-width="1"/></svg>`;
-        const svgFood = `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="#ffcc00" filter="drop-shadow(0 0 6px #ffcc00)"/></svg>`;
 
         const headImg = new Image(); headImg.src = 'data:image/svg+xml;base64,' + btoa(svgHead);
 
@@ -208,8 +207,6 @@
         const svgBodyGold = `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="16" height="16" rx="4" fill="#aa8800" stroke="#ffd700" stroke-width="1"/></svg>`;
         const headImgGold = new Image(); headImgGold.src = 'data:image/svg+xml;base64,' + btoa(svgHeadGold);
         const bodyImgGold = new Image(); bodyImgGold.src = 'data:image/svg+xml;base64,' + btoa(svgBodyGold);
-
-        const foodImg = new Image(); foodImg.src = '../assets/egg_item.png';
 
         // --- 2. ECONOMY ---
         function getCoins() { return parseInt(localStorage.getItem('neonCoins') || '0'); }
@@ -394,6 +391,76 @@
             }
         }
 
+        // --- 데이터 노드 (먹이) ---
+        // 뱀 몸통은 축에 정렬된 청록/금색 둥근 사각형이다. 먹이가 사각형이거나
+        // 같은 색 계열이면 한 눈에 안 잡히므로, 형태(회전하는 4각 스파크)와
+        // 색(마젠타)을 둘 다 어긋나게 잡았다. 크기는 TILE에서 파생 — 격자가 바뀌어도 따라간다.
+        function nodeStar(outer, inner) {
+            ctx.beginPath();
+            for (let i = 0; i < 8; i++) {
+                const a = i * Math.PI / 4;
+                const rad = (i % 2 === 0) ? outer : inner;
+                const px = Math.sin(a) * rad, py = -Math.cos(a) * rad;
+                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+        }
+
+        function nodeDiamond(rad) {
+            ctx.beginPath();
+            ctx.moveTo(0, -rad); ctx.lineTo(rad, 0);
+            ctx.lineTo(0, rad); ctx.lineTo(-rad, 0);
+            ctx.closePath();
+        }
+
+        function drawFood(t) {
+            // 위상을 프레임 수가 아니라 ms 타임스탬프에서 뽑는다 — 120Hz에서도 같은 속도.
+            const spin = t * 0.0011;
+            const pulse = 0.86 + Math.sin(t * 0.0045) * 0.14;
+            const cx = food.x * TILE + TILE / 2;
+            const cy = food.y * TILE + TILE / 2;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+
+            // 헤일로. 폰 화면에서 20px짜리 먹이를 먼저 찾게 해주는 건 형태가 아니라 이 번짐이다
+            const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, TILE * 0.95);
+            halo.addColorStop(0, 'rgba(255, 45, 149, 0.5)');
+            halo.addColorStop(0.45, 'rgba(255, 45, 149, 0.16)');
+            halo.addColorStop(1, 'rgba(255, 45, 149, 0)');
+            ctx.fillStyle = halo;
+            ctx.fillRect(-TILE, -TILE, TILE * 2, TILE * 2);
+
+            ctx.shadowColor = '#ff2d95';
+
+            // 바깥 스파크. 오목한 별이라 어느 각도로 돌아도 뱀 몸통 사각형처럼 보이지 않는다
+            ctx.rotate(spin);
+            ctx.shadowBlur = TILE * 0.55;
+            ctx.fillStyle = 'rgba(255, 45, 149, 0.35)';
+            ctx.strokeStyle = '#ff2d95';
+            ctx.lineWidth = Math.max(1, TILE * 0.09);
+            nodeStar(TILE * 0.48 * pulse, TILE * 0.17);
+            ctx.fill();
+            ctx.stroke();
+
+            // 반대로 도는 안쪽 코어 — 정지 스크린샷에서도 '살아있는 노드'로 읽힌다
+            ctx.rotate(-spin * 2.6);
+            ctx.shadowBlur = TILE * 0.4;
+            ctx.fillStyle = '#ff7ac6';
+            nodeDiamond(TILE * 0.23 * pulse);
+            ctx.fill();
+
+            // 흰 중심점. 청록 뱀에도 금색 뱀에도 없는 밝기라 시선이 여기 꽂힌다
+            ctx.shadowColor = '#ffd6f2';
+            ctx.shadowBlur = TILE * 0.5;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(0, 0, TILE * 0.095, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
         function loop(timestamp) {
             requestAnimationFrame(loop);
 
@@ -465,7 +532,7 @@
             });
 
             // Draw Food
-            ctx.drawImage(foodImg, food.x * TILE, food.y * TILE, TILE, TILE);
+            drawFood(timestamp);
 
             // Draw Particles
             for (let i = particles.length - 1; i >= 0; i--) {

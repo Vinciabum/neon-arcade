@@ -11,6 +11,7 @@
     "og": "node tools/og.js",
     "shots": "node tools/playshots.js",
     "verify": "node tools/verify.js",
+    "portal": "node tools/portal.js",
     "verify:selftest": "node tools/selftest-verify.js"
   },
   "devDependencies": {

@@ -247,9 +247,50 @@
 
     <script>
         // --- 1. ASSETS ---
-        // New Assets from Tiny RPG Pack
-        const playerImg = new Image(); playerImg.src = '../assets/soldier_idle.png';
-        const enemyImg = new Image(); enemyImg.src = '../assets/orc_walk.png';
+        // 플레이어·해저드는 외부 이미지 없이 캔버스로만 그린다.
+        // 실루엣으로 구분한다 — 플레이어는 매끈한 원, 해저드는 뾰족한 파편.
+        // 색맹인 사람도 색이 아니라 모양만으로 어느 쪽이 나인지 알 수 있어야 한다.
+        const TAU = Math.PI * 2;
+        const P_R = 16;          // 플레이어 반지름 (기존 스프라이트 50px 자리)
+        const HAZ_R = 20;        // 해저드 반지름 (기존 스프라이트 40px 자리)
+        const P_GLOW = '#39ff8b', P_CORE = '#f2fff6';
+        const HAZ_GLOW = '#ff2b5e', HAZ_EDGE = '#ffd6e2', HAZ_HOLE = '#18000a';
+
+        // 해저드는 한 프레임에 수십 개가 그려진다. 글로우를 매번 계산하면 fps가 무너지므로
+        // 오프스크린에 한 번만 구워두고 그 뒤로는 drawImage만 한다.
+        const HAZ_SS = 2;        // 2배로 구워야 회전시켜도 가장자리가 뭉개지지 않는다
+        const HAZ_PAD = 7;       // 글로우가 스프라이트 밖으로 잘리지 않도록
+        const hazSprite = (() => {
+            const cv = document.createElement('canvas');
+            cv.width = cv.height = Math.ceil((HAZ_R + HAZ_PAD) * 2 * HAZ_SS);
+            const g = cv.getContext('2d');
+            g.translate(cv.width / 2, cv.height / 2);
+            g.scale(HAZ_SS, HAZ_SS);
+
+            const spikes = 7;
+            g.beginPath();
+            for (let i = 0; i < spikes * 2; i++) {
+                const rad = (i % 2) ? HAZ_R * 0.44 : HAZ_R;
+                const a = (i / (spikes * 2)) * TAU - Math.PI / 2;
+                const x = Math.cos(a) * rad, y = Math.sin(a) * rad;
+                if (i) g.lineTo(x, y); else g.moveTo(x, y);
+            }
+            g.closePath();
+
+            g.shadowColor = HAZ_GLOW;
+            g.shadowBlur = 12;
+            g.fillStyle = HAZ_GLOW;
+            g.fill(); g.fill();  // 두 번 칠해 바깥 글로우를 진하게
+            g.shadowBlur = 0;
+            g.lineWidth = 2; g.strokeStyle = HAZ_EDGE; g.stroke();
+
+            // 가운데를 비운다 — 작은 화면에서 원형 덩어리로 뭉개지지 않고 '가시'로 읽힌다
+            g.beginPath(); g.arc(0, 0, HAZ_R * 0.19, 0, TAU);
+            g.fillStyle = HAZ_HOLE; g.fill();
+            return cv;
+        })();
+        const HAZ_DRAW = hazSprite.width / HAZ_SS;   // drawImage에 넘길 CSS 픽셀 크기
+        const HAZ_HALF = HAZ_DRAW / 2;
 
         const svgShield = `<svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg"><circle cx="15" cy="15" r="12" fill="none" stroke="#00ffff" stroke-width="3"/></svg>`;
         const shieldImg = new Image(); shieldImg.src = 'data:image/svg+xml;base64,' + btoa(svgShield);
@@ -432,7 +473,12 @@
             // Speed increases with time
             const speed = 3 + (elapsedTime / 10);
 
-            enemies.push({ x, y, size, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed });
+            // rot·spin은 순전히 겉모습용이다. 파편마다 각도와 회전 방향이 달라야
+            // 같은 스프라이트를 재사용해도 복사 붙여넣기처럼 보이지 않는다.
+            enemies.push({
+                x, y, size, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                rot: Math.random() * TAU, spin: (Math.random() < 0.5 ? -1 : 1) * (1.4 + Math.random() * 1.6)
+            });
         }
 
         function loop() {
@@ -477,13 +523,12 @@
                 e.x += e.vx;
                 e.y += e.vy;
 
-                // Simple Flip based on VX
+                // 회전각을 프레임마다 누적하지 않고 경과 시간으로 계산한다 —
+                // 어떤 주사율에서도 같은 속도로 돌고, 상태를 하나 덜 들고 있어도 된다.
                 ctx.save();
                 ctx.translate(e.x, e.y);
-                if (e.vx < 0) ctx.scale(-1, 1); // Flip if moving left
-
-                // Draw Orc (Centering. Assuming sprite needs scaling)
-                ctx.drawImage(enemyImg, -20, -20, 40, 40);
+                ctx.rotate(e.rot + elapsedTime * e.spin);
+                ctx.drawImage(hazSprite, -HAZ_HALF, -HAZ_HALF, HAZ_DRAW, HAZ_DRAW);
                 ctx.restore();
 
                 // Cleanup bounds (far out)
@@ -522,8 +567,18 @@
             }
 
             // Draw Player
-            // Draw Soldier
-            ctx.drawImage(playerImg, player.x - 25, player.y - 25, 50, 50);
+            // 화면에 딱 하나뿐이라 글로우를 실시간으로 칠해도 비용이 없다.
+            // 숨쉬듯 커졌다 작아지는 건 시간 함수라 프레임 수와 무관하다.
+            const pPulse = 1 + Math.sin(elapsedTime * 4) * 0.07;
+            ctx.save();
+            ctx.shadowColor = P_GLOW;
+            ctx.shadowBlur = 18;
+            ctx.fillStyle = P_GLOW;
+            ctx.beginPath(); ctx.arc(player.x, player.y, P_R * pPulse, 0, TAU); ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = P_CORE;
+            ctx.beginPath(); ctx.arc(player.x, player.y, P_R * 0.44, 0, TAU); ctx.fill();
+            ctx.restore();
 
             // Draw Shield
             if (protection) {
