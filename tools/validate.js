@@ -1,4 +1,5 @@
 import { gamePath, thumbPath, ogPath } from './paths.js';
+import { validateMechanics } from './mechanics.js';
 
 const REQUIRED_FIELDS = ['slug', 'title', 'tagline', 'description', 'tag', 'controls', 'howToPlay', 'releasedAt', 'status'];
 const VALID_STATUS = ['draft', 'published', 'demoted', 'removed'];
@@ -89,6 +90,10 @@ export function validateGames(games, { exists, sizeOf }) {
     }
 
     if (!PUBLISHED_STATUS.includes(game.status)) continue;
+
+    for (const err of validateMechanics(game.mechanics)) {
+      errors.push(`${where}: ${err}`);
+    }
 
     const faq = game.faq;
     if (!Array.isArray(faq) || faq.length < FAQ_MIN_ITEMS) {

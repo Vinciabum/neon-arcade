@@ -17,6 +17,7 @@ const validGame = {
     { q: 'How is the score calculated?', a: 'The score is the distance you cover before you hit something.' },
     { q: 'Does it work on a phone?', a: 'Yes. Tap anywhere on the screen to jump.' }
   ],
+  mechanics: { input: 'one-button', goal: 'survive', failure: 'collision', world: 'auto-scroll' },
   releasedAt: '2026-02-18',
   status: 'published'
 };
@@ -133,4 +134,30 @@ test('draft 게임에는 FAQ를 요구하지 않는다 — 페이지를 만들�
   const { faq, ...noFaq } = validGame;
   const errors = validateGames([{ ...noFaq, status: 'draft' }], okEnv);
   assert.ok(!errors.some(e => e.includes('faq')));
+});
+
+/* ---------- 메커니즘 ---------- */
+
+test('mechanics 부재를 잡는다', () => {
+  const { mechanics, ...noMech } = validGame;
+  const errors = validateGames([noMech], okEnv);
+  assert.ok(errors.some(e => e.includes('mechanics is missing')));
+});
+
+test('알 수 없는 축 값을 잡는다', () => {
+  const game = { ...validGame, mechanics: { input: 'wiggle', goal: 'survive', failure: 'collision', world: 'auto-scroll' } };
+  const errors = validateGames([game], okEnv);
+  assert.ok(errors.some(e => e.includes('mechanics.input "wiggle"')));
+});
+
+test('축 하나가 빠진 것을 잡는다', () => {
+  const game = { ...validGame, mechanics: { input: 'one-button', goal: 'survive', failure: 'collision' } };
+  const errors = validateGames([game], okEnv);
+  assert.ok(errors.some(e => e.includes('mechanics.world is missing')));
+});
+
+test('draft 게임에는 mechanics를 요구하지 않는다', () => {
+  const { mechanics, ...noMech } = validGame;
+  const errors = validateGames([{ ...noMech, status: 'draft' }], okEnv);
+  assert.ok(!errors.some(e => e.includes('mechanics')));
 });
