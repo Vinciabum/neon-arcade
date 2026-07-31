@@ -13,6 +13,10 @@ const validGame = {
   tag: 'Runner',
   controls: { keyboard: 'Space to jump', touch: 'Tap to jump' },
   howToPlay: ['Tap or press Space to jump over cacti.'],
+  faq: [
+    { q: 'How is the score calculated?', a: 'The score is the distance you cover before you hit something.' },
+    { q: 'Does it work on a phone?', a: 'Yes. Tap anywhere on the screen to jump.' }
+  ],
   releasedAt: '2026-02-18',
   status: 'published'
 };
@@ -79,4 +83,54 @@ test('산출물의 AI 작업 주석을 잡는다', () => {
 
 test('깨끗한 산출물은 통과한다', () => {
   assert.deepEqual(validateOutput('<h1>Neon Arcade</h1>', 'index.html'), []);
+});
+
+/* ---------- 공유 카드 이미지 ---------- */
+
+test('og 이미지 부재를 잡는다', () => {
+  const env = { exists: (p) => !p.startsWith('assets/og/'), sizeOf: () => 50_000 };
+  const errors = validateGames([validGame], env);
+  assert.ok(errors.some(e => e.includes('missing share image')));
+});
+
+test('과대한 og 이미지를 잡는다', () => {
+  const env = { exists: () => true, sizeOf: (p) => (p.startsWith('assets/og/') ? 900_000 : 50_000) };
+  const errors = validateGames([validGame], env);
+  assert.ok(errors.some(e => e.includes('share image too large')));
+});
+
+/* ---------- FAQ ---------- */
+// 랜딩 페이지의 유일한 고유 본문이다. 빠지면 페이지가 다른 게임 사이트와 구별되지 않는다.
+
+test('FAQ 부재를 잡는다', () => {
+  const { faq, ...noFaq } = validGame;
+  const errors = validateGames([noFaq], okEnv);
+  assert.ok(errors.some(e => e.includes('faq')));
+});
+
+test('FAQ가 2개 미만이면 잡는다', () => {
+  const errors = validateGames([{ ...validGame, faq: [validGame.faq[0]] }], okEnv);
+  assert.ok(errors.some(e => e.includes('faq')));
+});
+
+test('빈 질문·빈 답변을 각각 한 번씩 잡는다', () => {
+  const faq = [
+    { q: 'Real question?', a: '' },
+    { q: '', a: 'An answer long enough to stand on its own when quoted.' }
+  ];
+  const errors = validateGames([{ ...validGame, faq }], okEnv).filter(e => e.includes('faq'));
+  assert.equal(errors.length, 2);
+  assert.ok(errors.some(e => e.includes('faq[0] has an empty answer')));
+  assert.ok(errors.some(e => e.includes('faq[1] has an empty question')));
+});
+
+test('짧은 답변을 잡는다 — 한 문장은 되어야 인용될 수 있다', () => {
+  const errors = validateGames([{ ...validGame, faq: [{ q: 'Is it free?', a: 'Yes.' }, validGame.faq[1]] }], okEnv);
+  assert.ok(errors.some(e => e.includes('faq')));
+});
+
+test('draft 게임에는 FAQ를 요구하지 않는다 — 페이지를 만들지 않기 때문이다', () => {
+  const { faq, ...noFaq } = validGame;
+  const errors = validateGames([{ ...noFaq, status: 'draft' }], okEnv);
+  assert.ok(!errors.some(e => e.includes('faq')));
 });

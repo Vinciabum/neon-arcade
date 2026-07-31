@@ -241,6 +241,21 @@
             box-shadow: var(--shadow-hover);
         }
 
+        /* 카드 전체가 하나의 링크다. 카드가 세로로 늘어나도 클릭 영역이 따라 늘어나야 하므로
+           앵커가 카드 높이를 그대로 채운다. */
+        .card-link {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .card-link:focus-visible {
+            outline: 3px solid var(--accent-primary);
+            outline-offset: 3px;
+        }
+
         .card-thumb {
             width: 100%;
             height: 180px;
@@ -588,6 +603,12 @@
 .controls-table th { text-align: left; width: 120px; padding: 8px 0; vertical-align: top; }
 .controls-table td { padding: 8px 0; }
 .more-games { margin-top: 48px; }
+.more-link { margin-top: 20px; }
+.more-link a { color: var(--accent-primary); font-weight: 700; }
+.faq { margin-top: 40px; line-height: 1.7; }
+.faq h2 { margin: 28px 0 12px; font-size: 1.25rem; }
+.faq h3 { margin: 20px 0 6px; font-size: 1rem; font-weight: 700; color: var(--text-main); }
+.faq p { margin: 0; color: var(--text-sub); }
 @media (max-width: 640px) { .landing-frame { aspect-ratio: 3 / 4; } }
 
 /* links that replaced buttons must not look like default links */

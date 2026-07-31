@@ -107,6 +107,41 @@ export function faqSection(game) {
   return `    <section class="faq">\n      <h2>Frequently Asked Questions</h2>\n${items}\n    </section>\n`;
 }
 
+/* ---------- 공통 head ---------- */
+
+// 세 템플릿이 같은 head를 각자 들고 있으면 한 곳만 고쳐지는 사고가 난다.
+// 한 곳에서 만들고 {{HEAD}}로 꽂는다. 값은 여기서 이스케이프하므로 호출자는 원문을 넘긴다.
+export function headTags({ title, ogTitle, description, canonical, ogImage, ogType = 'website' }) {
+  const t = esc(title);
+  const ot = esc(ogTitle ?? title);
+  const d = esc(description);
+  const url = esc(canonical);
+  const img = esc(ogImage);
+
+  return `<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${t}</title>
+<meta name="description" content="${d}">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+<link rel="canonical" href="${url}">
+<meta property="og:type" content="${ogType}">
+<meta property="og:site_name" content="${SITE_NAME}">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="${url}">
+<meta property="og:title" content="${ot}">
+<meta property="og:description" content="${d}">
+<meta property="og:image" content="${img}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${ot}">
+<meta name="twitter:description" content="${d}">
+<meta name="twitter:image" content="${img}">
+<meta name="theme-color" content="#05060a">
+<link rel="icon" type="image/svg+xml" href="/assets/dino.svg">
+<link rel="stylesheet" href="/assets/site.css">`;
+}
+
 /* ---------- 산출물 게이트 ---------- */
 
 const attr = (html, re) => html.match(re)?.[1]?.trim();

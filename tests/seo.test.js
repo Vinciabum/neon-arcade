@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { homeJsonLd, landingJsonLd, faqSection, validateSeo, SEO } from '../tools/seo.js';
+import { homeJsonLd, landingJsonLd, faqSection, headTags, validateSeo, SEO } from '../tools/seo.js';
 
 const game = () => ({
   slug: 'cyber-snake',
@@ -103,6 +103,43 @@ test('FAQ가 없으면 빈 문자열이다 (빈 제목만 남지 않는다)', ()
   const g = game();
   delete g.faq;
   assert.equal(faqSection(g), '');
+});
+
+/* ---------- 공통 head ---------- */
+
+const head = () => headTags({
+  title: 'Cyber Snake — Play Free Online | Neon Arcade',
+  ogTitle: 'Cyber Snake — Play Free Online',
+  description: 'Guide a growing neon snake around the grid and avoid crashing into your own tail.',
+  canonical: 'https://just1game.com/games/cyber-snake/',
+  ogImage: 'https://just1game.com/assets/og/cyber-snake.png'
+});
+
+test('head는 title과 og:title을 따로 낸다 (SERP와 SNS는 길이 기준이 다르다)', () => {
+  const html = head();
+  assert.ok(html.includes('<title>Cyber Snake — Play Free Online | Neon Arcade</title>'));
+  assert.ok(html.includes('property="og:title" content="Cyber Snake — Play Free Online"'));
+});
+
+test('트위터 카드는 property가 아니라 name으로 낸다', () => {
+  assert.ok(head().includes('<meta name="twitter:card"'));
+  assert.ok(!head().includes('property="twitter:card"'));
+});
+
+test('공유 이미지 크기를 명시한다 — 없으면 첫 공유에서 작은 카드로 떨어진다', () => {
+  assert.ok(head().includes('og:image:width" content="1200"'));
+  assert.ok(head().includes('og:image:height" content="630"'));
+});
+
+test('head는 따옴표가 든 값을 이스케이프한다', () => {
+  const html = headTags({
+    title: 'A "quoted" game',
+    description: 'Tips & tricks',
+    canonical: 'https://just1game.com/',
+    ogImage: 'https://just1game.com/a.png'
+  });
+  assert.ok(html.includes('&quot;quoted&quot;'));
+  assert.ok(html.includes('Tips &amp; tricks'));
 });
 
 /* ---------- 산출물 SEO 게이트 ---------- */

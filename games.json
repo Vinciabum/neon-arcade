@@ -12,6 +12,11 @@
       "The longer you survive, the faster the game gets."
     ],
     "tips": ["Save coins for the shield power-up before pushing for a long run."],
+    "faq": [
+      { "q": "How is the score calculated in Dino Jump?", "a": "The score is the distance you cover. The run keeps speeding up, so the last stretch of a good run is worth more than the whole start." },
+      { "q": "What should I spend coins on first?", "a": "The shield. It absorbs one hit, and one hit is what usually ends a long run." },
+      { "q": "Can I play Dino Jump on a phone?", "a": "Yes. Tap anywhere on the screen to jump. The whole game works with one thumb and no keyboard." }
+    ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
@@ -30,6 +35,11 @@
       "Enemy waves get denser as the game progresses."
     ],
     "tips": ["Stay near the bottom of the screen for more reaction time."],
+    "faq": [
+      { "q": "How do you survive longer in Space Shooter?", "a": "Fly low. Sitting near the bottom of the screen buys you the most time to read incoming fire before it reaches you." },
+      { "q": "Do I have to press fire on mobile?", "a": "No. Auto-fire is on for touch controls, so you only drag to move and the ship keeps shooting." },
+      { "q": "Is Space Shooter free to play?", "a": "Yes. It runs in the browser with no download, no install and no sign-up." }
+    ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
@@ -48,6 +58,11 @@
       "Hazards spawn faster the longer you last."
     ],
     "tips": ["Keep to the centre of the arena so you have escape routes on both sides."],
+    "faq": [
+      { "q": "What is the goal in Neon Dodge?", "a": "Stay alive. Your score is how long you last, and hazards spawn faster the longer you survive." },
+      { "q": "Where is the safest place to stand?", "a": "Near the centre. You keep an escape route on both sides there, while a corner cuts your options in half." },
+      { "q": "Does Neon Dodge work on a touchscreen?", "a": "Yes. Drag your marker with a finger — it moves exactly as it does with the arrow keys." }
+    ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
@@ -66,6 +81,11 @@
       "Hitting a wall or your own tail ends the run."
     ],
     "tips": ["Plan a loop around the outside before the snake gets long."],
+    "faq": [
+      { "q": "Is Cyber Snake the same as the classic Snake game?", "a": "The rules are the same — eat, grow, do not crash. The grid, the movement and the visuals are rebuilt from scratch." },
+      { "q": "How do you stop crashing into your own tail?", "a": "Commit to a loop around the outside early. A long snake needs a predictable path, not tight turns in the middle of the grid." },
+      { "q": "How do you steer on a phone?", "a": "Swipe in the direction you want to turn. On desktop it is the arrow keys or WASD." }
+    ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
@@ -84,6 +104,11 @@
       "The ball angle depends on where it hits the paddle."
     ],
     "tips": ["Hit the ball with the paddle edge for sharp angles into corner bricks."],
+    "faq": [
+      { "q": "How do you control the angle of the ball?", "a": "By where it lands on the paddle. A centre hit sends the ball straight up; an edge hit sends it out at a sharp angle." },
+      { "q": "How do you clear bricks stuck in the corners?", "a": "Use the paddle edge to push the ball wide, then let it rebound between the side wall and the brick." },
+      { "q": "Do I need to install anything to play Neon Breaker?", "a": "No. It loads in a browser tab on desktop or mobile, and it is free." }
+    ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
@@ -102,6 +127,11 @@
       "Consecutive matches build a combo multiplier."
     ],
     "tips": ["Clear the outer edges first so the remaining tiles are easier to track."],
+    "faq": [
+      { "q": "How does the combo multiplier work?", "a": "Matches made one after another raise it. A wrong pair breaks the chain, so it pays to be sure before the second tap." },
+      { "q": "Is there a trick to remembering the tiles?", "a": "Clear the outer edges first. What is left then sits in one block, which is easier to hold than a scattered grid." },
+      { "q": "Do I need a keyboard for Cyber Memory?", "a": "No. The whole game is tap or click, so it plays the same on a phone as on a desktop." }
+    ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
@@ -120,6 +150,11 @@
       "Blocks that reach the floor damage the system."
     ],
     "tips": ["Target the lowest block first, not the easiest one."],
+    "faq": [
+      { "q": "What kind of maths does Data Fall use?", "a": "Short arithmetic you can answer in a couple of seconds. The pressure comes from the falling blocks, not from the difficulty of the sums." },
+      { "q": "Which block should I answer first?", "a": "The lowest one. An easy sum near the top scores the same as a hard one about to hit the floor." },
+      { "q": "Can I play Data Fall without a keyboard?", "a": "Yes. An on-screen keypad appears on touch devices, so a phone works as well as a desktop." }
+    ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
@@ -138,6 +173,11 @@
       "Each successful round adds one more step."
     ],
     "tips": ["Say the pattern out loud — audio memory holds longer sequences than visual memory."],
+    "faq": [
+      { "q": "Is Synaptic Grid like Simon?", "a": "Yes. Watch the tiles light up, repeat the order, and one more step is added every round." },
+      { "q": "How do I remember longer sequences?", "a": "Say the pattern out loud as it plays. Audio memory holds longer strings than visual memory does." },
+      { "q": "How long can the sequence get?", "a": "There is no ceiling. A round is added every time you get it right, so the run ends when your memory does." }
+    ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
@@ -156,6 +196,11 @@
       "Falling off the bottom of the screen ends the run."
     ],
     "tips": ["Small corrections beat large ones — overshooting is the most common way to fall."],
+    "faq": [
+      { "q": "Do I have to press jump in Neon Rise?", "a": "No. The character jumps by itself every time it lands. You only steer left and right." },
+      { "q": "Why do I keep falling off the platforms?", "a": "Overshooting. Small steering corrections land the next platform far more often than big ones." },
+      { "q": "Is every run the same tower?", "a": "No. The tower is generated fresh for each run, so the platform layout is never the same twice." }
+    ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": true,
