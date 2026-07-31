@@ -42,8 +42,13 @@ jobs:
           test -f index.html
           test -f sitemap.xml
           test -f robots.txt
+          test -f 404.html
+          test -f llms.txt
           test -f CNAME
           grep -q "just1game.com" CNAME
+          # 배포본이 /play/ 를 다시 막지 않는지 확인한다. 막으면 랜딩의 iframe 안이
+          # 크롤러에게 통째로 안 보이고, 게임 본체의 noindex도 읽히지 않는다.
+          ! grep -q "Disallow: /play/" robots.txt
 
       - uses: actions/configure-pages@v5
 
