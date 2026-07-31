@@ -246,6 +246,81 @@
     ],
     "releasedAt": "2026-07-31",
     "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "stack-purge",
+    "title": "Stack Purge",
+    "tagline": "Tap matching groups before the rising stack reaches the top.",
+    "description": "Rows of blocks push up from below. Tap two or more touching blocks that match and the stack collapses into the gap. Every purge buys time.",
+    "tag": "Puzzle",
+    "genreTerm": "block clearing puzzle game",
+    "controls": { "keyboard": "Not required", "touch": "Tap a group of two or more matching blocks" },
+    "howToPlay": [
+      "Find two or more touching blocks that share a colour and pip count.",
+      "Tap the group to purge it — the blocks above collapse down into the gap.",
+      "Bigger groups score more and buy more time. Let the stack reach the top line and the run ends."
+    ],
+    "tips": ["Purge low, not high. Clearing near the floor drops the whole column and buys you room."],
+    "mechanics": { "input": "tap-target", "goal": "clear-board", "failure": "timeout", "world": "fixed-grid" },
+    "faq": [
+      { "q": "How do I know which blocks match?", "a": "Colour and the pip pattern both have to match, so you can still play it if you do not see colour well." },
+      { "q": "Do bigger groups score more?", "a": "Yes, and they buy more time too. A group of six is worth far more than three groups of two." },
+      { "q": "What ends a run in Stack Purge?", "a": "The stack reaching the top line, or the clock running out. The stack is what usually gets you." }
+    ],
+    "releasedAt": "2026-07-31",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "pulse-lock",
+    "title": "Pulse Lock",
+    "tagline": "One button. Hit the lock the instant the pointer crosses it.",
+    "description": "A pointer sweeps around a ring. Tap the moment it crosses a lit lock — dead centre pays most, and the hatched guards must be left alone.",
+    "tag": "Timing",
+    "genreTerm": "timing tap game",
+    "controls": { "keyboard": "Any key to strike", "touch": "Tap anywhere to strike" },
+    "howToPlay": [
+      "Watch the pointer sweep around the ring toward a lit lock.",
+      "Tap at the moment it crosses. A dead-centre hit pays more than a clipped edge.",
+      "Hatched locks are guards — tapping one costs you charge. Let them pass."
+    ],
+    "tips": ["Read the ruler under the ring. If your marks pile up on one side you are always early or always late, and that is fixable."],
+    "mechanics": { "input": "one-button", "goal": "destroy", "failure": "timeout", "world": "fixed-arena" },
+    "faq": [
+      { "q": "How does Pulse Lock decide a hit is perfect?", "a": "By how close to the centre of the lock you tapped. Three tiers pay different scores and restore different amounts of charge." },
+      { "q": "Why did tapping that lock cost me charge?", "a": "It was a guard — drawn hatched with an X across it. Guards are there to be left alone, and skipping one scores." },
+      { "q": "Does it play the same on a 120Hz phone?", "a": "Yes. The sweep and the hit window are measured in real time, not in frames." }
+    ],
+    "releasedAt": "2026-07-31",
+    "status": "published",
+    "featured": false,
+    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+  },
+  {
+    "slug": "ember-drift",
+    "title": "Ember Drift",
+    "tagline": "Your light is going out. Drift into the sparks and take theirs.",
+    "description": "You are an ember losing its glow. Sparks drift across the arena and reaching one restores your light. Your glow is also your reach.",
+    "tag": "Survival",
+    "genreTerm": "space collecting game",
+    "controls": { "keyboard": "Arrow keys or WASD to thrust", "touch": "Drag to steer the ember" },
+    "howToPlay": [
+      "Steer the ember by dragging, or thrust with the arrow keys.",
+      "Drift into a spark and its light becomes yours.",
+      "Your glow shrinks constantly, and it is also how far you can reach. When it goes out the run ends."
+    ],
+    "tips": ["Do not chase a fleeing spark head-on. Cut across where it is drifting to — turning costs more than aiming ahead."],
+    "mechanics": { "input": "steer-free", "goal": "collect", "failure": "timeout", "world": "free-arena" },
+    "faq": [
+      { "q": "Why do the sparks move away from me?", "a": "They flee when your glow gets close, so a big light pushes them off. Approach from the side rather than straight on." },
+      { "q": "How do you steer on a phone?", "a": "Drag anywhere to point the ember. Lift your finger and it coasts on its own momentum instead of stopping dead." },
+      { "q": "Is there anything that can kill me?", "a": "Nothing chases you. The only thing that ends a run is your own light running out." }
+    ],
+    "releasedAt": "2026-07-31",
+    "status": "published",
     "featured": true,
     "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
   }

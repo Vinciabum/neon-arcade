@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateGames, validateOutput } from '../tools/validate.js';
+import { SEO } from '../tools/seo.js';
 
 // 모든 파일이 존재하고 크기가 적정한 기본 환경
 const okEnv = { exists: () => true, sizeOf: () => 50_000 };
@@ -70,6 +71,15 @@ test('필수 필드 누락을 잡는다', () => {
 test('description 길이 범위 밖을 잡는다', () => {
   const errors = validateGames([{ ...validGame, description: 'too short' }], okEnv);
   assert.ok(errors.some(e => e.includes('description length')));
+});
+
+test('description 상한은 SEO 게이트와 같다 — 데이터에서 통과한 뒤 빌드가 깨지면 안 된다', () => {
+  const long = 'x'.repeat(SEO.DESC_MAX + 1);
+  const errors = validateGames([{ ...validGame, description: long }], okEnv);
+  assert.ok(errors.some(e => e.includes('description length')));
+
+  const atLimit = 'x'.repeat(SEO.DESC_MAX);
+  assert.ok(!validateGames([{ ...validGame, description: atLimit }], okEnv).some(e => e.includes('description length')));
 });
 
 test('알 수 없는 status를 잡는다', () => {

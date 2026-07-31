@@ -9,7 +9,10 @@ const THUMB_MAX_BYTES = 200 * 1024;
 const OG_MAX_BYTES = 600 * 1024;
 const GAME_MAX_BYTES = 500 * 1024;
 const DESC_MIN = 80;
-const DESC_MAX = 200;
+// SEO 게이트(tools/seo.js의 SEO.DESC_MAX)와 같은 값이어야 한다. 여기가 더 느슨하면
+// 200자짜리 설명이 데이터 검사를 통과했다가 산출물 단계에서 빌드를 깬다 — 실제로 그랬다.
+// 게임을 쓰는 사람에게는 여기서 막히는 편이 훨씬 빨리 이해된다.
+const DESC_MAX = 170;
 
 // FAQ는 랜딩 페이지의 유일한 고유 본문이자, 검색·AI 답변에 인용되는 부분이다.
 const FAQ_MIN_ITEMS = 2;
