@@ -174,7 +174,8 @@ visits to this or other websites. You can opt out of personalised advertising th
   for (const page of pages) {
     const html = fill(templates.page, {
       HEAD: headTags({
-        title: `${page.title} | ${SITE_NAME}`,
+        // "About Neon Arcade | Neon Arcade" 처럼 브랜드가 두 번 들어가지 않게 한다.
+        title: page.title.includes(SITE_NAME) ? page.title : `${page.title} | ${SITE_NAME}`,
         ogTitle: page.title,
         description: page.description,
         canonical: absUrl(`/${page.slug}/`),
