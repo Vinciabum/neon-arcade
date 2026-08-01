@@ -1,5 +1,54 @@
 [
   {
+    "slug": "lantern-keeper",
+    "title": "Lantern Keeper",
+    "tagline": "Catch falling fuel. The dimmer your flame, the less you can see.",
+    "description": "Catch falling fuel in the brazier you carry overhead. Your flame burns down on its own, the lit circle closes in as it fades, and a catch pays most when it is nearly out.",
+    "tag": "Reflex",
+    "genreTerm": "catch game",
+    "controls": {
+      "keyboard": "Arrow keys or A and D to move",
+      "touch": "Drag anywhere to move"
+    },
+    "howToPlay": [
+      "Move under the round amber fuel and catch it in the brazier above your head.",
+      "The flame burns down by itself, so standing still is never safe.",
+      "Dark magenta squares are soot. Catching one costs you a quarter of your flame.",
+      "A catch pays more the lower your flame has burned — one point at full, three when it is nearly out."
+    ],
+    "tips": [
+      "The lit circle shrinks as the flame weakens, so running low costs you warning time. That is the trade the scoring asks you to make: topping up early is safe and cheap, while working in the dark is where the points are."
+    ],
+    "mechanics": {
+      "input": "steer-horizontal",
+      "goal": "collect",
+      "failure": "timeout",
+      "world": "falling-column"
+    },
+    "faq": [
+      {
+        "q": "How do I tell fuel from soot in Lantern Keeper?",
+        "a": "By shape as well as colour. Fuel is a round glowing orb, soot is a flat magenta square with a dark centre, so the two stay apart even if you cannot see the colours."
+      },
+      {
+        "q": "Why is the screen getting darker?",
+        "a": "The lit circle is tied to how strong your flame is. As fuel runs down the darkness closes in, which is a warning rather than a blindfold — falling pieces stay faintly visible outside the light."
+      },
+      {
+        "q": "Does the game ever stop getting harder?",
+        "a": "No. Fall speed, spawn rate and the share of soot all settle within the first minute and a half, but the rate your flame burns keeps climbing well past that."
+      }
+    ],
+    "releasedAt": "2026-08-01",
+    "status": "published",
+    "featured": false,
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    }
+  },
+  {
     "slug": "dino-jump",
     "title": "Dino Jump",
     "tagline": "A high-speed endless runner with power-ups and a shop.",
