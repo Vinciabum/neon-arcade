@@ -3,6 +3,7 @@ import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { validateGames, validateOutput } from './tools/validate.js';
 import { fill, esc } from './tools/render.js';
+import { ICON_SRC, ICON_SIZES, iconPath } from './tools/icon.js';
 import { gamePath, thumbPath, ogPath, landingUrl, landingOutPath, absUrl, SITE_ORIGIN } from './tools/paths.js';
 import { homeJsonLd, landingJsonLd, faqSection, headTags, validateSeo, SITE_NAME } from './tools/seo.js';
 
@@ -281,6 +282,15 @@ const errors = validateGames(all, {
   sizeOf: (p) => (existsSync(p) ? statSync(p).size : 0)
 });
 if (errors.length) die(errors);
+
+// 아이콘은 게임별이 아니라 사이트 전체에 걸려 있어 게임 게이트가 보지 못한다.
+// headTags()가 세 파일을 모든 페이지에서 참조하므로, 하나만 없어도
+// 사이트 전체에서 조용히 404가 난다 — 빌드는 통과하고 탭 아이콘만 사라진다.
+const iconMissing = [ICON_SRC, ...ICON_SIZES.map(iconPath)].filter(p => !existsSync(p));
+if (iconMissing.length) {
+  die(iconMissing.map(p => `missing site icon: ${p} — run \`npm run icons\``));
+}
+
 console.log('  ok  all gates passed');
 
 // draft는 산출하지 않는다. demoted는 산출하되 홈 하단으로 밀린다.

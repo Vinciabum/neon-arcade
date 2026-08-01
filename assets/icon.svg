@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" width="21" height="21" shape-rendering="crispEdges">
+  <!-- 사이트 마크. 이 그림은 templates/game-base.html 의 SHIP 스프라이트와 같은 픽셀이다.
+       favicon과 게임 안의 배가 같은 그림이면 브랜드가 하나로 묶이고, 무엇보다
+       우리가 그린 것이라 라이선스가 없다.
+       이전 마크는 크롬 오프라인 공룡을 닮은 초록 공룡이었다 — 네온 아케이드와 맞지도 않고,
+       애드센스에 신고하는 Organization.logo로 쓰기에 좋은 그림이 아니었다. -->
+  <rect width="21" height="21" rx="4" fill="#05060a"/>
+  <rect x="0.5" y="0.5" width="20" height="20" rx="3.5" fill="none" stroke="#0d2b33" stroke-width="1"/>
+
+  <rect x="10" y="5" width="1" height="1" fill="#ff2e88"/>
+  <rect x="9" y="6" width="1" height="1" fill="#1596b0"/>
+  <rect x="10" y="6" width="1" height="1" fill="#e8f6ff"/>
+  <rect x="11" y="6" width="1" height="1" fill="#1596b0"/>
+  <rect x="9" y="7" width="1" height="1" fill="#00e5ff"/>
+  <rect x="10" y="7" width="1" height="1" fill="#e8f6ff"/>
+  <rect x="11" y="7" width="1" height="1" fill="#00e5ff"/>
+  <rect x="8" y="8" width="1" height="1" fill="#1596b0"/>
+  <rect x="9" y="8" width="1" height="1" fill="#00e5ff"/>
+  <rect x="10" y="8" width="1" height="1" fill="#e8f6ff"/>
+  <rect x="11" y="8" width="1" height="1" fill="#00e5ff"/>
+  <rect x="12" y="8" width="1" height="1" fill="#1596b0"/>
+  <rect x="8" y="9" width="1" height="1" fill="#1596b0"/>
+  <rect x="9" y="9" width="1" height="1" fill="#00e5ff"/>
+  <rect x="10" y="9" width="1" height="1" fill="#e8f6ff"/>
+  <rect x="11" y="9" width="1" height="1" fill="#00e5ff"/>
+  <rect x="12" y="9" width="1" height="1" fill="#1596b0"/>
+  <rect x="7" y="10" width="1" height="1" fill="#1596b0"/>
+  <rect x="8" y="10" width="2" height="1" fill="#00e5ff"/>
+  <rect x="10" y="10" width="1" height="1" fill="#e8f6ff"/>
+  <rect x="11" y="10" width="2" height="1" fill="#00e5ff"/>
+  <rect x="13" y="10" width="1" height="1" fill="#1596b0"/>
+  <rect x="5" y="11" width="3" height="1" fill="#1596b0"/>
+  <rect x="8" y="11" width="2" height="1" fill="#00e5ff"/>
+  <rect x="10" y="11" width="1" height="1" fill="#e8f6ff"/>
+  <rect x="11" y="11" width="2" height="1" fill="#00e5ff"/>
+  <rect x="13" y="11" width="3" height="1" fill="#1596b0"/>
+  <rect x="3" y="12" width="4" height="1" fill="#1596b0"/>
+  <rect x="7" y="12" width="3" height="1" fill="#00e5ff"/>
+  <rect x="10" y="12" width="1" height="1" fill="#e8f6ff"/>
+  <rect x="11" y="12" width="3" height="1" fill="#00e5ff"/>
+  <rect x="14" y="12" width="4" height="1" fill="#1596b0"/>
+  <rect x="2" y="13" width="4" height="1" fill="#1596b0"/>
+  <rect x="6" y="13" width="3" height="1" fill="#00e5ff"/>
+  <rect x="9" y="13" width="3" height="1" fill="#e8f6ff"/>
+  <rect x="12" y="13" width="3" height="1" fill="#00e5ff"/>
+  <rect x="15" y="13" width="4" height="1" fill="#1596b0"/>
+  <rect x="4" y="14" width="3" height="1" fill="#1596b0"/>
+  <rect x="10" y="14" width="1" height="1" fill="#ffd166"/>
+  <rect x="14" y="14" width="3" height="1" fill="#1596b0"/>
+  <rect x="10" y="15" width="1" height="1" fill="#ffd166"/>
+</svg>

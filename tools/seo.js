@@ -21,7 +21,8 @@ const organization = () => ({
   '@id': ORG_ID,
   name: SITE_NAME,
   url: `${SITE_ORIGIN}/`,
-  logo: absUrl('/assets/dino.svg'),
+  // 크롤러가 실제로 받아 쓰는 그림이므로 SVG가 아니라 래스터를 준다.
+  logo: absUrl('/assets/icon-512.png'),
   description: 'An independent studio publishing original HTML5 browser games.'
 });
 
@@ -138,7 +139,9 @@ export function headTags({ title, ogTitle, description, canonical, ogImage, ogTy
 <meta name="twitter:description" content="${d}">
 <meta name="twitter:image" content="${img}">
 <meta name="theme-color" content="#05060a">
-<link rel="icon" type="image/svg+xml" href="/assets/dino.svg">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/icon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/icon-180.png">
 <link rel="stylesheet" href="/assets/site.css">`;
 }
 
