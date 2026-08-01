@@ -12,6 +12,7 @@ const page = () => `<!DOCTYPE html>
 <body>
 <button id="startBtn">Play</button>
 <button id="againBtn">Sort again</button>
+<script>window.__GAME__ = { api: 1, state: 'idle' };</script>
 </body>
 </html>`;
 
@@ -65,4 +66,20 @@ test('게임 본문은 건드리지 않는다', () => {
 test('넣을 자리가 없으면 조용히 넘어가지 않는다', () => {
   assert.throws(() => injectPortal('<html><body></body></html>', 'abc'), /no <\/head>/);
   assert.throws(() => injectPortal('<html><head></head></html>', 'abc'), /no <\/body>/);
+});
+
+// 아래 두 검사가 없으면 기존 9개 게임이 그대로 납품된다. wire()는 버튼을 못 찾으면
+// 말없이 돌아가므로 광고가 한 번도 뜨지 않고, 계약이 없으면 광고 중에 게임이 계속 돈다.
+// 둘 다 빌드는 성공하고 수익만 0이 된다 — gameId 누락과 똑같은 결과다.
+test('광고를 걸 버튼이 없으면 만들지 않는다 — 광고가 한 번도 안 뜬 채로 납품된다', () => {
+  const noButtons = page().replace(/<button[^>]*>.*?<\/button>/g, '');
+  assert.throws(() => injectPortal(noButtons, 'abc123'), /startBtn/);
+
+  const onlyStart = page().replace(/<button id="againBtn">.*?<\/button>/, '');
+  assert.throws(() => injectPortal(onlyStart, 'abc123'), /againBtn/);
+});
+
+test('관측 계약이 없으면 만들지 않는다 — 광고 중에 게임이 계속 돈다', () => {
+  const noContract = page().replace(/<script>window\.__GAME__.*?<\/script>/, '');
+  assert.throws(() => injectPortal(noContract, 'abc123'), /__GAME__/);
 });

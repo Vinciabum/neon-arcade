@@ -128,6 +128,22 @@ export function injectPortal(html, gameId) {
   if (!/<\/head>/i.test(html)) throw new Error('no </head> to inject into');
   if (!/<\/body>/i.test(html)) throw new Error('no </body> to inject into');
 
+  // 아래 둘은 주입이 성공했는지가 아니라 주입한 것이 실제로 동작하는지를 본다.
+  // wire()는 버튼을 못 찾으면 말없이 돌아가고, 계약이 없으면 pause가 아무것도 안 한다.
+  // 둘 다 "ok"로 납품된 뒤 수익만 0이 되므로 gameId 누락과 같은 취급을 한다.
+  for (const id of ['startBtn', 'againBtn']) {
+    if (!new RegExp(`id=["']${id}["']`).test(html)) {
+      throw new Error(
+        `no #${id} — 광고를 걸 자리가 없다. 이대로 납품하면 광고가 한 번도 뜨지 않는다`
+      );
+    }
+  }
+  if (!/window\.__GAME__/.test(html)) {
+    throw new Error(
+      'no window.__GAME__ — 광고 중에 게임을 멈출 수 없다. 포털 규정 위반이다'
+    );
+  }
+
   return html
     .replace(/<\/head>/i, HEAD_SNIPPET(gameId) + '\n</head>')
     .replace(/<\/body>/i, BODY_SNIPPET + '\n</body>')
