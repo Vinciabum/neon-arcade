@@ -47,7 +47,7 @@ function card(game) {
   return `      <article class="card">
         <a class="card-link" href="${landingUrl(game.slug)}">
           <div class="card-thumb">
-            <img src="/${thumbPath(game.slug)}" alt="${esc(game.title)} gameplay screenshot" width="600" height="400" loading="lazy" decoding="async">
+            <img src="/${thumbPath(game.slug)}" alt="${esc(game.title)} gameplay screenshot" width="480" height="640" loading="lazy" decoding="async">
           </div>
           <div class="card-content">
             <div class="card-tag">${esc(game.tag)}</div>

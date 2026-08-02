@@ -9,8 +9,16 @@ import { gamePath, thumbPath } from './paths.js';
 import { diff as frameDiff } from './framediff.js';
 import { clickStartButton, triggerStart } from './start.js';
 
-const WIDTH = 600;
-const HEIGHT = 400;
+// 카드는 3:4다. 게임 내용이 플레이 밴드로 세로 비율(0.4839)에 묶여 있어서,
+// 가로 카드에서는 게임이 폭의 32%밖에 못 채운다 — 종횡비가 그렇게 정해져 있으니
+// 가로 프레임 안에서 크게 만들 방법이 없다. 3:4에서는 64%가 된다.
+// 완전히 채우려면 카드가 0.4839여야 하는데 17개면 홈이 너무 길어진다.
+const WIDTH = 480;
+const HEIGHT = 640;
+
+// 캔버스가 정확히 3:4가 되는 뷰포트. HUD가 38px를 가져가므로 838 - 38 = 800이고
+// 600x800 = 0.75다. 밴드 양옆은 게임 자신의 풀블리드 배경이 채우므로 합성이 필요 없다.
+const VIEWPORT = { width: 600, height: 838 };
 
 // 캡처 시점 후보(시작 트리거 이후 경과 시간).
 // 이르면 타이틀, 늦으면 게임오버가 찍히므로 촘촘히 여러 장 확보한다.
@@ -31,7 +39,7 @@ async function pickPlayFrame(page, target, baseline) {
   // 다른 입력을 넣어 재시도한다(방향키로 움직이는 게임, 캔버스 내부 버튼 등).
   const NUDGES = [
     async () => { await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowLeft'); },
-    async () => { await page.mouse.click(450, 420); },
+    async () => { await page.mouse.click(VIEWPORT.width / 2, VIEWPORT.height / 2); },
     async () => { await page.keyboard.press('KeyW'); await page.keyboard.press('ArrowUp'); },
     async () => { await clickStartButton(page); }
   ];
@@ -52,7 +60,7 @@ async function pickPlayFrame(page, target, baseline) {
 }
 
 async function shoot(browser, slug) {
-  const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
+  const page = await browser.newPage({ viewport: VIEWPORT });
   const file = path.resolve(gamePath(slug));
   await page.goto(pathToFileURL(file).href, { waitUntil: 'load' });
   await page.waitForTimeout(800);

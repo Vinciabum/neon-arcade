@@ -14,6 +14,11 @@ import { thumbPath, ogPath } from './paths.js';
 const W = 1200;
 const H = 630;
 
+// 썸네일의 비율. shoot.js의 WIDTH/HEIGHT와 같아야 한다 —
+// 어긋나면 오른쪽 세로 카드에서 게임이 잘린다.
+const WIDTH_RATIO_W = 3;
+const WIDTH_RATIO_H = 4;
+
 const escapeXml = (s) => String(s)
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -35,17 +40,17 @@ function wrap(text, maxChars) {
 }
 
 function overlaySvg(title, tag) {
-  const lines = wrap(title, 22);
+  const lines = wrap(title, 18);
   const titleSvg = lines
-    .map((line, i) => `<text x="72" y="${lines.length === 1 ? 470 : 420 + i * 78}" class="t">${escapeXml(line)}</text>`)
+    .map((line, i) => `<text x="72" y="${lines.length === 1 ? 348 : 306 + i * 76}" class="t">${escapeXml(line)}</text>`)
     .join('');
 
   return Buffer.from(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#05060a" stop-opacity="0.05"/>
-      <stop offset="45%" stop-color="#05060a" stop-opacity="0.72"/>
-      <stop offset="100%" stop-color="#05060a" stop-opacity="0.96"/>
+    <linearGradient id="shade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#05060a" stop-opacity="0.92"/>
+      <stop offset="55%" stop-color="#05060a" stop-opacity="0.72"/>
+      <stop offset="100%" stop-color="#05060a" stop-opacity="0"/>
     </linearGradient>
     <style>
       .t { font-family: 'Segoe UI', 'DejaVu Sans', sans-serif; font-size: 68px; font-weight: 700; fill: #ffffff; }
@@ -54,10 +59,10 @@ function overlaySvg(title, tag) {
     </style>
   </defs>
   <rect width="${W}" height="${H}" fill="url(#shade)"/>
-  <rect x="72" y="318" width="64" height="6" fill="#00e5ff"/>
-  <text x="72" y="360" class="tag">${escapeXml(String(tag).toUpperCase())}</text>
+  <rect x="72" y="200" width="64" height="6" fill="#00e5ff"/>
+  <text x="72" y="242" class="tag">${escapeXml(String(tag).toUpperCase())}</text>
   ${titleSvg}
-  <text x="72" y="556" class="site">JUST1GAME.COM</text>
+  <text x="72" y="452" class="site">JUST1GAME.COM</text>
 </svg>`);
 }
 
@@ -65,15 +70,30 @@ export async function makeOg(slug, title, tag) {
   const src = thumbPath(slug);
   if (!existsSync(src)) throw new Error(`no thumbnail at ${src} — run: npm run shoot -- ${slug}`);
 
-  const base = await sharp(await readFile(src))
-    .resize(W, H, { fit: 'cover', position: 'attention' })
+  // 썸네일이 3:4가 되면서 1200x630에 cover로 넣으면 게임의 위아래가 잘려 나간다.
+  // 그래서 두 겹으로 쌓는다: 흐린 확대본이 카드를 채우고(빈 곳을 없앤다),
+  // 그 위에 선명한 세로 카드를 오른쪽에 높이 꽉 맞춰 놓고, 왼쪽은 글자판으로 쓴다.
+  const thumb = await readFile(src);
+  const artW = Math.round((H * WIDTH_RATIO_W) / WIDTH_RATIO_H);   // 3:4를 높이에 맞춘 폭
+
+  const base = await sharp(thumb)
+    .resize(W, H, { fit: 'cover', position: 'centre' })
+    .blur(26)
+    .modulate({ brightness: 0.5, saturation: 1.1 })
+    .toBuffer();
+
+  const art = await sharp(thumb)
+    .resize(artW, H, { fit: 'cover', position: 'centre' })
     .modulate({ saturation: 1.1 })
     .toBuffer();
 
   const out = ogPath(slug);
   await mkdir(path.dirname(out), { recursive: true });
   await sharp(base)
-    .composite([{ input: overlaySvg(title, tag), top: 0, left: 0 }])
+    .composite([
+      { input: art, top: 0, left: W - artW },
+      { input: overlaySvg(title, tag), top: 0, left: 0 }
+    ])
     .png({ compressionLevel: 9, palette: true })
     .toFile(out);
 
