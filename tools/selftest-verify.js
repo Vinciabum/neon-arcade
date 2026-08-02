@@ -9,7 +9,9 @@ const CASES = [
   { file: 'tests/fixtures/no-touch.html',         expect: 'fail', match: /no touch input/ },
   { file: 'tests/fixtures/never-ends.html',       expect: 'fail', match: /never ends when idle/ },
   { file: 'tests/fixtures/overlay-stuck.html',    expect: 'fail', match: /covered by an overlay/ },
-  { file: 'tests/fixtures/instant-death.html',    expect: 'fail', match: /dies too fast/ }
+  { file: 'tests/fixtures/instant-death.html',    expect: 'fail', match: /dies too fast/ },
+  { file: 'tests/fixtures/no-band.html',          expect: 'fail', match: /play band .* harder than on a phone/ },
+  { file: 'tests/fixtures/no-score-reset.html',   expect: 'fail', match: /score did not reset on restart/ }
 ];
 
 const run = (file) => new Promise((resolve) => {

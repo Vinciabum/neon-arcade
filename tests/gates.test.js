@@ -228,7 +228,9 @@ const okPlay = () => ({
   scoreSamples: [0, 0, 2, 5, 9, 14],
   stateSamples: ['playing', 'playing', 'playing', 'playing'],
   idle: { ended: true, afterMs: 5200 },
-  restart: { ok: true, state: 'playing', score: 0 }
+  restart: { ok: true, state: 'playing', score: 0 },
+  // 가로 900x600에서 실측한 밴드. 세로 비율을 지키고 있다.
+  field: { x: 314, y: 0, w: 272, h: 562, screenW: 900 }
 });
 
 test('정상 플레이 리포트는 통과한다', () => {
@@ -348,6 +350,43 @@ test('구간 붕괴는 NaN 가드에 가려지지 않는다', () => {
   const r = okPlay();
   r.fpsWindows = [58, 12, 57];
   assert.ok(checkPlay(r).errors.some(e => e.includes('fps collapsed to 12')));
+});
+
+// --- 플레이 밴드 (가로 뷰포트에서만 볼 수 있는 축) ---
+
+test('밴드가 화면 폭을 그대로 따라가면 잡는다 — 가로에서 더 어려워진다', () => {
+  const r = okPlay();
+  // 밴드 없이 창을 꽉 채운 상태. 이게 수정 전 모든 게임의 모습이었다.
+  r.field = { x: 0, y: 0, w: 900, h: 562, screenW: 900 };
+  const { errors } = checkPlay(r);
+  assert.ok(errors.some(e => e.includes('play band') && e.includes('harder than on a phone')));
+});
+
+test('세로 화면(밴드가 안 생기는 경우)은 통과한다', () => {
+  const r = okPlay();
+  r.field = { x: 0, y: 0, w: 390, h: 806, screenW: 390 };
+  const { errors } = checkPlay(r);
+  assert.deepEqual(errors, []);
+});
+
+test('밴드가 화면 밖으로 나가면 잡는다', () => {
+  const r = okPlay();
+  r.field = { x: 700, y: 0, w: 272, h: 562, screenW: 900 };
+  assert.ok(checkPlay(r).errors.some(e => e.includes('but the screen is 900 wide')));
+});
+
+test('밴드가 측정되지 않으면 실패가 아니라 보류다', () => {
+  const r = okPlay();
+  delete r.field;
+  const { errors, skipped } = checkPlay(r);
+  assert.deepEqual(errors, []);
+  assert.ok(skipped.some(s => s.includes('play band not judged')));
+});
+
+test('밴드 숫자가 깨져 있으면 통과로 넘기지 않는다', () => {
+  const r = okPlay();
+  r.field = { x: 0, y: 0, w: NaN, h: 562, screenW: 900 };
+  assert.ok(checkPlay(r).errors.some(e => e.includes('play band not measurable')));
 });
 
 // 계약(window.__GAME__)이 없는 기존 9개 게임의 리포트 모양.

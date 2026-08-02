@@ -1,0 +1,32 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>fixture: no play band</title>
+<style>html,body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh;touch-action:none}</style></head>
+<body><canvas id="c"></canvas><script>
+// 다른 규칙은 전부 만족하고 플레이 밴드만 없는 게임. 가로 창에서 판이 화면 폭을
+// 그대로 따라가므로 조작 목표가 화면 폭 대비 작아진다 — 게이트 2가 막아야 한다.
+const c = document.getElementById('c');
+c.addEventListener('touchstart', () => {});
+const ctx = c.getContext('2d');
+let state = 'title', score = 0, tick = 0, lastInput = 0;
+const poke = () => { if (state === 'playing') { score++; lastInput = performance.now(); } };
+window.addEventListener('keydown', poke);
+c.addEventListener('pointerdown', poke);
+function frame() {
+  tick++;
+  // 손대지 않으면 5초 뒤에 끝난다 — 방치 종결 규칙은 통과시킨다
+  if (state === 'playing' && performance.now() - lastInput > 5000) state = 'over';
+  ctx.fillStyle = '#123'; ctx.fillRect(0, 0, 4000, 4000);
+  ctx.fillStyle = '#0f8'; ctx.fillRect((tick * 2) % 300, 140, 40, 40);
+  requestAnimationFrame(frame);
+}
+window.__GAME__ = {
+  api: 1,
+  get state() { return state; },
+  get score() { return score; },
+  get tick() { return tick; },
+  // 밴드가 없다: 판이 곧 화면이다
+  get field() { return { x: 0, y: 0, w: c.clientWidth, h: c.clientHeight, screenW: c.clientWidth }; },
+  start() { state = 'playing'; score = 0; lastInput = performance.now(); },
+  pause() {}, resume() {}
+};
+requestAnimationFrame(frame);
+</script></body></html>

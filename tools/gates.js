@@ -89,6 +89,15 @@ export const PLAY = {
                                  // 짧은 세션에도 여러 번 죽으므로 2로 올려도 탐지력 손실이 없다
 };
 
+// 플레이 밴드. 게이트 2가 가로 뷰포트(900x600)에서 돌기 때문에 여기서만 볼 수 있는 축이다.
+// 게이트 1은 세로 390x844만 재므로 이 결함을 통째로 놓쳤다 — 같은 일을 반복하지 않으려고 남긴다.
+export const FIELD = {
+  // 기준 캔버스 종횡비. 390x844 폰에서 HUD가 38px를 가져가 캔버스는 390x806이다.
+  // 뷰포트 비율(390/844)로 잡으면 기준 화면에서도 9px 밴드가 생긴다 — 실측으로 확인했다.
+  BAND: 390 / 806,
+  TOL: 0.02
+};
+
 // 게이트 2. { errors, skipped } 를 돌려준다 — checkTech와 반환 모양이 같다.
 // 계약(window.__GAME__)이 없는 기존 게임은 종결성·재시작을 판정할 방법이 없어
 // "실패"가 아니라 "보류(skipped)"로 분류해야 하기 때문이다. 호출자는 errors만 실패로 센다.
@@ -141,7 +150,7 @@ export function checkPlay(r) {
     } else if (r.reactMax < PLAY.MIN_LEGACY_REACT) {
       errors.push(`${at}: no progress — screen did not react to input (changed ${(r.reactMax * 100).toFixed(2)}% of pixels, need ${(PLAY.MIN_LEGACY_REACT * 100).toFixed(2)}%)`);
     }
-    skipped.push(`${at}: termination, idle-end and restart not checked — no window.__GAME__ contract`);
+    skipped.push(`${at}: termination, idle-end, restart and play band not checked — no window.__GAME__ contract`);
     return { errors, skipped };
   }
 
@@ -149,6 +158,27 @@ export function checkPlay(r) {
   if (r.api !== PLAY.API) {
     errors.push(`${at}: contract api ${r.api} — this checker speaks api ${PLAY.API}`);
     return { errors, skipped };
+  }
+
+  // 플레이 밴드가 가로 창에서도 세로 비율을 지키는지. 안 지키면 조작 목표가 화면 폭 대비
+  // 작아져 같은 게임이 가로에서 더 어려워진다 (실측 3.2배). 포털 임베드는 대부분 가로다.
+  if (!r.field) {
+    skipped.push(`${at}: play band not judged — contract exposes no field`);
+  } else {
+    const f = r.field;
+    if (!['x', 'w', 'h', 'screenW'].every(k => Number.isFinite(f[k])) || f.w <= 0 || f.h <= 0) {
+      errors.push(`${at}: play band not measurable — field ${JSON.stringify(f)}`);
+    } else {
+      const aspect = f.w / f.h;
+      const off = Math.abs(aspect - FIELD.BAND) / FIELD.BAND;
+      if (off > FIELD.TOL) {
+        errors.push(`${at}: play band ${f.w}x${f.h} (aspect ${aspect.toFixed(3)}) is ${(off * 100).toFixed(0)}% off the reference ${FIELD.BAND.toFixed(3)} — plays ${(aspect / FIELD.BAND).toFixed(1)}x harder than on a phone`);
+      }
+      // 밴드가 화면 밖으로 나가면 플레이어가 닿을 수 없는 자리가 생긴다.
+      if (f.x < 0 || f.x + f.w > f.screenW + 1) {
+        errors.push(`${at}: play band spans [${f.x}, ${f.x + f.w}] but the screen is ${f.screenW} wide`);
+      }
+    }
   }
 
   const distinct = new Set(r.scoreSamples ?? []);

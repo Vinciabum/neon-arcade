@@ -116,15 +116,24 @@ function beep(freq, ms) {
 /* ---------- 캔버스: 반응형 + DPR ---------- */
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-let W = 0, H = 0;
+// 플레이 밴드 — 창이 가로로 넓어도 게임이 도는 판은 늘 세로 비율이다.
+// 이게 없으면 치수를 H에서 파생하므로 넓은 창일수록 조작 목표가 화면 폭 대비 작아진다
+// (900x600에서 3.2배 어려웠다). 806은 기준 폰 390x844에서 HUD 38px를 뺀 캔버스 높이다.
+const BAND = 390 / 806;
+let W = 0, H = 0;        // 플레이필드 — 게임 로직이 쓰는 좌표계. W는 밴드 폭이다
+let SW = 0, OX = 0;      // 실제 화면 폭 / 밴드 좌측 여백. 배경만 이 둘을 본다
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const rect = canvas.getBoundingClientRect();
-  W = Math.max(1, Math.round(rect.width));
+  SW = Math.max(1, Math.round(rect.width));
   H = Math.max(1, Math.round(rect.height));
-  canvas.width = Math.round(W * dpr);
+  W = Math.min(SW, Math.round(H * BAND));
+  OX = Math.round((SW - W) / 2);
+  canvas.width = Math.round(SW * dpr);
   canvas.height = Math.round(H * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // 원점을 밴드 왼쪽으로 옮긴다. 게임 코드는 W가 화면 폭인 줄 알고 그대로 돌아간다.
+  // 기준 화면에서는 round(806*BAND)=390=SW라 OX=0 — 픽셀 하나 안 변한다.
+  ctx.setTransform(dpr, 0, 0, dpr, OX * dpr, 0);
 }
 window.addEventListener('resize', resize);
 
@@ -211,7 +220,8 @@ const FX = (() => {
     },
 
     begin(ctx) {
-      if (sx || sy) { ctx.fillStyle = this.bg; ctx.fillRect(0, 0, W, H); }
+      // 흔들림이 만드는 빈 띠를 덮는 판은 밴드가 아니라 화면 전체를 덮어야 한다
+      if (sx || sy) { ctx.fillStyle = this.bg; ctx.fillRect(-OX, 0, SW, H); }
       ctx.save();
       ctx.translate(sx, sy);
     },
@@ -236,7 +246,7 @@ const FX = (() => {
       if (flashT > 0) {
         ctx.globalAlpha = Math.min(1, (flashT / flashDur) * flashPeak);
         ctx.fillStyle = flashColor;
-        ctx.fillRect(0, 0, W, H);
+        ctx.fillRect(-OX, 0, SW, H);   // 밴드만 번쩍이면 화면이 두 조각으로 읽힌다
         ctx.globalAlpha = 1;
       }
     }
@@ -286,9 +296,11 @@ window.addEventListener('keyup', (e) => {
 
 // 짚은 지점을 캔버스 폭 비율로 바꾼다. 화면 절반 비교(왼쪽/오른쪽)로 두면
 // 손가락이 '방향 버튼 두 개'가 되어 원하는 자리에 설 수 없다 — 드래그가 곧 조준이 되게 한다.
+// 밴드 기준으로 잰다. ctx의 transform은 그리기만 옮기지 입력은 안 옮기므로
+// OX를 여기서 직접 빼야 한다 — 안 빼면 가로 화면에서 손가락과 판이 어긋난다.
 function aimAt(clientX) {
   const rect = canvas.getBoundingClientRect();
-  input.aimX = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  input.aimX = Math.min(1, Math.max(0, (clientX - rect.left - OX) / W));
 }
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault(); audioReady();
@@ -555,7 +567,7 @@ function aimYAt(clientY) {
 
 function tapAt(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
-  fireAt(clientX - rect.left, clientY - rect.top);
+  fireAt(clientX - rect.left - OX, clientY - rect.top);   // 밴드 기준
 }
 
 // 스프라이트·판정·글꼴 크기를 한 곳에서 화면의 짧은 변에서 파생한다. 픽셀 상수로 두면
@@ -909,6 +921,13 @@ function drawPacket(m, p) {
   }
 }
 
+// 배경은 클립 밖에서 그린다 — 밴드가 아니라 화면 전체를 덮는다.
+// 가로 창에서 여백이 검게 비면 순수 레터박스가 되고, 그 그림이 포털 썸네일에 박힌다.
+function backdrop() {
+  ctx.fillStyle = '#070912';
+  ctx.fillRect(-OX, 0, SW, H);
+}
+
 function draw(m, dt) {
   // 위상은 여기서 진행시킨다 — draw는 모든 상태에서 매 프레임 불리므로
   // 타이틀·일시정지·게임오버 화면에서도 도관이 흐른다 (게이트1은 어디서 찍어도 움직여야 한다)
@@ -925,9 +944,6 @@ function draw(m, dt) {
   const cf = Math.max(0, Math.min(1, integrity / INTEG_MAX));
   const low = cf < 0.34;
   const crit = cf < 0.17;
-
-  ctx.fillStyle = '#070912';
-  ctx.fillRect(0, 0, W, H);
 
   // 네 갈래 도관. 패킷이 어디로 올지 미리 알려주고, 눈금이 흘러 낙하에 방향이 생긴다
   for (let i = 0; i < LANES.length; i++) {
@@ -1099,9 +1115,15 @@ function frame(now) {
   // 사망이 '멈춤'이 아니라 '사건'으로 보인다.
   FX.update(dt);
   FX.begin(ctx);
+  backdrop();                  // 화면 전체 — 클립 밖
+  ctx.save();                  // 여기부터 밴드 안에서만 그린다
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  ctx.clip();
   draw(m, dt);
   FX.draw(ctx);
-  FX.end(ctx);
+  ctx.restore();
+  FX.end(ctx);                 // 플래시는 클립 밖 — 화면 전체를 덮는다
   requestAnimationFrame(frame);
 }
 
@@ -1111,6 +1133,9 @@ window.__GAME__ = {
   get state() { return state; },
   get score() { return score; },
   get tick() { return tick; },
+  // 플레이 밴드. 게이트가 가로 뷰포트에서 이 비율을 재서 난이도가 창 모양에
+  // 끌려가지 않는지 판정한다. 공식만 고치면 같은 결함이 다시 들어온다 — 축을 남긴다.
+  get field() { return { x: OX, w: W, h: H, screenW: SW }; },
   start, pause, resume
 };
 

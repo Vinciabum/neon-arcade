@@ -259,6 +259,13 @@ async function collectPlayOn(page, target, T) {
   const api = await page.evaluate(() => (window.__GAME__ ? window.__GAME__.api : null));
   const mode = api === null ? 'legacy' : 'contract';
 
+  // 플레이 밴드. 이 패스만 가로 뷰포트(900x600)에서 돌기 때문에 창이 넓을 때
+  // 게임판이 세로 비율을 지키는지 여기서만 볼 수 있다. 게이트 1은 세로만 잰다.
+  const field = await page.evaluate(() => {
+    const f = window.__GAME__ && window.__GAME__.field;
+    return f ? { x: f.x, y: f.y ?? 0, w: f.w, h: f.h, screenW: f.screenW } : null;
+  });
+
   const canvas = page.locator('canvas').first();
   const shotTarget = (await canvas.count()) > 0 ? canvas : page;
 
@@ -299,7 +306,12 @@ async function collectPlayOn(page, target, T) {
       ? await shotTarget.boundingBox().catch(() => null)
       : null;
     const area = box ?? { x: 0, y: 0, width: DESKTOP.width, height: DESKTOP.height };
-    await page.mouse.click(area.x + area.width * fx, area.y + area.height * fy).catch(() => {});
+    // 플레이 밴드가 있으면 그 안을 누른다. 밴드 밖은 배경이라 게임이 정당하게 무시하므로,
+    // 캔버스 폭의 비율로 누르면 가로 뷰포트에서 탭이 전부 여백에 떨어져 멀쩡한 게임이
+    // "진행 없음"으로 판정된다 (실측: flux-sort). 사람은 게임이 있는 곳을 누른다.
+    const bandX = field ? area.x + field.x : area.x;
+    const bandW = field ? field.w : area.width;
+    await page.mouse.click(bandX + bandW * fx, area.y + area.height * fy).catch(() => {});
   };
 
   // 입력을 한 채널씩 따로 넣는다. 섞으면 서로를 지운다 — 실측: 탭을 끼우자 cyber-memory는
@@ -393,9 +405,13 @@ async function collectPlayOn(page, target, T) {
   let restart = null;
   if (mode === 'contract') {
     await safeStart('restart-phase');
+    // 점수는 start() 직후에 읽는다. 700ms 뒤에 읽으면 그 사이에 정당하게 득점한 게임이
+    // "점수가 리셋되지 않았다"로 잡힌다 — 실측: lantern-keeper가 재시작 700ms 안에 1점.
+    // 리셋에 실패한 게임은 직후에도 점수가 남아 있으므로 탐지력은 그대로다.
+    const scoreAtStart = await page.evaluate(() => window.__GAME__.score);
     await page.waitForTimeout(700);
     const s = await page.evaluate(() => ({ state: window.__GAME__.state, score: window.__GAME__.score }));
-    restart = { ok: s.state === 'playing', state: s.state, score: s.score };
+    restart = { ok: s.state === 'playing', state: s.state, score: scoreAtStart, scoreAfter: s.score };
   }
 
   const heapEnd = await page.evaluate(() => performance.memory?.usedJSHeapSize ?? 0);
@@ -461,6 +477,8 @@ async function collectPlayOn(page, target, T) {
     startErrors,
     heap: { start: heapStart, end: heapEnd, precise: heapPrecise && heapStart > 0 && heapEnd > 0 },
     scoreSamples, stateSamples, idle, restart,
+    // 어느 뷰포트에서 잰 밴드인지 함께 남긴다 — 숫자만 있으면 읽는 사람이 화면을 상상한다.
+    field, fieldViewport: { ...DESKTOP },
     // 반응성 지표. reactMax/reactMean은 0~1 비율이다 (legacyDiff와 단위가 다르다).
     // reactByChannel로 어느 입력 채널이 통했는지 보인다.
     reactMax, reactMean, reactSamples, reactByChannel,
