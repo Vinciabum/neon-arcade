@@ -1,0 +1,103 @@
+/* 공유 버튼. 랜딩 페이지에만 실린다 — 게임 본체는 외부 스크립트를 싣지 않는다.
+ *
+ * 점수는 iframe 안의 관측 계약(window.__GAME__)에서 읽는다. same-origin이라 가능하다.
+ * 계약이 없는 게임(기존 9개)에서는 조용히 링크 공유로 남는다 — 버튼이 사라지지는 않는다. */
+(function () {
+  var LABEL_GAME = '🔗 Share this game';
+  var LABEL_SCORE = '🏆 Share your score';
+
+  var root = document.querySelector('[data-share]');
+  if (!root) return;
+
+  var btn = root.querySelector('.share-btn');
+  var note = root.querySelector('.share-note');
+  var frame = document.querySelector('.landing-frame iframe');
+  var title = root.getAttribute('data-title');
+  var url = root.getAttribute('data-url');
+  var slug = root.getAttribute('data-slug');
+  var score = null;
+
+  // 계약이 없거나 iframe이 아직 안 올라왔으면 null. 던지지 않는다 —
+  // 여기서 던지면 버튼 자체가 죽는다.
+  //
+  // 0점은 자랑거리가 아니다. 방치하다 끝난 판이 대부분 0점인데, 그걸 그대로
+  // "0 pts. Beat me:" 로 내보내면 공유가 아니라 망신이다. 링크 공유로 남긴다.
+  function readScore() {
+    try {
+      var G = frame && frame.contentWindow && frame.contentWindow.__GAME__;
+      if (!G || G.state !== 'over') return null;
+      return typeof G.score === 'number' && G.score > 0 ? G.score : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function refresh() {
+    if (document.hidden) return;
+    var next = readScore();
+    if (next === score) return;
+    score = next;
+    btn.textContent = score === null ? LABEL_GAME : LABEL_SCORE;
+  }
+  setInterval(refresh, 700);
+  refresh();
+
+  function message() {
+    return score === null
+      ? title + ' — free browser game, no ads, no signup.'
+      : title + ' — ' + score.toLocaleString('en-US') + ' pts. Beat me:';
+  }
+
+  function done() {
+    note.textContent = 'Copied!';
+    setTimeout(function () { note.textContent = ''; }, 2400);
+  }
+
+  // execCommand는 폐기됐지만 clipboard API가 막힌 환경(비보안 컨텍스트·구형 사파리)에서
+  // 유일하게 남는 경로다. 둘 다 실패하면 조용히 넘어가지 말고 사실대로 말한다.
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    if (ok) done();
+    else note.textContent = 'Copy failed — the link is in the address bar.';
+  }
+
+  function copy(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text); });
+    } else {
+      legacyCopy(text);
+    }
+  }
+
+  // 공유가 실제로 일어나는지 재려고 남긴다. GA가 없으면 아무것도 안 한다.
+  function track() {
+    if (typeof gtag !== 'function') return;
+    gtag('event', 'share', {
+      method: 'button',
+      content_type: score === null ? 'game' : 'score',
+      item_id: slug
+    });
+  }
+
+  btn.addEventListener('click', function () {
+    var text = message();
+    track();
+    // 모바일 네이티브 공유 시트. 취소는 거부로 오므로 조용히 넘긴다.
+    if (navigator.share) {
+      navigator.share({ title: title, text: text, url: url })
+        .catch(function () {});
+      return;
+    }
+    copy(text + '\n' + url);
+  });
+})();

@@ -6,6 +6,7 @@ import { fill, esc } from './tools/render.js';
 import { ICON_SRC, ICON_SIZES, iconPath } from './tools/icon.js';
 import { gamePath, thumbPath, ogPath, landingUrl, landingOutPath, absUrl, SITE_ORIGIN } from './tools/paths.js';
 import { homeJsonLd, landingJsonLd, faqSection, headTags, validateSeo, SITE_NAME } from './tools/seo.js';
+import { shareBlock, SHARE_SCRIPT } from './tools/share.js';
 
 const SITE_TITLE = 'Neon Arcade — Free Original Browser Games';
 const SITE_DESC = 'Play original HTML5 arcade games free in your browser. No download, no sign-up, works on mobile and desktop.';
@@ -110,6 +111,7 @@ async function buildLanding(game, games, templates) {
     CONTROLS_KEYBOARD: esc(game.controls.keyboard),
     CONTROLS_TOUCH: esc(game.controls.touch),
     TIPS_BLOCK: tips,
+    SHARE: shareBlock(game),
     RELATED_CARDS: related.map(card).join('\n')
   });
   await write(landingOutPath(game.slug), html);
@@ -289,6 +291,12 @@ if (errors.length) die(errors);
 const iconMissing = [ICON_SRC, ...ICON_SIZES.map(iconPath)].filter(p => !existsSync(p));
 if (iconMissing.length) {
   die(iconMissing.map(p => `missing site icon: ${p} — run \`npm run icons\``));
+}
+
+// 같은 이유로 공유 스크립트도 여기서 본다. 모든 랜딩이 참조하는데 없으면
+// 404가 나고 버튼은 그려진 채로 아무것도 안 한다 — 조용히 실패하는 쪽이다.
+if (!existsSync(SHARE_SCRIPT)) {
+  die([`missing ${SHARE_SCRIPT} — 랜딩의 공유 버튼이 죽은 채로 배포된다`]);
 }
 
 console.log('  ok  all gates passed');
