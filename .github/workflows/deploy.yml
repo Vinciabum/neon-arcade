@@ -36,6 +36,7 @@ jobs:
           GA_ID: ${{ vars.GA_ID }}
           CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
+          ADSENSE_CLIENT: ${{ vars.ADSENSE_CLIENT }}
 
       - name: Verify build output
         run: |
@@ -49,6 +50,15 @@ jobs:
           # 배포본이 /play/ 를 다시 막지 않는지 확인한다. 막으면 랜딩의 iframe 안이
           # 크롤러에게 통째로 안 보이고, 게임 본체의 noindex도 읽히지 않는다.
           ! grep -q "Disallow: /play/" robots.txt
+          # 애드센스를 선언했으면 산출물이 실제로 들고 있어야 한다.
+          # 조용히 빠진 채로 배포되면 구글 심사가 광고 코드를 못 찾고, 그걸 아는 데
+          # 몇 주가 걸린다. 게임 본체에 안 들어가는 것은 npm test 가 본다.
+          if [ -n "${{ vars.ADSENSE_CLIENT }}" ]; then
+            test -f ads.txt
+            grep -q "adsbygoogle" index.html
+            grep -q "adsbygoogle" games/pulse-lock/index.html
+            grep -q "adsbygoogle" privacy/index.html
+          fi
 
       - uses: actions/configure-pages@v5
 

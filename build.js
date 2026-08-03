@@ -25,6 +25,24 @@ const ANALYTICS = process.env.GA_ID
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${process.env.GA_ID}');</script>`
   : '';
 
+// AdSense. 리포 변수 ADSENSE_CLIENT(ca-pub-…)가 있을 때만 나간다 — GA와 같은 방식이라
+// 코드에는 아무 값도 남지 않는다.
+//
+// 게임 본체(play/*.html)에는 절대 넣지 않는다. 이유가 셋이다.
+//  - 게임 본체는 외부 스크립트를 하나도 싣지 않는다 (tools/portal.js 참고)
+//  - 같은 파일이 포털 납품본이 된다. 포털 광고와 애드센스가 한 화면에 겹친다
+//  - 광고 스크립트는 차단기·네트워크에 따라 실패하고, 게이트 1이 그걸 콘솔 에러로 잡는다
+const ADSENSE_CLIENT = process.env.ADSENSE_CLIENT?.trim() ?? '';
+if (ADSENSE_CLIENT && !/^ca-pub-\d{16}$/.test(ADSENSE_CLIENT)) {
+  console.error(`\nBUILD FAILED — ADSENSE_CLIENT 형식이 아니다: ${ADSENSE_CLIENT}`);
+  console.error('  ca-pub- 뒤에 숫자 16자리여야 한다 (애드센스 계정 화면의 게시자 ID)\n');
+  process.exit(1);
+}
+const ADSENSE = ADSENSE_CLIENT
+  ? `<link rel="preconnect" href="https://pagead2.googlesyndication.com">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}" crossorigin="anonymous"></script>`
+  : '';
+
 const die = (errors) => {
   console.error('\nBUILD FAILED — validation gate:\n');
   for (const e of errors) console.error(`  x ${e}`);
@@ -70,6 +88,7 @@ async function buildHome(games, templates) {
     }),
     JSONLD: JSON.stringify(homeJsonLd(games)),
     ANALYTICS,
+    ADSENSE,
 
     VERIFICATION,
     FEATURED_TITLE: esc(featured.title),
@@ -105,6 +124,7 @@ async function buildLanding(game, games, templates) {
     JSONLD: JSON.stringify(landingJsonLd(game)),
     FAQ: faqSection(game),
     ANALYTICS,
+    ADSENSE,
 
     VERIFICATION,
     HOW_TO_PLAY: game.howToPlay.map(s => `      <li>${esc(s)}</li>`).join('\n'),
@@ -186,6 +206,7 @@ visits to this or other websites. You can opt out of personalised advertising th
       }),
       TITLE: esc(page.title),
       ANALYTICS,
+      ADSENSE,
 
       VERIFICATION,
       BODY: page.body
@@ -206,6 +227,7 @@ async function build404(games, templates) {
     }).replace('content="index,follow', 'content="noindex,follow'),
     TITLE: 'Page not found',
     ANALYTICS,
+    ADSENSE,
 
     VERIFICATION,
     BODY: `<p>That address does not exist. It may have been a game that was taken down, or a typo.</p>
@@ -250,6 +272,16 @@ Sitemap: ${SITE_ORIGIN}/sitemap.xml
 `;
   await writeFile('robots.txt', robots, 'utf8');
   console.log('  -> robots.txt');
+
+  // ads.txt — 누가 이 도메인의 광고를 팔 권한이 있는지 선언한다. 없으면 애드센스가
+  // "수익 손실 위험"으로 표시하고 일부 입찰자가 아예 응찰하지 않는다.
+  // ADSENSE_CLIENT가 없으면 만들지 않는다. 빈 ads.txt는 없는 것보다 나쁘다 —
+  // "아무도 팔 권한이 없다"는 선언이 되어 광고가 전부 막힌다.
+  if (ADSENSE_CLIENT) {
+    const pub = ADSENSE_CLIENT.replace(/^ca-/, '');
+    await writeFile('ads.txt', `google.com, ${pub}, DIRECT, f08c47fec0942fa0\n`, 'utf8');
+    console.log('  -> ads.txt');
+  }
 }
 
 // LLM이 사이트 구조를 사람 문서처럼 읽어가는 관행에 맞춘 목록.
