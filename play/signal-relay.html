@@ -72,6 +72,33 @@
 
 const SLUG = 'signal-relay';               // 새 게임에서 슬러그로 바꾼다
 const BEST_KEY = 'just1game:' + SLUG + ':best';
+/* ---------- 하루 한 판 ---------- */
+// 같은 날 들어온 사람은 같은 판을 받는다. 시드가 날짜 하나뿐이라 서버가 필요 없다.
+//
+// ⚠ 이 게임들이 난수를 안 쓰는 이유는 게이트가 실패를 재현할 수 있어야 해서다.
+//   날짜를 섞으면 그 성질이 깨진다 — 오늘 통과한 게임이 다음 주에 실패할 수 있고,
+//   썸네일도 매일 다른 그림이 된다. 그래서 고정할 길을 같이 둔다:
+//
+//     ?day=N        일부러 특정 날을 재볼 때 (여러 날 게이트 실행)
+//     file:// 로 열면 언제나 0일차 — verify·shoot·shots·og 가 전부 이 경로로 연다
+//     그 외          오늘
+//
+//   순서가 중요하다. file:// 규칙이 없으면 도구마다 ?day=0을 붙여야 하고, 한 곳만
+//   빠뜨려도 그 도구만 조용히 날짜에 끌려간다.
+const DAY_ZERO = Math.floor(Date.UTC(2026, 7, 1) / 86400000);
+const DAY = (() => {
+  try {
+    const q = new URLSearchParams(location.search).get('day');
+    if (q !== null && q !== '' && Number.isFinite(Number(q))) return Math.trunc(Number(q));
+    if (location.protocol === 'file:') return 0;
+  } catch (e) { return 0; }
+  const d = new Date();
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000) - DAY_ZERO;
+})();
+const DAILY_NO = DAY + 1;
+// 인접한 날이 비슷한 판이 되지 않도록 흩는다. 게임은 이 둘 중 자기에게 맞는 것만 쓴다.
+const DAY_SEED = Math.imul(DAY + 1, 2654435761) >>> 0;   // 정수 시드에 섞을 값
+const DAY_PHASE = (DAY_SEED % 1000003) / 1000003;        // 0~1. 황금비 수열의 위상용
 
 /* ---------- 최고점 저장 ----------
    localStorage는 샌드박스 iframe이나 서드파티 저장소가 차단된 환경에서
@@ -914,7 +941,7 @@ function reset() {
   // 판 번호로 씨앗을 어긋낸다. 고정 씨앗으로 두면 모든 판의 배선과 오염 자리가 똑같아서
   // 두 판째에 답을 외우고, 심사용 스크린샷 10장도 같은 장면 몇 개로 접힌다(실측: 두 장이 완전히 같았다).
   // 1번 배선은 이 씨앗과 무관하게 늘 '한 번만 돌리면 되는 직선'이다 — 배우는 판은 흔들리면 안 된다.
-  bseed = (SEED + round * 2654435761) >>> 0 || 7;
+  bseed = (SEED + round * 2654435761 + DAY_SEED) >>> 0 || 7;
   level = 1;
   integ = INTEG_MAX;
   elapsed = 0;
@@ -1380,12 +1407,25 @@ function frame(now) {
 /* ---------- 관측 계약: 게이트 2가 읽는 유일한 인터페이스 ---------- */
 window.__GAME__ = {
   api: 1,
+  day: DAILY_NO,          // 오늘의 판 번호. 공유 문구가 이걸 쓴다
   get state() { return state; },
   get score() { return score; },
   get tick() { return tick; },
   // 플레이 밴드. 게이트가 가로 뷰포트에서 이 비율을 재서 난이도가 창 모양에
   // 끌려가지 않는지 판정한다. 공식만 고치면 같은 결함이 다시 들어온다 — 축을 남긴다.
-  get field() { return { x: OX, w: W, h: H, screenW: SW }; },
+  get field() { return { x: OX, w: W, h: H, screenW: SW };
+
+/* 타이틀 화면에 오늘 판 번호를 적는다. HTML이 아니라 여기서 넣는 이유는
+   게임 8개의 오버레이를 각각 고치면 반드시 한 곳이 달라지기 때문이다. */
+(function () {
+  const t = document.getElementById('titleScreen');
+  if (!t) return;
+  const p = document.createElement('p');
+  p.id = 'dailyTag';
+  p.style.cssText = 'font-size:12px;letter-spacing:.1em;opacity:.7;color:var(--neon);margin:0';
+  p.textContent = 'DAILY #' + DAILY_NO + ' \u2014 everyone gets this same run today';
+  t.insertBefore(p, t.querySelector('.btn'));
+})(); },
   start, pause, resume
 };
 

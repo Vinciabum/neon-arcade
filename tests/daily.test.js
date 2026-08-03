@@ -1,0 +1,73 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { gamePath } from '../tools/paths.js';
+
+const SCORED = ['ember-drift', 'flux-sort', 'lantern-keeper', 'null-cascade',
+  'pulse-lock', 'shard-weave', 'signal-relay', 'stack-purge'];
+
+const read = (slug) => readFileSync(gamePath(slug), 'utf8');
+
+test('8개 전부 날짜에서 시드를 뽑는다', () => {
+  for (const slug of SCORED) {
+    const h = read(slug);
+    assert.match(h, /const DAY_ZERO = /, `${slug}: DAY_ZERO 없음`);
+    assert.match(h, /const DAILY_NO = DAY \+ 1;/, `${slug}: DAILY_NO 없음`);
+  }
+});
+
+// 시드를 정의만 하고 안 쓰면 "하루 한 판"은 문구만 남고 판은 매일 같다.
+// 정의부(const DAY_SEED = ...)를 뺀 실제 사용처가 있어야 한다.
+test('정의만 하고 안 쓰는 게임이 없다 — 안 쓰면 매일 같은 판이다', () => {
+  for (const slug of SCORED) {
+    const h = read(slug);
+    const uses = (h.match(/DAY_SEED|DAY_PHASE/g) || []).length;
+    // 정의 2줄 + 주석 1줄은 기본. 그보다 많아야 실제로 쓴 것이다.
+    assert.ok(uses > 3, `${slug}: DAY_SEED/DAY_PHASE 등장이 ${uses}회 — 판에 안 섞였다`);
+  }
+});
+
+test('file:// 로 열면 0일차로 고정된다 — 게이트와 캡처가 날짜에 끌려가면 안 된다', () => {
+  for (const slug of SCORED) {
+    assert.match(read(slug), /location\.protocol === 'file:'\) return 0;/, `${slug}`);
+  }
+});
+
+test('?day=N 으로 특정 날을 재볼 수 있다 — 없으면 다른 날 통과 여부를 못 잰다', () => {
+  for (const slug of SCORED) {
+    assert.match(read(slug), /URLSearchParams\(location\.search\)\.get\('day'\)/, `${slug}`);
+  }
+});
+
+test('계약이 판 번호를 싣는다 — 공유 문구가 이걸 쓴다', () => {
+  for (const slug of SCORED) {
+    assert.match(read(slug), /day: DAILY_NO,/, `${slug}`);
+  }
+});
+
+test('타이틀 화면이 판 번호를 알린다 — 같은 판이라는 걸 모르면 경쟁이 안 된다', () => {
+  for (const slug of SCORED) {
+    const h = read(slug);
+    assert.match(h, /id = 'dailyTag'/, `${slug}`);
+    assert.match(h, /DAILY #/, `${slug}`);
+  }
+});
+
+test('공유 문구에 판 번호가 들어간다 — 번호 없는 점수는 비교가 안 된다', () => {
+  const js = readFileSync('assets/share.js', 'utf8');
+  assert.match(js, /Daily #/);
+  assert.match(js, /typeof G\.day === 'number'/);
+});
+
+test('verify가 --day 를 받는다 — 다른 날에도 통과하는지 재는 유일한 문이다', () => {
+  const v = readFileSync('tools/verify.js', 'utf8');
+  assert.match(v, /a === '--day'/);
+  assert.match(v, /--day needs a number/);
+  assert.match(v, /const gameUrl = /);
+});
+
+test('기존 9개는 건드리지 않았다', () => {
+  for (const slug of ['cyber-snake', 'dino-jump', 'neon-rise']) {
+    assert.ok(!read(slug).includes('DAILY_NO'), `${slug}가 바뀌었다`);
+  }
+});

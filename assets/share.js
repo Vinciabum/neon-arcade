@@ -16,6 +16,7 @@
   var url = root.getAttribute('data-url');
   var slug = root.getAttribute('data-slug');
   var score = null;
+  var day = null;      // 오늘의 판 번호. 계약이 있는 게임만 준다
 
   // 계약이 없거나 iframe이 아직 안 올라왔으면 null. 던지지 않는다 —
   // 여기서 던지면 버튼 자체가 죽는다.
@@ -25,7 +26,9 @@
   function readScore() {
     try {
       var G = frame && frame.contentWindow && frame.contentWindow.__GAME__;
-      if (!G || G.state !== 'over') return null;
+      if (!G) return null;
+      day = typeof G.day === 'number' ? G.day : null;
+      if (G.state !== 'over') return null;
       return typeof G.score === 'number' && G.score > 0 ? G.score : null;
     } catch (e) {
       return null;
@@ -42,10 +45,13 @@
   setInterval(refresh, 700);
   refresh();
 
+  // 판 번호가 있어야 비교가 성립한다. 같은 날 같은 판을 한 사람끼리만 점수가 견줘진다 —
+  // 번호 없이 점수만 던지면 상대는 다른 판을 하고 있을 수도 있다.
   function message() {
+    var tag = day === null ? title : title + ' — Daily #' + day;
     return score === null
-      ? title + ' — free browser game, no ads, no signup.'
-      : title + ' — ' + score.toLocaleString('en-US') + ' pts. Beat me:';
+      ? tag + ' — free browser game, no ads, no signup.'
+      : tag + ' — ' + score.toLocaleString('en-US') + ' pts. Beat me:';
   }
 
   function done() {

@@ -59,11 +59,23 @@ class UsageError extends Error {}
 // 잘못된 인자는 조용히 다른 일을 하지 않고 즉시 멈춘다.
 // 예전에는 `--json`에 값이 없으면 리포트가 그냥 사라지고, `--json cyber-snake`는
 // 'cyber-snake'라는 파일을 쓴 뒤 전체 게임을 검증했다 — 둘 다 사용자가 의도한 일이 아니다.
+// opts.day 가 있으면 ?day=N 을 붙인다. 없으면 file:// 이므로 게임이 스스로 0일차로 간다.
+const gameUrl = (file) =>
+  pathToFileURL(path.resolve(file)).href + (opts?.day === null || opts?.day === undefined ? '' : `?day=${opts.day}`);
+
 function parseArgs(argv) {
-  const opts = { quick: false, json: null, targets: [] };
+  const opts = { quick: false, json: null, day: null, targets: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--quick') opts.quick = true;
+    // 하루 한 판이 들어오면서 판이 날짜에 딸려 움직인다. file:// 로 열면 0일차로 고정되므로
+    // 기본 실행은 예전과 똑같지만, "다른 날에도 통과하는가"를 못 재면 오늘만 통과하는
+    // 게임을 발행하게 된다. 그걸 재는 문이다.
+    else if (a === '--day') {
+      const v = argv[++i];
+      if (v === undefined || !/^-?\d+$/.test(v)) throw new UsageError(`--day needs a number (got ${v ?? 'nothing'})`);
+      opts.day = Number(v);
+    }
     else if (a === '--json') {
       const v = argv[++i];
       if (v === undefined || v.startsWith('--')) throw new UsageError(`--json needs a file path (got ${v ?? 'nothing'})`);
@@ -102,7 +114,7 @@ async function collectTechOn(page, target) {
   page.on('requestfailed', (r) => failedRequests.push(`${r.url().slice(-80)} (${r.failure()?.errorText ?? 'failed'})`));
 
   const t0 = performance.now();
-  await page.goto(pathToFileURL(path.resolve(target.file)).href, { waitUntil: 'load' });
+  await page.goto(gameUrl(target.file), { waitUntil: 'load' });
   const loadMs = performance.now() - t0;
 
   await page.waitForTimeout(600);
@@ -253,7 +265,7 @@ async function collectPlay(browser, target, T) {
 
 async function collectPlayOn(page, target, T) {
   await page.addInitScript({ content: PROBE_SOURCE });
-  await page.goto(pathToFileURL(path.resolve(target.file)).href, { waitUntil: 'load' });
+  await page.goto(gameUrl(target.file), { waitUntil: 'load' });
   await page.waitForTimeout(700);
 
   const api = await page.evaluate(() => (window.__GAME__ ? window.__GAME__.api : null));
@@ -495,7 +507,7 @@ try {
 } catch (err) {
   if (!(err instanceof UsageError)) throw err;
   console.error(`verify: ${err.message}`);
-  console.error('usage: node tools/verify.js [--quick] [--json <path>] [<slug|path.html> ...]');
+  console.error('usage: node tools/verify.js [--quick] [--day <n>] [--json <path>] [<slug|path.html> ...]');
   process.exit(2);
 }
 const T = opts.quick ? QUICK : FULL;
