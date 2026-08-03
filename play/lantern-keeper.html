@@ -15,6 +15,10 @@
   #hud { display: flex; justify-content: space-between; align-items: center; gap: 8px;
     padding: 10px 14px; font-variant-numeric: tabular-nums; font-size: 14px; }
   #hud b { color: var(--neon); font-weight: 700; }
+  /* HUD 높이를 바꾸면 플레이 밴드(390/806)가 깨진다. font를 물려받고 padding·border를 0으로
+     둬서 줄 상자가 옆의 span과 같게 만든다 — 아이콘 대신 글자를 쓰는 이유도 그거다. */
+  #hud button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
+    cursor: pointer; letter-spacing: inherit; }
   #stage { position: relative; flex: 1; min-height: 0; }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; background: #101a30; }
   .overlay { position: absolute; inset: 0; display: flex; flex-direction: column;
@@ -39,6 +43,7 @@
   <div id="hud">
     <span>SCORE <b id="score">0</b></span>
     <span>BEST <b id="best">0</b></span>
+    <button id="muteBtn" type="button" aria-label="Toggle sound">SOUND <b>ON</b></button>
   </div>
   <div id="stage">
     <canvas id="c"></canvas>
@@ -112,6 +117,93 @@ function beep(freq, ms) {
   osc.start();
   osc.stop(actx.currentTime + ms / 1000);
 }
+
+/* ---------- BGM: 배경음도 코드로 쓴다 (프레임 레벨) ---------- */
+// 오디오 파일을 들이지 않는 이유는 스프라이트 때와 같다 — 라이선스와 용량이다.
+//
+// 프레임 안에서 음을 만들지 않는다. 게이트 1이 fps 하한 50을 재므로 rAF에 붙이는 설계는
+// 처음부터 못 쓴다. 박자를 오디오 스레드에 미리 예약하고 JS는 4Hz로만 깨어난다.
+//
+// state를 직접 읽는다 — start/gameOver/pause/resume 네 곳에 손을 대는 설계였으면
+// 게임마다 한 곳을 빠뜨렸을 것이고, 그건 "게임오버 화면에서 음악만 계속 도는" 것으로 나타난다.
+const BGM = (function () {
+  // root=기음(Hz) · beat=한 박(초) · pattern=반음 오프셋(null은 쉼표)
+  // 어둠이 장치인 게임이다. 가장 느리고 사인파로 둔다 — 사각파는 이 화면에 너무 밝다.
+  const SONG = {
+    root: 146.8, beat: 0.44, wave: 'sine',
+    pattern: [0, null, 3, null, 7, null, 10, null, 7, null, 3, null]
+  };
+  const MUTE_KEY = 'just1game:' + SLUG + ':muted';
+
+  let bus = null, at = 0, step = 0, playing = false;
+  let muted = false;
+  try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { /* 차단된 저장소 */ }
+
+  function tone(freq, when, dur, wave, vol) {
+    const osc = actx.createOscillator();
+    const g = actx.createGain();
+    osc.type = wave;
+    osc.frequency.setValueAtTime(freq, when);
+    // 사각파를 그냥 켜고 끄면 딱딱 소리가 난다. 짧은 램프로 감싼다.
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(vol, when + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    osc.connect(g).connect(bus);
+    osc.start(when);
+    osc.stop(when + dur + 0.03);
+  }
+
+  // 0.5초 앞까지만 채운다. 더 멀리 예약하면 정지가 그만큼 늦게 먹는다.
+  // 광고로 컨텍스트가 suspend되면 currentTime이 멈추므로 여기서 저절로 멈춘다.
+  function fill() {
+    while (at < actx.currentTime + 0.5) {
+      const i = step % SONG.pattern.length;
+      const semi = SONG.pattern[i];
+      if (semi !== null) {
+        tone(SONG.root * Math.pow(2, semi / 12), at, SONG.beat * 0.85, SONG.wave, 0.018);
+      }
+      if (i % 4 === 0) tone(SONG.root / 2, at, SONG.beat * 3.2, 'triangle', 0.026);
+      at += SONG.beat;
+      step++;
+    }
+  }
+
+  function begin() {
+    if (!bus) { bus = actx.createGain(); bus.connect(actx.destination); }
+    playing = true;
+    at = actx.currentTime + 0.1;
+    fill();
+  }
+  // 이미 예약된 음이 남아 있으므로 버스를 끊는다. 다음 begin()이 새로 만든다.
+  function end() {
+    playing = false;
+    if (bus) { try { bus.disconnect(); } catch (e) {} bus = null; }
+  }
+
+  // 제스처를 기다리지 않는다 — actx가 없으면 아무것도 안 하고 넘어간다.
+  setInterval(function () {
+    if (!actx) return;
+    const want = state === S.PLAYING && !muted;
+    if (want && !playing) begin();
+    else if (!want && playing) end();
+    else if (playing) fill();
+  }, 250);
+
+  const btn = document.getElementById('muteBtn');
+  const paint = () => { if (btn) btn.querySelector('b').textContent = muted ? 'OFF' : 'ON'; };
+  if (btn) {
+    btn.addEventListener('click', () => {
+      audioReady();          // 소리를 켜는 클릭이 곧 제스처다 — 여기서 컨텍스트가 열린다
+      muted = !muted;
+      try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch (e) {}
+      if (muted) end();
+      paint();
+    });
+  }
+  paint();
+
+  return { isMuted: () => muted, isPlaying: () => playing };
+})();
 
 /* ---------- 캔버스: 반응형 + DPR ---------- */
 const canvas = document.getElementById('c');
