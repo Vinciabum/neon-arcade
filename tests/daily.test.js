@@ -81,6 +81,38 @@ test('verify가 --day 를 받는다 — 다른 날에도 통과하는지 재는 
   assert.match(v, /const gameUrl = /);
 });
 
+/* ---------- 오늘의 최고점 ---------- */
+
+test('HUD가 오늘 점수를 보여준다 — 전체 기간 최고점은 다른 날 판에서 낸 숫자다', () => {
+  for (const slug of SCORED) {
+    const h = read(slug);
+    assert.match(h, /<span>TODAY <b id="best">0<\/b><\/span>/, `${slug}: 라벨이 아직 BEST다`);
+    assert.match(h, /el\.best\.textContent = today;/, `${slug}: 화면이 today를 안 읽는다`);
+    assert.ok(!h.includes('el.best.textContent = best;'), `${slug}: 전체 기간 값을 아직 그린다`);
+  }
+});
+
+test('오늘 기록은 날짜별 키에 저장된다', () => {
+  for (const slug of SCORED) {
+    assert.match(read(slug), /const TODAY_KEY = 'just1game:' \+ SLUG \+ ':d' \+ DAY;/, `${slug}`);
+  }
+});
+
+test('전체 기간 값도 계속 적는다 — 지우면 되돌릴 수 없다', () => {
+  for (const slug of SCORED) {
+    assert.match(read(slug), /saveBest\(best\);/, `${slug}: 전체 기간 저장이 사라졌다`);
+  }
+});
+
+// 안 지우면 게임 하나에 하루 한 개씩 영원히 쌓인다 — 8개면 1년에 2900개다.
+test('지난 날 기록을 지운다 — 안 지우면 저장소가 무한히 늘어난다', () => {
+  for (const slug of SCORED) {
+    const h = read(slug);
+    assert.match(h, /localStorage\.removeItem\(k\)/, `${slug}: 정리 코드가 없다`);
+    assert.match(h, /k !== TODAY_KEY/, `${slug}: 오늘 것까지 지울 수 있다`);
+  }
+});
+
 test('기존 9개는 건드리지 않았다', () => {
   for (const slug of ['cyber-snake', 'dino-jump', 'neon-rise']) {
     assert.ok(!read(slug).includes('DAILY_NO'), `${slug}가 바뀌었다`);

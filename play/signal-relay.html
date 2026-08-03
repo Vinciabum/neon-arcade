@@ -44,7 +44,7 @@
        눈이 HUD로 올라가면 방금 어디를 돌렸는지를 잃는다. -->
   <div id="hud">
     <span>SCORE <b id="score">0</b></span>
-    <span>BEST <b id="best">0</b></span>
+    <span>TODAY <b id="best">0</b></span>
     <button id="muteBtn" type="button" aria-label="Toggle sound">SOUND <b>ON</b></button>
   </div>
   <div id="stage">
@@ -99,6 +99,27 @@ const DAILY_NO = DAY + 1;
 // 인접한 날이 비슷한 판이 되지 않도록 흩는다. 게임은 이 둘 중 자기에게 맞는 것만 쓴다.
 const DAY_SEED = Math.imul(DAY + 1, 2654435761) >>> 0;   // 정수 시드에 섞을 값
 const DAY_PHASE = (DAY_SEED % 1000003) / 1000003;        // 0~1. 황금비 수열의 위상용
+
+/* ---------- 오늘의 최고점 ----------
+   판이 매일 바뀌므로 전체 기간 최고점은 **다른 날 판에서 낸 숫자**다. 화면에는 오늘 것을 쓴다.
+   전체 기간 값도 계속 적어둔다 — 지우면 되돌릴 수 없고, 지금 안 보인다고 버릴 이유는 없다. */
+const TODAY_KEY = 'just1game:' + SLUG + ':d' + DAY;
+function loadToday() {
+  try { return Number(localStorage.getItem(TODAY_KEY)) || 0; } catch { return 0; }
+}
+function saveToday(v) {
+  try { localStorage.setItem(TODAY_KEY, String(v)); } catch { /* 메모리에만 유지한다 */ }
+}
+// 지난 날 기록은 지운다. 안 지우면 게임 하나에 하루 한 개씩 영원히 쌓인다.
+(function () {
+  try {
+    const prefix = 'just1game:' + SLUG + ':d';
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(prefix) === 0 && k !== TODAY_KEY) localStorage.removeItem(k);
+    }
+  } catch (e) { /* 차단된 저장소 */ }
+})();
 
 /* ---------- 최고점 저장 ----------
    localStorage는 샌드박스 iframe이나 서드파티 저장소가 차단된 환경에서
@@ -378,6 +399,7 @@ let state = S.TITLE;
 let score = 0;
 let tick = 0;
 let best = loadBest();
+let today = loadToday();
 let autoPaused = false;      // 탭이 숨겨져서 우리가 멈춘 것인지 구분한다
 
 const el = {
@@ -387,7 +409,7 @@ const el = {
   title: document.getElementById('titleScreen'),
   over: document.getElementById('overScreen')
 };
-el.best.textContent = best;
+el.best.textContent = today;
 
 /* ---------- 입력: 키보드 + 터치 이중 ----------
    left/right는 '방향을 누르고 있다', aimX는 '이 지점을 짚었다'(0~1, 캔버스 폭 비율)이다.
@@ -1369,7 +1391,9 @@ function gameOver() {
   state = S.OVER;
   beep(160, 180);
   Portal.gameplayStop();
-  if (score > best) { best = score; saveBest(best); el.best.textContent = best; }
+  if (score > best) { best = score; saveBest(best); }
+  if (score > today) { today = score; saveToday(today); }
+  el.best.textContent = today;
   el.finalScore.textContent = score;
   el.over.hidden = false;
 }
