@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { shareBlock, SHARE_SCRIPT, LABEL_GAME, LABEL_SCORE } from '../tools/share.js';
+import { shareBlock, SHARE_SCRIPT, LABEL_GAME, LABEL_SCORE, DAILY_STATIC } from '../tools/share.js';
 
 const game = () => ({ slug: 'pulse-lock', title: 'Pulse Lock' });
 
@@ -22,6 +22,28 @@ test('제목의 따옴표가 속성을 깨고 나오지 않는다', () => {
   const html = shareBlock({ slug: 'x', title: 'He said "go" & <b>ran</b>' });
   assert.ok(!html.includes('data-title="He said "'));
   assert.match(html, /data-title="He said &quot;go&quot; &amp; &lt;b&gt;ran&lt;\/b&gt;"/);
+});
+
+/* ---------- 하루 한 판 문구 ---------- */
+
+test('하루 한 판이 있는 게임에만 문구가 붙는다 — 없는 기능을 광고하면 안 된다', () => {
+  assert.match(shareBlock(game(), { daily: true }), /data-daily/);
+  assert.ok(!shareBlock(game(), { daily: false }).includes('data-daily'));
+  assert.ok(!shareBlock(game()).includes('data-daily'), '기본값은 없음이어야 한다');
+});
+
+test('서버가 찍는 문장은 번호 없이도 참이다 — 사이트는 push할 때만 다시 만들어진다', () => {
+  const html = shareBlock(game(), { daily: true });
+  assert.ok(html.includes(DAILY_STATIC));
+  // 빌드 시각의 번호를 박으면 다음 날 곧바로 거짓이 된다
+  assert.ok(!/Daily #\d/.test(html), '산출물에 번호가 박혔다');
+});
+
+test('번호는 계약에서 채운다 — 랜딩이 날짜를 따로 계산하면 게임과 어긋난다', () => {
+  const js = readFileSync(SHARE_SCRIPT, 'utf8');
+  assert.match(js, /\[data-daily\]/);
+  assert.match(js, /'Daily #' \+ day/);
+  assert.ok(!js.includes('Date.UTC'), 'share.js가 날짜를 스스로 계산한다');
 });
 
 /* ---------- 클라이언트 스크립트 — 조용히 죽는 경로를 막는다 ---------- */

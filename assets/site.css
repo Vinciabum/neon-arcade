@@ -612,6 +612,9 @@
 
 /* share — sits right under the frame, where the player is when a run ends */
 .share { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+/* the daily line takes the whole row so the button stays on its own line */
+.daily-note { flex-basis: 100%; margin: 0; color: var(--text-sub); font-size: .95rem; }
+.daily-note b { color: var(--accent-primary); }
 .share-btn { font: inherit; font-weight: 700; cursor: pointer;
   padding: 12px 24px; min-height: 44px; border-radius: var(--radius-pill);
   border: 2px solid var(--accent-primary); background: transparent;

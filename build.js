@@ -104,6 +104,9 @@ async function buildHome(games, templates) {
 
 async function buildLanding(game, games, templates) {
   const related = games.filter(g => g.slug !== game.slug).slice(0, 4);
+  // 하루 한 판이 있는 게임인지 파일에서 직접 본다. games.json에 또 적으면 어긋날 수 있고,
+  // 어긋나면 기존 9개 랜딩이 없는 기능을 광고하게 된다.
+  const daily = (await readFile(gamePath(game.slug), 'utf8')).includes('DAILY_NO');
   const tips = (game.tips ?? []).length
     ? `    <h2>Tips</h2>\n    <ul>\n${game.tips.map(t => `      <li>${esc(t)}</li>`).join('\n')}\n    </ul>\n`
     : '';
@@ -131,7 +134,7 @@ async function buildLanding(game, games, templates) {
     CONTROLS_KEYBOARD: esc(game.controls.keyboard),
     CONTROLS_TOUCH: esc(game.controls.touch),
     TIPS_BLOCK: tips,
-    SHARE: shareBlock(game),
+    SHARE: shareBlock(game, { daily }),
     RELATED_CARDS: related.map(card).join('\n')
   });
   await write(landingOutPath(game.slug), html);

@@ -35,9 +35,20 @@
     }
   }
 
+  // 판 번호는 계약에서 온다. 여기서 날짜를 다시 계산하면 게임 쪽 규칙(?day=N, file://은
+  // 0일차)과 어긋나고, 어긋나면 화면의 번호와 공유 문구의 번호가 서로 다른 날을 가리킨다.
+  var dailyEl = root.querySelector('[data-daily]');
+  var dailyShown = null;
+  function paintDaily() {
+    if (!dailyEl || day === null || day === dailyShown) return;
+    dailyShown = day;
+    dailyEl.textContent = 'Daily #' + day;
+  }
+
   function refresh() {
     if (document.hidden) return;
     var next = readScore();
+    paintDaily();
     if (next === score) return;
     score = next;
     btn.textContent = score === null ? LABEL_GAME : LABEL_SCORE;
