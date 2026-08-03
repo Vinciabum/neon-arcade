@@ -1,4 +1,4 @@
-// 쇼츠용 9:16 세로 영상. 사용: node tools/reel.js <슬러그> [--auto]
+// 쇼츠용 9:16 세로 영상. 사용: node tools/reel.js <슬러그> [--auto] [--plain]
 //
 // 사람이 직접 플레이하는 것을 녹화한다. 자동 조작으로 찍지 않는 이유는 커버에서 이미 겪었다 —
 // 아무도 조작하지 않으면 화면이 실패 피드백으로 덮인다. 지는 판을 15초 내내 보여주는
@@ -12,6 +12,7 @@
 //   tests/reel.test.js 가 두 곳의 상수가 어긋나면 잡는다.
 import { chromium } from 'playwright';
 import { readFile, writeFile, mkdir, rm, readdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
@@ -33,6 +34,45 @@ const VIEW = { width: 720, height: 1280 };
 const VIDEO = { width: 1080, height: 1920 };
 const MAX_MS = 75_000;     // 이보다 길면 쇼츠로 못 쓴다. 알아서 끊는다
 const MIN_MS = 6_000;      // 이보다 짧으면 영상이라 할 게 없다
+
+/* ---------- 자막 ----------
+   쇼츠는 소리 없이 재생되기 시작하고, 첫 1초에 "이게 뭔지"가 안 뜨면 넘긴다.
+   그래서 훅이 0초에 나와야 한다.
+   훅으로 쓰는 문구는 우리가 실제로 지킬 수 있는 것이다 — play/*.html 은 외부 스크립트를
+   하나도 싣지 않는다. Poki·CrazyGames는 시작 전에 프리롤을 때린다.
+
+   세로 UI 안전지대: 아래 20%는 플랫폼이 계정명·설명으로 덮는다. 위쪽에 건다. */
+// ffmpeg 필터에서 드라이브 문자의 콜론은 옵션 구분자로 읽힌다. 백슬래시 하나로는
+// ffmpeg 8이 안 받아들이고 `No option name near '/Windows/...'` 로 죽는다 — 두 개여야 한다.
+// (문자열 값은 `C\\:/Windows/...` 이다.)
+const FONT_FILE = 'C:/Windows/Fonts/segoeuib.ttf';
+const FONT = 'C\\\\:/Windows/Fonts/segoeuib.ttf';
+const CAPTIONS = (title, dur) => [
+  { text: 'NO ADS. NO SIGNUP.', from: 0.2, to: 3.0, y: 0.11, size: 62 },
+  { text: '3 SECONDS TO PLAY', from: 0.2, to: 3.0, y: 0.11 + 0.045, size: 62 },
+  { text: title.toUpperCase(), from: 3.3, to: 6.0, y: 0.11, size: 70 },
+  { text: 'just1game.com', from: Math.max(6.2, dur - 3.0), to: dur, y: 0.78, size: 58 }
+];
+
+// drawtext는 콜론·따옴표·대괄호를 필터 문법으로 읽는다. 게임 제목에 들어갈 수 있는 것만 막는다.
+const escText = (s) => String(s).replace(/([\\:'%])/g, '\\$1');
+
+function captionFilter(title, dur) {
+  return CAPTIONS(title, dur)
+    .filter(c => c.from < dur)
+    .map(c => [
+      `drawtext=fontfile=${FONT}`,
+      `text='${escText(c.text)}'`,
+      `fontcolor=white`,
+      `fontsize=${c.size}`,
+      `x=(w-text_w)/2`,
+      `y=h*${c.y}`,
+      // 네온 화면 위에 흰 글씨만 얹으면 배경에 따라 읽히지 않는다. 반투명 판을 깐다.
+      `box=1:boxcolor=black@0.55:boxborderw=18`,
+      `enable='between(t,${c.from.toFixed(2)},${Math.min(c.to, dur).toFixed(2)})'`
+    ].join(':'))
+    .join(',');
+}
 
 // 게임 안 BGM과 같은 값. 하나라도 게임 쪽에서 바뀌면 소리가 어긋난다.
 const NOTE_RATIO = 0.85;   // 음 길이 = beat * 이것
@@ -137,9 +177,18 @@ export function renderSong(song, seconds) {
 async function main() {
 const args = process.argv.slice(2);
 const auto = args.includes('--auto');
+const plain = args.includes('--plain');   // 자막 없이. 다른 곳에 쓸 원본이 필요할 때
 const slug = args.find(a => !a.startsWith('--'));
 if (!slug) {
-  console.error('사용: node tools/reel.js <슬러그> [--auto]');
+  console.error('사용: node tools/reel.js <슬러그> [--auto] [--plain]');
+  process.exit(1);
+}
+
+// 폰트는 브라우저를 열기 전에 확인한다. 마지막 먹싱 단계에서 죽으면
+// 사람이 방금 플레이한 한 판이 통째로 날아간다.
+if (!plain && !existsSync(FONT_FILE)) {
+  console.error(`\n자막용 폰트가 없다: ${FONT_FILE}`);
+  console.error('  --plain 으로 자막 없이 찍거나 tools/reel.js 의 FONT_FILE을 바꾼다\n');
   process.exit(1);
 }
 
@@ -190,13 +239,18 @@ const dur = Math.max(MIN_MS, Math.min(MAX_MS, tEnd - tPlay)) / 1000;
 const wav = path.join(dir, 'bgm.wav');
 await writeFile(wav, renderSong(song, dur + 0.4));
 
+const game = JSON.parse(await readFile('games.json', 'utf8')).find(g => g.slug === slug);
+const vf = [`scale=${VIDEO.width}:${VIDEO.height}:flags=lanczos`, 'fps=30']
+  .concat(plain ? [] : [captionFilter(game?.title ?? slug, dur)])
+  .join(',');
+
 const out = path.join(dir, `${slug}-reel.mp4`);
 await run('ffmpeg', [
   '-y',
   '-ss', String(startAt), '-t', String(dur), '-i', path.join(dir, webm),
   '-i', wav,
   '-map', '0:v', '-map', '1:a',
-  '-vf', `scale=${VIDEO.width}:${VIDEO.height}:flags=lanczos,fps=30`,
+  '-vf', vf,
   '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p',
   '-c:a', 'aac', '-b:a', '128k',
   '-shortest', '-movflags', '+faststart',
