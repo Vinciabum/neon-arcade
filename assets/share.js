@@ -42,7 +42,7 @@
   function paintDaily() {
     if (!dailyEl || day === null || day === dailyShown) return;
     dailyShown = day;
-    dailyEl.textContent = 'Daily #' + day;
+    dailyEl.textContent = "Today's board #" + day;
   }
 
   function refresh() {
@@ -59,7 +59,7 @@
   // 판 번호가 있어야 비교가 성립한다. 같은 날 같은 판을 한 사람끼리만 점수가 견줘진다 —
   // 번호 없이 점수만 던지면 상대는 다른 판을 하고 있을 수도 있다.
   function message() {
-    var tag = day === null ? title : title + ' — Daily #' + day;
+    var tag = day === null ? title : title + ' — Board #' + day;
     return score === null
       ? tag + ' — free browser game, no ads, no signup.'
       : tag + ' — ' + score.toLocaleString('en-US') + ' pts. Beat me:';

@@ -1155,7 +1155,9 @@ window.__GAME__ = {
   const p = document.createElement('p');
   p.id = 'dailyTag';
   p.style.cssText = 'font-size:12px;letter-spacing:.1em;opacity:.7;color:var(--neon);margin:0';
-  p.textContent = 'DAILY #' + DAILY_NO + ' \u2014 everyone gets this same run today';
+  // "DAILY"는 횟수 제한으로 읽힌다. 실제로는 코스가 정해져 있을 뿐 몇 판이든 할 수 있고,
+  // 그 오해는 이 문구를 만든 사람조차 했다 — 처음 온 사람은 반드시 한다.
+  p.textContent = "TODAY'S BOARD #" + DAILY_NO + " \u2014 same for everyone, replay as often as you like";
   t.insertBefore(p, t.querySelector('.btn'));
 })();
 

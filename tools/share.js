@@ -24,7 +24,9 @@ export const LABEL_SCORE = '\u{1F3C6} Share your score';
 // 번호는 스크립트가 iframe 계약에서 읽어 채운다. 날짜 계산을 여기서 다시 하지 않는 이유:
 // 사이트는 push할 때만 다시 만들어지므로 빌드 시각에 박은 번호는 다음 날 곧바로 거짓이 된다.
 // 서버가 찍는 문장은 번호 없이도 참인 것으로 둔다.
-export const DAILY_STATIC = 'A new run every day';
+// "Daily"는 횟수 제한으로 읽힌다 — 실제로는 코스가 정해져 있을 뿐 몇 판이든 할 수 있다.
+// 그 오해를 이 기능을 주문한 사람이 먼저 했다. 처음 온 사람은 반드시 한다.
+export const DAILY_STATIC = 'A new board every day';
 
 // 순수 함수 — 파일 없이 테스트할 수 있다.
 // daily는 games.json이 아니라 게임 파일에서 판별한 값을 받는다. 데이터에 또 적으면
@@ -32,7 +34,7 @@ export const DAILY_STATIC = 'A new run every day';
 export function shareBlock(game, { daily = false } = {}) {
   const url = absUrl(landingUrl(game.slug));
   const note = daily
-    ? `    <p class="daily-note"><b data-daily>${DAILY_STATIC}</b> — everyone plays the same board today, so scores actually compare.</p>\n`
+    ? `    <p class="daily-note"><b data-daily>${DAILY_STATIC}</b> — same for everyone, replay as often as you like.</p>\n`
     : '';
   return `  <section class="share" data-share data-slug="${esc(game.slug)}" data-title="${esc(game.title)}" data-url="${esc(url)}">
 ${note}    <button type="button" class="share-btn">${LABEL_GAME}</button>

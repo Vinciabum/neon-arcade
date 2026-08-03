@@ -49,7 +49,7 @@ test('타이틀 화면이 판 번호를 알린다 — 같은 판이라는 걸 �
   for (const slug of SCORED) {
     const h = read(slug);
     assert.match(h, /id = 'dailyTag'/, `${slug}`);
-    assert.match(h, /DAILY #/, `${slug}`);
+    assert.match(h, /TODAY'S BOARD #/, `${slug}`);
   }
 });
 
@@ -70,7 +70,7 @@ test('타이틀 태그가 계약 바깥에 있다 — 안에 있으면 return �
 
 test('공유 문구에 판 번호가 들어간다 — 번호 없는 점수는 비교가 안 된다', () => {
   const js = readFileSync('assets/share.js', 'utf8');
-  assert.match(js, /Daily #/);
+  assert.match(js, /Board #/);
   assert.match(js, /typeof G\.day === 'number'/);
 });
 
