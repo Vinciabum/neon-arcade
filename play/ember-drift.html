@@ -1227,7 +1227,9 @@ window.__GAME__ = {
   get tick() { return tick; },
   // 플레이 밴드. 게이트가 가로 뷰포트에서 이 비율을 재서 난이도가 창 모양에
   // 끌려가지 않는지 판정한다. 공식만 고치면 같은 결함이 다시 들어온다 — 축을 남긴다.
-  get field() { return { x: OX, w: W, h: H, screenW: SW };
+  get field() { return { x: OX, w: W, h: H, screenW: SW }; },
+  start, pause, resume
+};
 
 /* 타이틀 화면에 오늘 판 번호를 적는다. HTML이 아니라 여기서 넣는 이유는
    게임 8개의 오버레이를 각각 고치면 반드시 한 곳이 달라지기 때문이다. */
@@ -1239,9 +1241,7 @@ window.__GAME__ = {
   p.style.cssText = 'font-size:12px;letter-spacing:.1em;opacity:.7;color:var(--neon);margin:0';
   p.textContent = 'DAILY #' + DAILY_NO + ' \u2014 everyone gets this same run today';
   t.insertBefore(p, t.querySelector('.btn'));
-})(); },
-  start, pause, resume
-};
+})();
 
 resize();
 // SDK가 거부하거나 던져도 루프는 시작한다. 여기서 멈추면 화면이 영원히 검은 채로 남는데,

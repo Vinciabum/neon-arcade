@@ -53,6 +53,21 @@ test('타이틀 화면이 판 번호를 알린다 — 같은 판이라는 걸 �
   }
 });
 
+// 처음 이 코드는 계약의 `field` 게터 안, return 뒤에 들어갔다. 문법은 유효하고
+// 문자열도 다 있어서 위 검사는 통과했는데 **도달할 수 없는 코드라 영영 실행되지 않았다.**
+// 라이브에 올리고 나서야 태그가 빈 채로 서빙되는 것을 봤다.
+// "있는가"가 아니라 "계약이 끝난 뒤에 있는가"를 본다.
+test('타이틀 태그가 계약 바깥에 있다 — 안에 있으면 return 뒤라 실행되지 않는다', () => {
+  for (const slug of SCORED) {
+    const h = read(slug);
+    const contractEnd = h.indexOf('  start, pause, resume');
+    const tag = h.indexOf("id = 'dailyTag'");
+    assert.ok(contractEnd > 0, `${slug}: 계약 꼬리를 못 찾았다`);
+    assert.ok(tag > contractEnd,
+      `${slug}: 타이틀 태그가 계약 객체 안에 있다 — 문법은 맞지만 절대 실행되지 않는다`);
+  }
+});
+
 test('공유 문구에 판 번호가 들어간다 — 번호 없는 점수는 비교가 안 된다', () => {
   const js = readFileSync('assets/share.js', 'utf8');
   assert.match(js, /Daily #/);
