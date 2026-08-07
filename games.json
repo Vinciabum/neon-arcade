@@ -1,5 +1,54 @@
 [
   {
+    "slug": "duck-line",
+    "title": "Duck Line",
+    "tagline": "Lead the ducklings home. The longer the line, the harder it steers.",
+    "description": "Swim the pond collecting ducklings. Each one makes you slower to turn, and the tail cuts the corner — so the ball you just dodged can still take half your line.",
+    "tag": "Herd",
+    "genreTerm": "duckling herding game",
+    "controls": {
+      "keyboard": "Arrow keys or A/D to swim",
+      "touch": "Drag anywhere to swim"
+    },
+    "howToPlay": [
+      "Drag to steer the mother duck up the pond. Ducklings you swim over join the line behind you.",
+      "Beach balls knock ducklings loose. If one hits the tail, everything behind that point is gone.",
+      "The line drags: a long line turns slowly, so a duckling parked next to a ball may not be worth it."
+    ],
+    "tips": [
+      "The tail cuts the inside of every turn. Swerving tightly around a ball is exactly how the line clips it.",
+      "Arriving with eight is better than losing nine. Some ducklings are placed where taking them is a mistake."
+    ],
+    "mechanics": {
+      "input": "steer-horizontal",
+      "goal": "collect",
+      "failure": "collision",
+      "world": "auto-scroll"
+    },
+    "faq": [
+      {
+        "q": "Why did I lose ducklings without touching anything?",
+        "a": "The tail did. Ducklings follow the duck in front rather than retracing your exact path, so they swing wide across the inside of a turn."
+      },
+      {
+        "q": "Does collecting every duckling always win?",
+        "a": "No. Each one you pick up makes the line slower to steer, and some are placed right beside a ball where taking them costs more than they are worth."
+      },
+      {
+        "q": "What happens if a ball hits me with an empty line?",
+        "a": "The run ends there and you arrive alone. With ducklings behind you it only knocks the last two loose, so an empty line is the real danger."
+      }
+    ],
+    "releasedAt": "2026-08-07",
+    "status": "published",
+    "featured": false,
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    }
+  },
+  {
     "slug": "one-shot",
     "title": "One Shot",
     "tagline": "One swing at the pin. Same course for everyone today.",
