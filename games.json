@@ -1,5 +1,54 @@
 [
   {
+    "slug": "one-shot",
+    "title": "One Shot",
+    "tagline": "One swing at the pin. Same course for everyone today.",
+    "description": "A single swing at the pin. Read the wind, thread the one gap in the bars, and let go — there is no second ball, and everyone plays the same course today.",
+    "tag": "Aim",
+    "genreTerm": "daily aim game",
+    "controls": {
+      "keyboard": "Arrow keys to aim, Space to swing",
+      "touch": "Pull back anywhere and release"
+    },
+    "howToPlay": [
+      "Read the course before you touch anything. The wind pushes the whole flight sideways and the bars have one gap you can fit through.",
+      "Pull back to set angle and power. The line shows where you are pointing, never where the shot will land.",
+      "Let go. That is your swing for this course — the closer you finish to the pin, the higher the score."
+    ],
+    "tips": [
+      "Power is forgiving and angle is not. If you keep missing to one side, change the angle before you change the strength.",
+      "The shot clock runs fifteen seconds, far longer than reading a course takes. A rushed swing is the one that misses the gap."
+    ],
+    "mechanics": {
+      "input": "aim-and-release",
+      "goal": "land-close",
+      "failure": "timeout",
+      "world": "fixed-arena"
+    },
+    "faq": [
+      {
+        "q": "Can I play today's course more than once?",
+        "a": "Today's course is one swing, and it is the same course for everyone. Practice courses afterwards are unlimited and do not count."
+      },
+      {
+        "q": "Why can't I see where the shot will land?",
+        "a": "An arc preview would turn reading the course into matching a line. The wind, the gap and the green are all shown instead, so the judgement is yours."
+      },
+      {
+        "q": "Does the wind really change anything?",
+        "a": "Yes. It pushes the ball sideways for the whole flight, and the flag leans the way it blows so you can read it before you swing."
+      }
+    ],
+    "releasedAt": "2026-08-07",
+    "status": "published",
+    "featured": true,
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    }
+  },
+  {
     "slug": "lantern-keeper",
     "title": "Lantern Keeper",
     "tagline": "Catch falling fuel. The dimmer your flame, the less you can see.",
@@ -445,7 +494,7 @@
     ],
     "releasedAt": "2026-07-31",
     "status": "published",
-    "featured": true,
+    "featured": false,
     "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
   }
 ]

@@ -11,7 +11,8 @@ export const AXES = {
     'swipe-turn',        // 진행 방향을 꺾는다
     'tap-target',        // 화면의 특정 대상을 누른다
     'type-answer',       // 값을 입력한다
-    'drag-object'        // 대상을 끌어 옮긴다
+    'drag-object',       // 대상을 끌어 옮긴다
+    'aim-and-release'    // 당겨서 각도·세기를 잡고 놓는다. 조작이 판 전체에 한 번뿐이다
   ],
   goal: [
     'survive',           // 오래 버틴다
@@ -21,7 +22,8 @@ export const AXES = {
     'match-pairs',       // 짝을 맞춘다
     'recall-sequence',   // 순서를 기억해 재현한다
     'climb',             // 높이를 올린다
-    'solve'              // 문제를 푼다
+    'solve',             // 문제를 푼다
+    'land-close'         // 목표에 얼마나 가까이 놓느냐가 점수다. 성공/실패가 아니라 거리다
   ],
   failure: [
     'collision',         // 부딪히면 끝
