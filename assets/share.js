@@ -45,8 +45,69 @@
     dailyEl.textContent = "Today's board #" + day;
   }
 
+  /* ---- 계측 ----
+   * 재미를 판단할 유일한 자리는 iframe 안인데 게임 본체에는 GA가 없다
+   * (외부 스크립트 0 원칙 — 포털 납품본이 같은 파일이고, 광고 스크립트 실패를
+   * 게이트 1이 콘솔 에러로 잡는다). 그래서 밖에서 계약의 state 전이만 읽는다.
+   * 게임 파일은 한 글자도 건드리지 않는다.
+   *
+   * 답해야 할 질문은 셋이다: 눌렀는가 · 한 판이 몇 초인가 · **다시 했는가.**
+   * GA4 28일치가 "평균 참여 시간 13초"만 주고 그 안에서 무슨 일이 있었는지는
+   * 하나도 못 알려줬다 — 그 눈을 여는 것이 이 블록의 전부다.
+   *
+   * 이벤트 이름을 셋으로 나눈 이유: GA4는 맞춤 매개변수를 '맞춤 측정기준'으로
+   * 등록하기 전에는 보고서에 안 띄운다. run_index를 매개변수로만 두면
+   * 재방문 여부가 화면에 영영 안 나온다. 이름이 다르면 등록 없이도 이벤트 표에 뜬다. */
+  var prevState = null;
+  var runs = 0;
+  var runStart = 0;
+
+  function readState() {
+    try {
+      var G = frame && frame.contentWindow && frame.contentWindow.__GAME__;
+      return G && typeof G.state === 'string' ? G.state : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function send(name, params) {
+    if (typeof gtag !== 'function') return;   // GA가 없으면 아무것도 안 한다
+    gtag('event', name, params);
+  }
+
+  function trackState() {
+    var s = readState();
+    if (s === null || s === prevState) return;   // 계약 없는 기존 9개는 조용히 지나간다
+    var was = prevState;
+    prevState = s;
+    // 일시정지에서 돌아온 것은 새 판이 아니다. 탭을 옮겼다 오면 게임이 스스로
+    // pause/resume 하므로, 이걸 안 걸러내면 한 판이 여러 판으로 세진다.
+    if (s === 'playing' && was !== 'paused') {
+      runs++;
+      runStart = Date.now();
+      send('game_start', { item_id: slug, run_index: runs });
+      if (runs > 1) send('game_replay', { item_id: slug, run_index: runs });
+    } else if (s === 'over' && was === 'playing') {
+      var sc = null;
+      try {
+        var G = frame.contentWindow.__GAME__;
+        if (typeof G.score === 'number') sc = G.score;
+      } catch (e) { /* 계약이 사라졌다 — 판 길이만 남긴다 */ }
+      send('game_over', {
+        item_id: slug,
+        run_index: runs,
+        score: sc,
+        // 700ms 폴링이라 ±1초 오차가 있다. '10초 안에 지루한가'를 가르는 데는 충분하고,
+        // 더 정확히 재려면 게임 본체에 코드를 넣어야 하는데 그건 원칙을 깬다.
+        run_seconds: runStart ? Math.round((Date.now() - runStart) / 1000) : null
+      });
+    }
+  }
+
   function refresh() {
     if (document.hidden) return;
+    trackState();
     var next = readScore();
     paintDaily();
     if (next === score) return;
