@@ -42,6 +42,7 @@
     "releasedAt": "2026-08-07",
     "status": "published",
     "featured": false,
+    "captureFromMs": 7000,
     "portals": {
       "gamedistribution": null,
       "gamepix": null,

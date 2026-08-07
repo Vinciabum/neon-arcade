@@ -20,16 +20,29 @@ const HEIGHT = 640;
 // 600x800 = 0.75다. 밴드 양옆은 게임 자신의 풀블리드 배경이 채우므로 합성이 필요 없다.
 const VIEWPORT = { width: 600, height: 838 };
 
-// 캡처 시점 후보(시작 트리거 이후 경과 시간).
-// 이르면 타이틀, 늦으면 게임오버가 찍히므로 촘촘히 여러 장 확보한다.
+/* 캡처 시점 후보(시작 트리거 이후 경과 시간).
+   이르면 타이틀, 늦으면 게임오버가 찍히므로 촘촘히 여러 장 확보하고,
+   '타이틀과 처음으로 충분히 달라진' 가장 이른 프레임을 고른다.
+
+   ⚠ 그 규칙이 어떤 게임에는 너무 이르다. duck-line은 900ms에 이미 물이 흐르므로
+   조건을 통과하지만, 그 순간 엄마는 혼자다 — 이 게임의 전부인 '줄'이 없는 그림이
+   OG 카드와 썸네일에 그대로 박혔다. 반대로 pulse-lock은 1800ms에 찍었더니 빨간
+   MISSED가 화면을 덮었다(아무도 조작하지 않으면 실패 피드백이 쌓인다).
+
+   그래서 시점을 게임이 스스로 밝히게 한다: games.json 의 captureFromMs 가 있으면
+   그 뒤부터 표본을 뜬다. '가장 이른 변화 프레임' 규칙은 그대로라 게임오버는 여전히 피한다. */
 const CAPTURE_AT_MS = [900, 1500, 2200, 3000, 3800];
+function captureTimes(fromMs) {
+  if (!fromMs) return CAPTURE_AT_MS;
+  return CAPTURE_AT_MS.map((t, i) => fromMs + i * 700);
+}
 
 // 타이틀 대비 이 정도는 달라져야 "게임이 시작됐다"로 본다 (0~255 평균 절대차).
 const CHANGED_THRESHOLD = 12;
 
 // 타이틀 화면을 기준선으로 삼고, 거기서 처음으로 충분히 달라진 프레임을 고른다.
 // 게임오버는 플레이보다 뒤에 오므로 "가장 이른 변화 프레임"을 잡으면 자연히 배제된다.
-async function pickPlayFrame(page, target, baseline) {
+async function pickPlayFrame(page, target, baseline, fromMs) {
   let fallback = null;
   let fallbackDiff = -1;
   let prev = 0;
@@ -44,7 +57,7 @@ async function pickPlayFrame(page, target, baseline) {
     async () => { await clickStartButton(page); }
   ];
 
-  for (const at of CAPTURE_AT_MS) {
+  for (const at of captureTimes(fromMs)) {
     await page.waitForTimeout(at - prev);
     prev = at;
     const raw = await target.screenshot().catch(() => null);
@@ -59,7 +72,7 @@ async function pickPlayFrame(page, target, baseline) {
   return fallback ? { raw: fallback, diff: fallbackDiff, at: null } : null;
 }
 
-async function shoot(browser, slug) {
+async function shoot(browser, slug, fromMs) {
   const page = await browser.newPage({ viewport: VIEWPORT });
   const file = path.resolve(gamePath(slug));
   await page.goto(pathToFileURL(file).href, { waitUntil: 'load' });
@@ -71,7 +84,7 @@ async function shoot(browser, slug) {
   const baseline = await target.screenshot();
   await triggerStart(page);
 
-  const picked = await pickPlayFrame(page, target, baseline);
+  const picked = await pickPlayFrame(page, target, baseline, fromMs);
   if (!picked) throw new Error('no frame captured');
 
   const out = thumbPath(slug);
@@ -93,7 +106,8 @@ const slugs = process.argv.slice(2).length
 const browser = await chromium.launch();
 for (const slug of slugs) {
   try {
-    const { out, diff, at } = await shoot(browser, slug);
+    const entry = all.find(g => g.slug === slug);
+    const { out, diff, at } = await shoot(browser, slug, entry && entry.captureFromMs);
     const when = at === null ? 'NO CLEAR START (fallback frame)' : `t=${at}ms`;
     console.log(`ok   ${slug} -> ${out}  [diff ${diff}, ${when}]`);
   } catch (err) {
