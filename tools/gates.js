@@ -194,6 +194,19 @@ export function checkPlay(r) {
   if (r.inputMs) {
     if (deaths < PLAY.MIN_DEATHS_TO_JUDGE) {
       skipped.push(`${at}: survival not judged — only ${deaths} death(s) observed in ${r.inputMs}ms`);
+    } else if (r.session === 'single-shot') {
+      // 한 발로 끝나는 판은 길이를 '생존'이 아니라 '숙고'가 정한다. 자동 테스터는
+      // 코스를 읽지 않고 즉시 쏘므로 무조건 짧게 나온다 — 이 측정이 옮겨오지 않는다.
+      // 규칙을 없애는 대신 목적을 바꿔 잰다: **사람이 생각할 시간을 실제로 줬는가.**
+      // 손을 안 대도 3초는 살아 있어야 하고, 그건 방치 종결 시간으로 직접 확인된다.
+      // 선언한 게임만 이 경로를 탄다 — 조용히 넓히면 앞으로 만드는 모든 게임이
+      // 자기도 모르게 들어가고, 그때는 아무도 눈치채지 못한다.
+      const grace = r.idle?.afterMs ?? 0;
+      if (grace < PLAY.MIN_MEAN_SURVIVAL_MS) {
+        errors.push(`${at}: single-shot round gives no time to act — ends ${grace}ms after start without input, need ${PLAY.MIN_MEAN_SURVIVAL_MS}ms`);
+      } else {
+        skipped.push(`${at}: mean survival not judged — declared single-shot, round ends on the player's one action (idle grace ${grace}ms)`);
+      }
     } else {
       // 죽은 시간 보정이 입력 시간 전체를 넘어설 수 있으니(부동소수 오차·짧은 세션) 0 밑으로는 내려가지 않는다.
       const playedMs = Math.max(0, r.inputMs - deaths * (r.sampleMs ?? 0));

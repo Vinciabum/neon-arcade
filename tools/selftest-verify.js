@@ -11,7 +11,10 @@ const CASES = [
   { file: 'tests/fixtures/overlay-stuck.html',    expect: 'fail', match: /covered by an overlay/ },
   { file: 'tests/fixtures/instant-death.html',    expect: 'fail', match: /dies too fast/ },
   { file: 'tests/fixtures/no-band.html',          expect: 'fail', match: /play band .* harder than on a phone/ },
-  { file: 'tests/fixtures/no-score-reset.html',   expect: 'fail', match: /score did not reset on restart/ }
+  { file: 'tests/fixtures/no-score-reset.html',   expect: 'fail', match: /score did not reset on restart/ },
+  // single-shot 선언이 '생존 3초'를 끄는 대신 '방치 3초'를 켠다. 그쪽이 죽어 있으면
+  // 이 선언 한 줄로 판 길이 검사를 통째로 빠져나갈 수 있다.
+  { file: 'tests/fixtures/single-shot-no-grace.html', expect: 'fail', match: /single-shot round gives no time to act/ }
 ];
 
 const run = (file) => new Promise((resolve) => {

@@ -1,0 +1,30 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>fixture: single-shot without grace</title>
+<style>html,body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh;touch-action:none}</style></head>
+<body><canvas id="c"></canvas><script>
+const c = document.getElementById('c');
+c.addEventListener('touchstart', () => {});
+const ctx = c.getContext('2d');
+let state = 'title', score = 0, tick = 0, scoreAt = 0, diesAt = 0;
+// instant-death 와 같은 게임인데 session 만 'single-shot' 으로 밝힌다.
+// 선언이 생존 규칙을 끄는 것은 맞지만, 그 대신 들어오는 규칙("손 안 대도 3초는 준다")까지
+// 통과시켜서는 안 된다. 그 규칙이 죽어 있으면 어떤 게임이든 이 선언만 붙이면
+// 판 길이 검사를 통째로 빠져나간다 — 이 픽스처가 그 문을 지킨다.
+function frame() {
+  tick++;
+  if (state === 'playing' && tick > scoreAt) score = 1;
+  if (state === 'playing' && tick > diesAt) state = 'over';
+  ctx.fillStyle = '#123'; ctx.fillRect(0, 0, 4000, 4000);
+  ctx.fillStyle = '#4f4'; ctx.fillRect((tick * 4) % 300, 100, 40, 40);
+  requestAnimationFrame(frame);
+}
+window.__GAME__ = {
+  api: 1,
+  session: 'single-shot',
+  get state() { return state; },
+  get score() { return score; },
+  get tick() { return tick; },
+  start() { state = 'playing'; score = 0; scoreAt = tick + 60; diesAt = tick + 78; },   // 약 1.3초 뒤 사망
+  pause() {}, resume() {}
+};
+requestAnimationFrame(frame);
+</script></body></html>

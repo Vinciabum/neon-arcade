@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- ===== PAGE TEXT — 새 게임에서 이 블록을 교체한다 ===== -->
+<title>One Shot — Neon Arcade</title>
+<!-- ===== PAGE TEXT 끝 ===== -->
+<style>
+  :root { --neon: #00e5ff; --bg: #05060a; --ink: #e8f6ff; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  #wrap { position: fixed; inset: 0; display: flex; flex-direction: column; }
+  #hud { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 10px 14px; font-variant-numeric: tabular-nums; font-size: 14px; }
+  #hud b { color: var(--neon); font-weight: 700; }
+  /* HUD 높이를 바꾸면 플레이 밴드(390/806)가 깨진다. font를 물려받고 padding·border를 0으로
+     둬서 줄 상자가 옆의 span과 같게 만든다 — 아이콘 대신 글자를 쓰는 이유도 그거다. */
+  #hud button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
+    cursor: pointer; letter-spacing: inherit; }
+  #stage { position: relative; flex: 1; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; background: #070912; }
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; text-align: center;
+    background: rgba(5, 6, 10, .82); padding: 20px; }
+  .overlay[hidden] { display: none; }
+  .overlay h1 { margin: 0; font-size: clamp(22px, 7vw, 38px); letter-spacing: .04em; color: var(--neon); }
+  .overlay p { margin: 0; max-width: 30ch; line-height: 1.5; opacity: .85; font-size: 14px; }
+  .btn { appearance: none; border: 1px solid var(--neon); background: transparent; color: var(--neon);
+    padding: 12px 26px; border-radius: 999px; font: inherit; font-weight: 700; cursor: pointer;
+    min-width: 160px; min-height: 48px; }
+  .btn:active { background: rgba(0, 229, 255, .16); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <!-- ===== HUD & OVERLAYS — 새 게임에서 이 블록을 교체한다 =====
+       id는 스크립트가 참조한다. HUD에 목숨·레벨을 더하면 아래 el 조회도 같이 늘려야 한다.
+       canvas#c 와 두 오버레이의 id(titleScreen·overScreen)는 그대로 두는 편이 안전하다. -->
+  <div id="hud">
+    <span>SCORE <b id="score">0</b></span>
+    <span>TODAY <b id="best">0</b></span>
+    <button id="muteBtn" type="button" aria-label="Toggle sound">SOUND <b>ON</b></button>
+  </div>
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div class="overlay" id="titleScreen">
+      <h1>ONE SHOT</h1>
+      <p>One swing at the pin. Pull back and release to aim, or arrow keys to line it up and Space to swing. Read the wind — you only get one.</p>
+      <button class="btn" id="startBtn" type="button">Play</button>
+    </div>
+    <div class="overlay" id="overScreen" hidden>
+      <h1 id="overTitle">SHOT PLAYED</h1>
+      <p id="overLine">Score <b id="finalScore">0</b></p>
+      <button class="btn" id="againBtn" type="button">Next course</button>
+    </div>
+  </div>
+  <!-- ===== HUD & OVERLAYS 끝 ===== -->
+</div>
+
+<script>
+/* ============================================================
+   NEON ARCADE — GAME BASE
+   새 게임은 이 파일을 복사해 play/<slug>.html 로 두고
+   "GAME LOGIC" 구역만 교체한다. 그 위/아래(계약·입력·FX·루프·포털 훅)는 그대로 둔다.
+   ============================================================ */
+
+const SLUG = 'one-shot';                   // 새 게임에서 슬러그로 바꾼다
+const BEST_KEY = 'just1game:' + SLUG + ':best';
+
+/* ---------- 하루 한 판 ---------- */
+// 같은 날 들어온 사람은 같은 판을 받는다. 시드가 날짜 하나뿐이라 서버가 필요 없다.
+//
+// ⚠ 이 게임들이 난수를 안 쓰는 이유는 게이트가 실패를 재현할 수 있어야 해서다.
+//   날짜를 섞으면 그 성질이 깨진다 — 오늘 통과한 게임이 다음 주에 실패할 수 있고,
+//   썸네일도 매일 다른 그림이 된다. 그래서 고정할 길을 같이 둔다:
+//
+//     ?day=N        일부러 특정 날을 재볼 때 (여러 날 게이트 실행)
+//     file:// 로 열면 언제나 0일차 — verify·shoot·shots·og 가 전부 이 경로로 연다
+//     그 외          오늘
+//
+//   순서가 중요하다. file:// 규칙이 없으면 도구마다 ?day=0을 붙여야 하고, 한 곳만
+//   빠뜨려도 그 도구만 조용히 날짜에 끌려간다.
+const DAY_ZERO = Math.floor(Date.UTC(2026, 7, 1) / 86400000);
+const DAY = (() => {
+  try {
+    const q = new URLSearchParams(location.search).get('day');
+    if (q !== null && q !== '' && Number.isFinite(Number(q))) return Math.trunc(Number(q));
+    if (location.protocol === 'file:') return 0;
+  } catch (e) { return 0; }
+  const d = new Date();
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000) - DAY_ZERO;
+})();
+const DAILY_NO = DAY + 1;
+// 인접한 날이 비슷한 판이 되지 않도록 흩는다. 게임은 이 둘 중 자기에게 맞는 것만 쓴다.
+const DAY_SEED = Math.imul(DAY + 1, 2654435761) >>> 0;   // 정수 시드에 섞을 값
+const DAY_PHASE = (DAY_SEED % 1000003) / 1000003;        // 0~1. 황금비 수열의 위상용
+
+/* ---------- 오늘의 최고점 ----------
+   판이 매일 바뀌므로 전체 기간 최고점은 **다른 날 판에서 낸 숫자**다. 화면에는 오늘 것을 쓴다.
+   전체 기간 값도 계속 적어둔다 — 지우면 되돌릴 수 없고, 지금 안 보인다고 버릴 이유는 없다. */
+const TODAY_KEY = 'just1game:' + SLUG + ':d' + DAY;
+function loadToday() {
+  try { return Number(localStorage.getItem(TODAY_KEY)) || 0; } catch { return 0; }
+}
+function saveToday(v) {
+  try { localStorage.setItem(TODAY_KEY, String(v)); } catch { /* 메모리에만 유지한다 */ }
+}
+// 지난 날 기록은 지운다. 안 지우면 게임 하나에 하루 한 개씩 영원히 쌓인다.
+(function () {
+  try {
+    const prefix = 'just1game:' + SLUG + ':d';
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(prefix) === 0 && k !== TODAY_KEY) localStorage.removeItem(k);
+    }
+  } catch (e) { /* 차단된 저장소 */ }
+})();
+
+/* ---------- 최고점 저장 ----------
+   localStorage는 샌드박스 iframe이나 서드파티 저장소가 차단된 환경에서
+   읽기만 해도 throw한다 — 이 파일이 SDK 훅을 들고 가는 포털 임베드가 정확히 그 환경이다.
+   막히면 메모리에만 유지한다(그 세션 동안은 최고점이 동작하고, 다음 방문에 사라진다). */
+function loadBest() {
+  try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch { return 0; }
+}
+function saveBest(v) {
+  try { localStorage.setItem(BEST_KEY, String(v)); } catch { /* 메모리에만 유지한다 */ }
+}
+
+/* ---------- 포털 SDK 훅 ----------
+   사이트 배포에서는 비활성 no-op. 포털 납품 빌드에서만 PORTAL.enabled를 켠다.
+   게임 로직은 아래 4개 함수만 부른다 — SDK가 무엇으로 바뀌어도 로직은 안 바뀐다. */
+const PORTAL = { enabled: false, gameId: '' };
+const Portal = {
+  ready() { if (!PORTAL.enabled) return Promise.resolve(); return Promise.resolve(window.gdsdk); },
+  gameplayStart() { if (PORTAL.enabled && window.gdsdk) window.gdsdk.preloadAd?.('rewarded'); },
+  gameplayStop() { /* 납품 빌드에서 SDK의 gameplayStop을 연결한다 */ },
+  adBreak(done) { done(); }   // 비활성 상태에서는 즉시 콜백. 게임이 광고를 기다리며 멈추지 않는다
+};
+
+/* ---------- 오디오: 사용자 제스처 이후에만 초기화 (모바일 정책) ---------- */
+let actx = null;
+function audioReady() {
+  if (actx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  actx = new AC();
+  // 제스처 안에서 만들어도 suspended로 시작할 수 있다 (특히 iOS·임베드).
+  // 깨우지 않으면 모든 복제 게임이 조용히 무음이 된다. 거부는 무시한다 — 소리는 부가 기능이다.
+  Promise.resolve(actx.resume?.()).catch(() => {});
+}
+function beep(freq, ms) {
+  if (!actx) return;
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  osc.frequency.value = freq;
+  osc.type = 'square';
+  gain.gain.value = 0.04;
+  osc.connect(gain).connect(actx.destination);
+  osc.start();
+  osc.stop(actx.currentTime + ms / 1000);
+}
+
+/* ---------- BGM: 배경음도 코드로 쓴다 (프레임 레벨) ---------- */
+// 오디오 파일을 들이지 않는 이유는 스프라이트 때와 같다 — 라이선스와 용량이다.
+//
+// 프레임 안에서 음을 만들지 않는다. 게이트 1이 fps 하한 50을 재므로 rAF에 붙이는 설계는
+// 처음부터 못 쓴다. 박자를 오디오 스레드에 미리 예약하고 JS는 4Hz로만 깨어난다.
+//
+// state를 직접 읽는다 — start/gameOver/pause/resume 네 곳에 손을 대는 설계였으면
+// 게임마다 한 곳을 빠뜨렸을 것이고, 그건 "게임오버 화면에서 음악만 계속 도는" 것으로 나타난다.
+const BGM = (function () {
+  // root=기음(Hz) · beat=한 박(초) · pattern=반음 오프셋(null은 쉼표)
+  // 게임마다 다르게 준다. 17개가 같은 곡을 틀면 그건 한 게임처럼 들린다.
+  const SONG = {
+    root: 220, beat: 0.30, wave: 'square',
+    pattern: [0, 7, 3, 10, 0, 5, 3, 7, null, 12, 10, 7, 5, 3, null, 2]
+  };
+  const MUTE_KEY = 'just1game:' + SLUG + ':muted';
+
+  let bus = null, at = 0, step = 0, playing = false;
+  let muted = false;
+  try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { /* 차단된 저장소 */ }
+
+  function tone(freq, when, dur, wave, vol) {
+    const osc = actx.createOscillator();
+    const g = actx.createGain();
+    osc.type = wave;
+    osc.frequency.setValueAtTime(freq, when);
+    // 사각파를 그냥 켜고 끄면 딱딱 소리가 난다. 짧은 램프로 감싼다.
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(vol, when + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    osc.connect(g).connect(bus);
+    osc.start(when);
+    osc.stop(when + dur + 0.03);
+  }
+
+  // 0.5초 앞까지만 채운다. 더 멀리 예약하면 정지가 그만큼 늦게 먹는다.
+  // 광고로 컨텍스트가 suspend되면 currentTime이 멈추므로 여기서 저절로 멈춘다.
+  function fill() {
+    while (at < actx.currentTime + 0.5) {
+      const i = step % SONG.pattern.length;
+      const semi = SONG.pattern[i];
+      if (semi !== null) {
+        tone(SONG.root * Math.pow(2, semi / 12), at, SONG.beat * 0.85, SONG.wave, 0.018);
+      }
+      if (i % 4 === 0) tone(SONG.root / 2, at, SONG.beat * 3.2, 'triangle', 0.026);
+      at += SONG.beat;
+      step++;
+    }
+  }
+
+  function begin() {
+    if (!bus) { bus = actx.createGain(); bus.connect(actx.destination); }
+    playing = true;
+    at = actx.currentTime + 0.1;
+    fill();
+  }
+  // 이미 예약된 음이 남아 있으므로 버스를 끊는다. 다음 begin()이 새로 만든다.
+  function end() {
+    playing = false;
+    if (bus) { try { bus.disconnect(); } catch (e) {} bus = null; }
+  }
+
+  // 제스처를 기다리지 않는다 — actx가 없으면 아무것도 안 하고 넘어간다.
+  setInterval(function () {
+    if (!actx) return;
+    const want = state === S.PLAYING && !muted;
+    if (want && !playing) begin();
+    else if (!want && playing) end();
+    else if (playing) fill();
+  }, 250);
+
+  const btn = document.getElementById('muteBtn');
+  const paint = () => { if (btn) btn.querySelector('b').textContent = muted ? 'OFF' : 'ON'; };
+  if (btn) {
+    btn.addEventListener('click', () => {
+      audioReady();          // 소리를 켜는 클릭이 곧 제스처다 — 여기서 컨텍스트가 열린다
+      muted = !muted;
+      try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch (e) {}
+      if (muted) end();
+      paint();
+    });
+  }
+  paint();
+
+  return { isMuted: () => muted, isPlaying: () => playing };
+})();
+
+/* ---------- 캔버스: 반응형 + DPR ---------- */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+// 플레이 밴드 — 창이 가로로 넓어도 게임이 도는 판은 늘 세로 비율이다.
+// 이게 없으면 M()이 치수를 H에서 파생하므로 넓은 창일수록 조작 목표가 화면 폭 대비
+// 작아진다(900x600에서 3.2배 어려웠다). 게이트는 세로만 재서 이 축을 못 봤다.
+// 844가 아니라 806인 이유: 기준은 뷰포트가 아니라 캔버스다. 390x844 폰에서 HUD가
+// 38px를 가져가 캔버스는 390x806이 된다. 844로 잡으면 기준 화면에서도 9px 밴드가 생긴다(실측).
+const BAND = 390 / 806;
+let W = 0, H = 0;        // 플레이필드 — 게임 로직이 쓰는 좌표계. W는 밴드 폭이다
+let SW = 0, OX = 0;      // 실제 화면 폭 / 밴드 좌측 여백. 배경만 이 둘을 본다
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  SW = Math.max(1, Math.round(rect.width));
+  H = Math.max(1, Math.round(rect.height));
+  W = Math.min(SW, Math.round(H * BAND));
+  OX = Math.round((SW - W) / 2);
+  canvas.width = Math.round(SW * dpr);
+  canvas.height = Math.round(H * dpr);
+  // 원점을 밴드 왼쪽으로 옮긴다. 게임 코드는 W가 화면 폭인 줄 알고 그대로 돌아간다.
+  // 세로 390x844에서는 캔버스가 390x806이고 round(806*BAND)=390=SW라 OX=0 —
+  // 기준 화면은 픽셀 하나 안 변한다. 회귀 위험이 가로에만 갇힌다.
+  ctx.setTransform(dpr, 0, 0, dpr, OX * dpr, 0);
+}
+window.addEventListener('resize', resize);
+
+/* ============================================================
+   FX — 파티클·화면 흔들림·플래시. 프레임의 일부이므로 새 게임이 그대로 물려받는다.
+   에셋도 라이브러리도 쓰지 않는다: 이 파이프라인의 게임은 캔버스로만 그린다
+   (에셋 라이선스가 기존 게임의 상업적 사용을 막았고, 그 실수를 반복하지 않는다).
+
+   GAME LOGIC이 부르는 것은 이 셋뿐이다:
+     FX.burst(x, y, color[, count])  — (x,y)에서 파편이 터진다. 캔버스 픽셀 좌표
+     FX.shake(px)                    — 화면을 px만큼 흔든다 (여러 번 부르면 큰 쪽이 이긴다)
+     FX.flash(color[, sec, peak])    — 화면 전체를 잠깐 덮는다. peak은 가장 진할 때의 알파
+     FX.trail(x, y, color, w, h[, sec]) — 잔상 하나. 매 프레임 불러 이동 흔적을 만든다
+   루프가 부르는 것: FX.update(dt) / FX.begin(ctx) / FX.draw(ctx) / FX.end(ctx)
+
+   begin/end로 감싸는 이유: 흔들림은 화면 전체를 옮기는 것이라
+   옮긴 만큼 가장자리에 빈 띠가 생긴다. begin이 먼저 FX.bg로 캔버스를 덮고 옮긴다.
+   그래서 FX.bg는 게임 배경색과 같아야 한다 — 새 게임에서 배경을 바꾸면 이 값도 바꾼다.
+   ============================================================ */
+const FX = (() => {
+  // 파티클은 고정 풀에서만 꺼낸다. 폭발마다 객체를 새로 만들면 60초 플레이에서
+  // 힙이 계속 자라 게이트 2의 누수 판정(2.5배)에 걸린다. 다 차면 오래된 것부터 덮어쓴다.
+  const MAX = 220;
+  const pool = new Array(MAX);
+  for (let i = 0; i < MAX; i++) pool[i] = { life: 0, ttl: 1, x: 0, y: 0, vx: 0, vy: 0, g: 0, w: 2, h: 2, color: '#fff' };
+  let head = 0;
+
+  let amp = 0, sx = 0, sy = 0;
+  let flashT = 0, flashDur = 1, flashPeak = 0.55, flashColor = '#fff';
+
+  // 난수는 자체 시드로 돌린다. Math.random을 쓰면 같은 조작으로 돌린 게이트 실행이
+  // 매번 달라져 실패를 다시 만들어낼 수 없다.
+  let seed = 22222;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+
+  const take = () => { const p = pool[head]; head = (head + 1) % MAX; return p; };
+
+  return {
+    bg: '#070912',
+
+    burst(x, y, color, count = 14) {
+      // 속도·크기·중력을 화면 높이에서 파생한다. 픽셀 상수로 두면 4K에서 먼지가 된다
+      // (M()이 스프라이트에 대해 하는 것과 같은 이유).
+      const spd = H * 0.42, grav = H * 0.9, size = Math.max(1.5, H * 0.0055);
+      for (let i = 0; i < count; i++) {
+        const a = rnd() * Math.PI * 2;
+        const v = spd * (0.35 + rnd() * 0.85);
+        const p = take();
+        p.x = x; p.y = y;
+        p.vx = Math.cos(a) * v; p.vy = Math.sin(a) * v - spd * 0.25;
+        p.g = grav; p.w = p.h = size * (0.7 + rnd() * 0.9);
+        p.ttl = p.life = 0.45 + rnd() * 0.5;
+        p.color = color;
+      }
+    },
+
+    trail(x, y, color, w, h, sec = 0.26) {
+      const p = take();
+      p.x = x; p.y = y; p.vx = 0; p.vy = 0; p.g = 0;
+      p.w = w; p.h = h; p.ttl = p.life = sec; p.color = color;
+    },
+
+    shake(px) { amp = Math.max(amp, px); },
+
+    // peak은 가장 진할 때의 알파. 사망처럼 화면을 끊는 순간은 세게, 등장·획득처럼
+    // 자주 일어나는 순간은 약하게 — 약한 값이 없으면 흔한 사건이 화면을 계속 세탁한다.
+    flash(color, sec = 0.2, peak = 0.55) { flashColor = color; flashDur = sec; flashT = sec; flashPeak = peak; },
+
+    update(dt) {
+      for (let i = 0; i < MAX; i++) {
+        const p = pool[i];
+        if (p.life <= 0) continue;
+        p.life -= dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += p.g * dt;
+      }
+      // 흔들림은 지수 감쇠. 매 프레임 새 오프셋을 뽑아야 '떨림'으로 보인다.
+      amp *= Math.exp(-dt * 9);
+      if (amp < 0.35) amp = 0;
+      sx = amp ? (rnd() * 2 - 1) * amp : 0;
+      sy = amp ? (rnd() * 2 - 1) * amp : 0;
+      if (flashT > 0) flashT -= dt;
+    },
+
+    begin(ctx) {
+      // 흔들림이 만드는 빈 띠를 덮는 판은 밴드가 아니라 화면 전체를 덮어야 한다.
+      // 밴드만 덮으면 흔들릴 때 여백에 흔적이 남는다.
+      if (sx || sy) { ctx.fillStyle = this.bg; ctx.fillRect(-OX, 0, SW, H); }
+      ctx.save();
+      ctx.translate(sx, sy);
+    },
+
+    draw(ctx) {
+      // 가산 합성. 어두운 배경에서 파편이 겹칠수록 밝아져 네온처럼 보인다.
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < MAX; i++) {
+        const p = pool[i];
+        if (p.life <= 0) continue;
+        ctx.globalAlpha = p.life / p.ttl;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - p.w / 2, p.y - p.h / 2, p.w, p.h);
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    },
+
+    end(ctx) {
+      ctx.restore();
+      // 플래시는 흔들림 밖에서 그린다 — 화면 전체를 덮는 판이라 같이 흔들리면 띠가 생긴다.
+      if (flashT > 0) {
+        ctx.globalAlpha = Math.min(1, (flashT / flashDur) * flashPeak);
+        ctx.fillStyle = flashColor;
+        ctx.fillRect(-OX, 0, SW, H);   // 밴드만 번쩍이면 화면이 두 조각으로 읽힌다
+        ctx.globalAlpha = 1;
+      }
+    }
+  };
+})();
+
+/* ---------- 상태 ---------- */
+const S = { TITLE: 'title', PLAYING: 'playing', PAUSED: 'paused', OVER: 'over' };
+let state = S.TITLE;
+let score = 0;
+let tick = 0;
+let best = loadBest();
+let today = loadToday();
+let autoPaused = false;      // 탭이 숨겨져서 우리가 멈춘 것인지 구분한다
+
+const el = {
+  score: document.getElementById('score'),
+  best: document.getElementById('best'),
+  finalScore: document.getElementById('finalScore'),
+  title: document.getElementById('titleScreen'),
+  over: document.getElementById('overScreen')
+};
+el.best.textContent = today;
+
+/* ---------- 입력: 키보드 + 터치 이중 ----------
+   left/right는 '방향을 누르고 있다', aimX는 '이 지점을 짚었다'(0~1, 캔버스 폭 비율)이다.
+   두 채널을 함께 두는 이유: 손가락은 화면 절반을 누르는 것보다 원하는 자리를 짚는 쪽이
+   훨씬 정확한데, 키보드에는 그런 좌표가 없다. 게임 로직이 둘 다 읽고 하나로 합친다. */
+// 채널 셋: 키보드(각도·세기를 눌러 맞춘다) · 드래그(집어서 당긴다) · 발사 신호.
+// fire는 '이번 프레임에 쳤다'는 일회성 신호다 — GAME LOGIC이 읽고 지운다.
+const input = { left: false, right: false, up: false, down: false, fire: false,
+                aiming: false, ax: 0, ay: 0, released: false };
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') input.left = true;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') input.right = true;
+  if (e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault(); input.up = true; }
+  if (e.code === 'ArrowDown' || e.code === 'KeyS') { e.preventDefault(); input.down = true; }
+  // Space/Enter: 일시정지 중이면 재개한다. state !== PLAYING 하나로 묶으면
+  // 멈춰 둔 판이 새 판으로 날아가고, 죽은 직후 프레임에 스스로 재시작해
+  // 수집기가 'over'를 한 번도 못 보는 일이 생긴다.
+  // PLAYING에서는 발사다 — 게이트 테스터가 누르는 키 목록에 Space가 들어 있어서
+  // 이 분기가 없으면 자동 심사가 한 발도 못 쏘고 '진행 없음'으로 떨어진다.
+  if (e.code === 'Space' || e.code === 'Enter') {
+    e.preventDefault();
+    if (state === S.PAUSED) resume();
+    else if (state === S.PLAYING) input.fire = true;
+    else if (state === S.TITLE || state === S.OVER) start();
+  }
+  if (e.code === 'KeyP') { state === S.PLAYING ? pause() : state === S.PAUSED ? resume() : 0; }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') input.left = false;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') input.right = false;
+  if (e.code === 'ArrowUp' || e.code === 'KeyW') input.up = false;
+  if (e.code === 'ArrowDown' || e.code === 'KeyS') input.down = false;
+});
+
+// 짚은 지점을 캔버스 폭 비율로 바꾼다. 화면 절반 비교(왼쪽/오른쪽)로 두면
+// 손가락이 '방향 버튼 두 개'가 되어 원하는 자리에 설 수 없다 — 드래그가 곧 조준이 되게 한다.
+// 밴드 기준으로 잰다. ctx의 transform은 그리기만 옮기지 입력은 안 옮기므로
+// OX를 여기서 직접 빼야 한다 — 안 빼면 가로 화면에서 손가락과 배가 어긋난다.
+// 이 게임의 조준은 한 점이 아니라 '당긴 벡터'다 — x만으로는 세기를 알 수 없어 y도 받는다.
+// ctx의 transform은 그리기만 옮기지 입력은 안 옮기므로 OX를 여기서 직접 뺀다.
+function aimAt(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  input.aiming = true;
+  input.ax = clientX - rect.left - OX;
+  input.ay = clientY - rect.top;
+}
+// 손을 뗀 것이 곧 발사다. released는 GAME LOGIC이 읽고 지우는 일회성 신호다 —
+// aiming을 그냥 false로 만들면 '조준을 그만둔 것'과 '쳤다'가 구별되지 않는다.
+function releaseAim() {
+  if (input.aiming) { input.aiming = false; input.released = true; }
+}
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault(); audioReady();
+  // 일시정지 상태에서의 탭은 재시작이 아니라 재개다 (Space와 같은 규칙).
+  if (state === S.PAUSED) { resume(); return; }
+  if (state === S.TITLE || state === S.OVER) { start(); return; }
+  aimAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  aimAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault(); releaseAim();
+}, { passive: false });
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'touch') return;      // 터치는 위에서 처리
+  audioReady();
+  if (state === S.PAUSED) { resume(); return; }   // 위 touchstart와 같은 규칙
+  if (state === S.TITLE || state === S.OVER) { start(); return; }
+  aimAt(e.clientX, e.clientY);
+});
+canvas.addEventListener('pointermove', (e) => {
+  // 마우스는 누르고 끌 때만 조준한다. 그냥 지나가는 커서까지 따라가면
+  // 키보드로 조준하던 사람의 겨냥이 제멋대로 끌려간다.
+  if (e.pointerType !== 'touch' && e.buttons === 1 && state === S.PLAYING) aimAt(e.clientX, e.clientY);
+});
+// 캔버스 밖에서 손을 떼도 반드시 풀린다. 캔버스에만 걸면 오버레이 위에서 뗀 포인터가
+// aimX를 붙잡은 채로 남아 다음 판이 한쪽으로 끌려간 채 시작한다.
+window.addEventListener('pointerup', () => { releaseAim(); });
+window.addEventListener('pointercancel', () => { input.aiming = false; });
+
+document.getElementById('startBtn').addEventListener('click', () => { audioReady(); start(); });
+document.getElementById('againBtn').addEventListener('click', () => { audioReady(); start(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (state === S.PLAYING) { autoPaused = true; pause(); }
+  } else if (autoPaused) {
+    autoPaused = false;
+    resume();
+  }
+});
+
+/* ---- Axis: 좌우 한 축의 조작감 (프레임 레벨) ----
+   가로 이동을 쓰는 게임이면 값만 바꿔 그대로 쓴다. 여기 있는 이유가 중요하다 —
+   조작감 수식이 GAME LOGIC 안에 있으면 새 게임이 그 구역을 지우는 순간
+   가속·마찰·조준 추종이 전부 같이 사라진다. 그러면 템플릿을 손본 의미가 없다.
+
+   Axis.step(p, { dir, aimX }, dt) 는 p.x(0~1)와 p.vx를 갱신한다.
+   dir: -1|0|1 (키보드), aimX: 0~1 또는 null (터치·포인터가 짚은 위치).
+   가로 이동이 없는 게임(격자·탭 방식)은 이 블록을 안 부르면 그만이다. */
+const Axis = {
+  ACCEL: 7.0,        // 가속도 (화면 폭 배수/초²)
+  MAX_SPD: 1.15,     // 최고 속도 (화면 폭/초)
+  FRICTION: 9.0,     // 입력이 없을 때 속도가 죽는 비율/초
+  TURN_BOOST: 2.4,   // 반대로 꺾을 때 가속 배수. 없으면 방향 전환이 마찰만큼 늦게 먹힌다
+  AIM_ACCEL: 26.0,   // 짚은 지점을 향한 가속. 속도를 직접 넣지 않는 이유는 아래 참고
+  AIM_SNAP: 0.004,   // 이 거리 안이면 붙인다 — 손가락 밑에서 미세하게 떠는 것을 막는다
+  MIN_X: 0.06,
+  MAX_X: 0.94,
+
+  step(p, { dir = 0, aimX = null }, dt) {
+    if (aimX !== null) {
+      const d = aimX - p.x;
+      if (Math.abs(d) < this.AIM_SNAP) {
+        p.x = aimX;
+        p.vx = 0;
+      } else {
+        // 속도를 바로 대입하면 손가락이 조금만 멀어져도 최고속에 붙어버려서
+        // 터치에는 관성이 사라진다. 키보드와 같은 가속 경로를 태워야 두 조작이
+        // 같은 게임처럼 느껴진다. 목표를 지나치지 않도록 마찰도 같이 건다.
+        p.vx += Math.sign(d) * this.AIM_ACCEL * Math.min(1, Math.abs(d) * 6) * dt;
+        p.vx -= p.vx * Math.min(1, this.FRICTION * 0.5 * dt);
+        p.vx = Math.max(-this.MAX_SPD, Math.min(this.MAX_SPD, p.vx));
+      }
+    } else if (dir !== 0) {
+      // 이미 반대로 가고 있으면 더 세게 민다. 안 그러면 방향 전환에 마찰이 죽을 때까지
+      // 기다려야 해서 가속을 넣은 순간 조작이 오히려 굼떠진다.
+      const turning = dir * p.vx < 0;
+      p.vx += dir * this.ACCEL * (turning ? this.TURN_BOOST : 1) * dt;
+      p.vx = Math.max(-this.MAX_SPD, Math.min(this.MAX_SPD, p.vx));
+    } else {
+      // dt에 비례한 감쇠. 1을 넘지 않게 막아야 프레임이 튈 때 속도가 반대로 뒤집히지 않는다.
+      p.vx -= p.vx * Math.min(1, this.FRICTION * dt);
+    }
+
+    p.x += p.vx * dt;
+    if (p.x < this.MIN_X) { p.x = this.MIN_X; p.vx = 0; }   // 벽에 붙으면 속도도 죽인다 —
+    if (p.x > this.MAX_X) { p.x = this.MAX_X; p.vx = 0; }   // 안 그러면 벽에서 떼는 순간 튄다
+  }
+};
+
+/* ---- Curve: 시간에 따라 오르는 값 (프레임 레벨) ----
+   한 축만 올리면 그 축이 상한에 닿는 순간 화면이 더 이상 변하지 않아
+   유능한 플레이어가 같은 패턴을 반복하게 된다. 축마다 다른 시점에 상한에 닿게 두면
+   난이도가 계속 바뀐다. elapsed(경과 초)를 넣으면 현재 값이 나온다. */
+const Curve = (start, limit, ramp) => (elapsed) =>
+  limit > start ? Math.min(limit, start + ramp * elapsed)
+                : Math.max(limit, start - ramp * elapsed);
+
+/* ---- Sprite: 코드로 쓰는 픽셀 그림 (프레임 레벨) ----
+   심사관이 템플릿 시각 5점의 이유로 첫째로 꼽은 것이 "스프라이트가 없다"였다.
+   그렇다고 이미지 파일을 들이면 안 된다 — 기존 게임 4개가 itch.io 에셋에 묶여
+   상업적 이용이 막혔고 그걸 걷어내는 데 하루가 들었다. 그래서 그림을 파일이 아니라
+   글자로 쓴다. 우리가 쓴 것이므로 라이선스가 없고, 파일 하나 자체완결도 유지된다.
+
+     const HERO = Sprite.make(`
+       .11.
+       1221
+       .33.`, { 1:'#0ff', 2:'#fff', 3:'#08a' });
+     Sprite.draw(ctx, HERO, x, y, 3, { flip: vx < 0, glow: 12 });
+
+   '.'는 투명. 그 외 문자는 palette의 키다. 줄 앞뒤 공백은 알아서 지운다.
+   art에 배열을 주면 애니메이션 프레임이 된다 — Sprite.draw의 frame으로 고른다. */
+const Sprite = (() => {
+  // 매 프레임 픽셀을 도는 것은 60fps에서 못 버틴다. 만들 때 한 번만 굽고
+  // 그 뒤로는 drawImage 한 번이다.
+  function bake(art, palette) {
+    const rows = String(art).split('\n').map(r => r.trim()).filter(r => r.length);
+    if (!rows.length) throw new Error('Sprite: 빈 그림');
+    const w = Math.max(...rows.map(r => r.length));
+    const h = rows.length;
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const c = cv.getContext('2d');
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < rows[y].length; x++) {
+        const ch = rows[y][x];
+        if (ch === '.' || ch === ' ') continue;
+        const col = palette[ch];
+        // 팔레트에 없는 글자를 조용히 건너뛰면 그림에 구멍이 뚫린 채로 발행된다.
+        // 오타는 만들 때 터지는 편이 낫다.
+        if (!col) throw new Error(`Sprite: 팔레트에 '${ch}'가 없다`);
+        c.fillStyle = col;
+        c.fillRect(x, y, 1, 1);
+      }
+    }
+    return { cv, w, h };
+  }
+
+  return {
+    make(art, palette) {
+      const frames = (Array.isArray(art) ? art : [art]).map(a => bake(a, palette));
+      return { frames, w: frames[0].w, h: frames[0].h };
+    },
+
+    // cx,cy 는 스프라이트의 중심이다. 발밑이나 좌상단이 아니라 중심으로 두면
+    // 회전과 좌우 반전이 자리를 옮기지 않는다.
+    draw(ctx, spr, cx, cy, scale, opts = {}) {
+      const { frame = 0, flip = false, rot = 0, glow = 0, alpha = 1 } = opts;
+      const f = spr.frames[((frame | 0) % spr.frames.length + spr.frames.length) % spr.frames.length];
+      const w = f.w * scale, h = f.h * scale;
+      ctx.save();
+      ctx.globalAlpha *= alpha;
+      ctx.translate(cx, cy);
+      if (rot) ctx.rotate(rot);
+      if (flip) ctx.scale(-1, 1);
+      // 픽셀 그림은 보간하면 흐려진다. 이 한 줄이 없으면 확대한 순간
+      // 손으로 찍은 픽셀이 뭉개져서 스프라이트를 넣은 의미가 사라진다.
+      ctx.imageSmoothingEnabled = false;
+
+      // 글로우를 그림에 직접 걸면 안 된다. 이 게임의 글로우 반경은 스프라이트보다 커서
+      // (플레이어 40px 블러 vs 배 31px) 픽셀이 통째로 뭉개진다 — 실제로 첫 시도가 그랬다.
+      // 단색 사각형일 때는 후광만 생겨서 문제가 없었다.
+      // 그래서 후광을 먼저 흐리게 깔고, 그 위에 선명한 그림을 다시 얹는다.
+      if (glow) {
+        ctx.save();
+        ctx.globalAlpha *= 0.55;
+        ctx.shadowBlur = glow;
+        ctx.shadowColor = opts.glowColor || '#0ff';
+        ctx.drawImage(f.cv, -w / 2, -h / 2, w, h);
+        ctx.restore();
+      }
+      ctx.drawImage(f.cv, -w / 2, -h / 2, w, h);
+      ctx.restore();
+    },
+
+    // 경과 초를 프레임 번호로 바꾼다. 걷기·깜빡임처럼 시간이 도는 그림에 쓴다.
+    // dt가 아니라 누적 시간을 넣는다 — 프레임률이 흔들려도 속도가 같다.
+    cycle(elapsed, fps, count) { return Math.floor(elapsed * fps) % count; }
+  };
+})();
+
+/* ============================================================
+   ===== GAME LOGIC — 새 게임에서 이 구역만 교체한다 =====
+   지켜야 할 계약:
+     reset()     : 새 판의 초기 상태를 만든다 (score는 호출자가 0으로 만든다)
+     step(m, dt) : dt(초)만큼 진행. 죽으면 gameOver()를 부른다.
+                   입력을 주지 않으면 반드시 몇 초 안에 죽어야 한다 (게이트 2 방치 종결)
+     draw(m, dt) : 캔버스를 그린다. 모든 상태에서 매 프레임 불린다.
+                   단색이고 정지한 화면이면 게이트 1이 막는다
+     m 은 루프가 프레임당 한 번 만든 M() 결과다 — step과 draw가 같은 값을 본다
+   쓸 수 있는 것: FX.burst / FX.shake / FX.flash / FX.trail (위 FX 블록 참고).
+   파티클과 잔상은 루프가 알아서 갱신·렌더하므로 여기서는 부르기만 한다.
+
+   이 구역만 바꾸면 끝나지 않는다. 구역 밖에서 반드시 손대야 하는 곳:
+     1. SLUG — 최고점 저장 키가 된다. 안 바꾸면 모든 게임이 같은 키를 공유한다
+     2. <!-- PAGE TEXT --> 블록의 <title>
+     3. <!-- HUD & OVERLAYS --> 블록: 두 오버레이의 <h1>, 조작 설명 <p>
+        ("Dodge the falling blocks..."), 그리고 HUD 마크업
+     4. HUD에 목숨·레벨을 더했으면 el = { ... } 조회도 같이 늘린다
+     5. 입력 맵 — 좌/우·조준 말고 점프·발사 등이 필요하면 keydown/keyup·touch 핸들러와
+        input 객체, 그리고 이 구역의 clearInput()을 함께 고친다
+     6. FX.bg — 배경색을 바꾸면 흔들릴 때 가장자리에 그 색이 드러난다
+   ============================================================ */
+
+/* ---- 코스 상수 ----
+   앞의 둘이 "실력이냐 운이냐"를 정한다. 전부 프로토타입에서 실측으로 잡은 값이다.
+
+   SPREAD — 좌우 드래그 폭 전체를 몇 도에 펴는가. 드래그 벡터를 그대로 atan2로 쓰면
+     수직 근처에서 1°당 옆으로 1.5m가 튀어 그린에 남는 조준창이 4.3°(=드래그 ±6px)가 된다.
+     손가락으로 낼 수 없는 정밀도 = 제비뽑기다. 물리는 그대로 두고 제스처만 다시 매핑한다.
+   VMAX_K — 1.95로 올려봤다가 되돌렸다. "세기 여유가 는다"는 예상과 달리 코스 하나가
+     각도창 2°·세기창 5%로 무너졌다(평균 조준 여유 56px → 49px). 실측으로만 보였다.
+   ⚠ 둘 중 하나라도 만지면 8개 코스의 조준 여유를 다시 잰다. */
+const SPREAD  = 12 * Math.PI / 180;
+const VMAX_K  = 1.75;      // 최대 초속 (H배)
+const GRAV_K  = 1.90;      // 중력 (H배)
+const WIND_K  = 0.14;      // 0.32는 2초 비행에서 밴드 폭보다 크게 밀었다 — 바람이 실력을 덮는다
+const TEE_Y   = 0.72;      // 티가 0.90이면 세로 폭이 커져 발사각이 83~97°에 갇힌다.
+                           // 궤적 모양은 가로/세로 '거리 비'만 보므로 중력으로는 못 고친다
+const COURSE_M = 18;       // 밴드 폭이 18m다. 화면의 모든 거리 숫자가 여기서 나온다
+const HOLE_M   = 0.35;     // 이 안이면 홀인원
+const SHOT_CLOCK = 15;     // 방치 종결. 코스 읽는 데 3~6초면 되므로 여유가 크다.
+                           // ⚠ 이걸 '플레이어의 제한시간'으로 줄이지 말 것 — flux-sort가
+                           // 그렇게 게이트를 만족시켰다가 세션 점수 9/20을 받았다.
+                           // 게이트 FULL(20초)은 통과하고 QUICK(8초)에서는 실패한다.
+
+/* 거리를 점수로 바꾼다. 화면·HUD·공유·포털이 전부 '클수록 좋다'를 가정하므로
+   거리를 그대로 쓸 수 없다. 홀인원이 1000점이고 9m를 넘으면 0점이다. */
+function distToScore(dist, off) {
+  if (dist <= HOLE_M) return 1000;
+  const s = Math.round(1000 * Math.max(0, 1 - (dist - HOLE_M) / 9));
+  return off ? Math.round(s * 0.5) : s;    // 그린을 놓치면 반값 — 붙어도 올라간 것과 같을 순 없다
+}
+
+/* 도깨비의 몸 반폭(밴드 폭 비율). 판정은 여전히 점 하나지만, 그림이 점보다 크면
+   "바에 안 닿았는데 몸이 겹쳐 보이는" 순간이 생긴다 — 그림이 판정보다 클 때 나는 증상이다.
+   그래서 구멍 판정에서 이만큼 빼고, makeCourse가 gapHalf에 이만큼 더한다.
+   ⚠ 두 곳이 짝이다. 한쪽만 고치면 유효 통과폭이 달라져 측정해둔 조준창(좌우 56px)이 무너진다. */
+const BODY_HALF = 0.035;
+
+let course = null;
+const ball = { x: 0, y: 0, vx: 0, vy: 0, onGreen: false };
+let aim = { ang: Math.PI / 2, pull: 0.55 };   // 키보드로 조준할 때의 현재 값
+let flying = false, flyT = 0, settleT = 0, clock = 0, shotDone = null;
+let round = 0;       // 몇 번째 판인가. 연습 코스를 서로 다르게 만드는 데만 쓴다
+let elapsed = 0;
+let gridOff = 0;
+const GRID_SCROLL = 1.25;   // 게이트1의 motion은 400ms 간격 두 장의 픽셀차다.
+                            // 1.25/초 × 0.4초 = 격자 반주기 — 해상도에 무관하게 성립한다
+
+/* ---- 코스 생성 ----
+   같은 날은 모두가 같은 코스다. 시드는 날짜에서 나오고, 연습은 판 번호를 섞는다.
+   ⚠ 장애물의 구멍을 무작위로 두면 안 된다. 처음에 그렇게 했다가 8개 코스 2250발이
+   전부 막혔다 — 티에서 첫 바까지 0.24H뿐이라 공이 그 사이 옆으로 못 움직인다.
+   통과 가능 여부는 바의 '높이'가 아니라 '옆으로 갈 시간'이 정한다.
+   게다가 구멍이 무작위면 구멍이 착지점을 대신 결정해버려서, 조준이 아니라
+   구멍 위치가 게임을 하게 된다. 그래서 구멍은 '핀을 노린 궤적이 지나는 자리'에 둔다. */
+function makeCourse(seed) {
+  const r = mulberry32(seed);
+  const pinx = 0.18 + r() * 0.64;                   // ±SPREAD 안에서 닿아야 한다
+  const green = { y: 0.30 + r() * 0.10, half: 0.16 + r() * 0.08, x: pinx };
+  const wind = (r() * 2 - 1) * 0.85;
+  const bars = [];
+  const n = r() < 0.45 ? 1 : 2;
+  const hSpan = TEE_Y - green.y;
+  for (let i = 0; i < n; i++) {
+    const y = 0.46 + i * 0.09 + r() * 0.04;
+    // 정점까지의 수평 이동 비율 = 1 - sqrt(1 - 높이비). 포물선에서 바로 나온다.
+    const hFrac = Math.min(0.95, (TEE_Y - y) / hSpan);
+    const xFrac = 1 - Math.sqrt(1 - hFrac);
+    const ideal = 0.5 + (pinx - 0.5) * xFrac;
+    bars.push({
+      y,
+      gapHalf: 0.15 + r() * 0.06 + BODY_HALF,   // 몸 반폭만큼 넓힌다 — 판정에서 도로 뺀다
+      gapX: Math.max(0.12, Math.min(0.88, ideal + (r() * 2 - 1) * 0.05))
+    });
+  }
+  return { pinx, green, wind, bars, teex: 0.5, teey: TEE_Y };
+}
+
+/* ---- 네온 도깨비 ----
+   사이트의 얼굴이다. 파일을 들이지 않는다 — 에셋 라이선스가 기존 게임의 상업적 사용을
+   막았고 그 실수를 반복하지 않는다. 13x11인 이유는 17x7로 시작했다가 "캐릭터로 안 읽힌다"로
+   되돌린 전례가 있어서다(눈이 들어갈 자리가 없으면 그냥 덩어리로 보인다).
+
+   색은 일부러 화면의 의미 색을 피한다: 초록=그린(목표), 분홍=장애물, 노랑=핀.
+   도깨비는 흰-얼음빛이라 어느 쪽으로도 오해되지 않는다. 뿔 끝 불꽃만 두 프레임이
+   다르고 다리가 번갈아 뜬다 — 가만히 있어도 살아 있게 보인다. */
+const DOKKAEBI = Sprite.make([`
+  ..2.......2..
+  ..22.....22..
+  ...1111111...
+  ..111111111..
+  .11311111311.
+  .11111111111.
+  .111.....111.
+  ..111111111..
+  ...11...11...
+  ...1.....1...
+  ..11.....11..`, `
+  ..4.......4..
+  ..22.....22..
+  ...1111111...
+  ..111111111..
+  .11311111311.
+  .11111111111.
+  .1111...1111.
+  ..111111111..
+  ...11...11...
+  ..11.....11..
+  ...1.....1...`], {
+  1: '#eaffff',   // 몸
+  2: '#7fd8ff',   // 뿔
+  3: '#0a1220',   // 눈 — 배경색이라 구멍처럼 읽힌다
+  4: '#ffe27d'    // 도깨비불. 한 프레임에만 켜진다
+});
+
+// 결정적 난수. Math.random을 쓰면 같은 코스가 실행마다 달라져 게이트가 실패를 재현 못 한다.
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// 이 게임이 쓰는 입력 필드를 비운다. 구역 밖(start)에서 input을 직접 건드리면
+// 필드를 쓰는 다음 게임이 "누른 채로 죽으면 다음 판이 움직인 채 시작" 버그를
+// 조용히 물려받는다. 필드를 아는 쪽은 이 구역뿐이다.
+function clearInput() {
+  input.left = input.right = input.up = input.down = false;
+  input.fire = input.released = input.aiming = false;
+}
+
+// 치수를 한 곳에서 화면 높이로부터 파생한다. 픽셀 상수로 두면 큰 화면에서 그림이
+// 먼지처럼 작아진다(4K에서 게이트1 표준편차가 1.5까지 떨어졌다).
+// 그리기와 판정이 같은 값을 쓰므로 보이는 것과 맞는 판정이 보장된다.
+function M() {
+  return {
+    grid: H / 18,
+    line: Math.max(0.75, H / 760),
+    ball: Math.max(4, H * 0.010),
+    green: Math.max(3, H * 0.007),
+    bar: Math.max(3, H * 0.006),
+    pole: H * 0.075,
+    glow: H * 0.018
+  };
+}
+
+// 위로 갈수록 밝아지는 하늘. 균일한 격자는 평면으로 보이지만 밝기 기울기가 얹히면
+// 위쪽이 '먼 쪽'으로 읽혀 코스에 깊이가 생긴다. 매 프레임 만들면 60초에 3600개가 쌓여
+// 게이트 2의 힙 증가율을 먹으므로 높이가 바뀔 때만 다시 만든다.
+let skyGrad = null, skyH = 0;
+function sky() {
+  if (skyGrad && skyH === H) return skyGrad;
+  skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, 'rgba(125,255,176,.10)');
+  skyGrad.addColorStop(0.55, 'rgba(125,255,176,.03)');
+  skyGrad.addColorStop(1, 'rgba(125,255,176,0)');
+  skyH = H;
+  return skyGrad;
+}
+
+// 오늘의 코스를 아직 안 쳤으면 그것을, 쳤으면 연습 코스를 준다.
+// 데이터에 따로 적지 않고 저장된 결과 하나로 판별한다 — 두 곳에 적으면 반드시 어긋난다.
+let onDailyCourse = false;
+function nextSeed() {
+  let played = null;
+  try { played = localStorage.getItem(TODAY_KEY); } catch (e) {}
+  onDailyCourse = !played;
+  return onDailyCourse ? DAY_SEED : (Math.imul(round * 2654435761, 40503) >>> 0);
+}
+
+function reset() {
+  round++;
+  clearInput();
+  course = makeCourse(nextSeed());
+  for (const b of course.bars) b.hit = false;
+  ball.x = course.teex * W;
+  ball.y = course.teey * H;
+  ball.vx = ball.vy = 0;
+  ball.onGreen = false;
+  aim = { ang: Math.PI / 2, pull: 0.55 };   // 수직·중간 세기에서 시작한다
+  flying = false; flyT = 0; settleT = 0; elapsed = 0; gridOff = 0;
+  clock = SHOT_CLOCK;
+  shotDone = null;
+  // 판을 빈 화면으로 시작하지 않는다 — 티에 공이 놓이는 순간을 보여준다
+  FX.burst(ball.x, ball.y, '#7dffb0', 14);
+  FX.flash('#7dffb0', 0.14, 0.18);
+}
+
+/* 친다. 여기서만 flying이 켜진다 — 발사 경로가 하나여야 게이트가 재는 것과
+   사람이 하는 것이 같아진다(프로토타입에서 각도 부호가 뒤집힌 것을 실측이 잡은 이유다). */
+function swing() {
+  const vmax = H * VMAX_K;
+  ball.vx = Math.cos(aim.ang) * aim.pull * vmax;
+  ball.vy = -Math.sin(aim.ang) * aim.pull * vmax;   // 화면 y는 아래로 자란다
+  flying = true; flyT = 0;
+  beep(520, 60);
+  FX.burst(ball.x, ball.y, '#7dffb0', 12);
+  FX.shake(H * 0.006);
+}
+
+function finish(off, forfeit) {
+  const pinX = course.pinx * W;
+  let dist = Math.abs(ball.x - pinX) / W * COURSE_M;
+  if (off) dist += 4.0;                       // 그린을 놓치면 벌점
+  const ace = !off && dist <= HOLE_M;
+  shotDone = { dist, off, ace, forfeit: !!forfeit };
+  // 안 친 발은 0점이다. 거리로 환산하면 티가 핀에 가까운 코스에서 방치가 200점대를
+  // 받아버린다 — 아무것도 안 한 쪽이 나쁘게 친 쪽과 비슷해지면 안 된다.
+  score = forfeit ? 0 : distToScore(dist, off);
+  try { if (onDailyCourse) localStorage.setItem(TODAY_KEY, JSON.stringify(shotDone)); } catch (e) {}
+  if (ace) { FX.flash('#ffe27d', 0.5, 0.8); FX.shake(H * 0.03); FX.burst(pinX, course.green.y * H, '#ffe27d', 60); }
+  else { FX.burst(ball.x, ball.y, off ? '#ff5fa2' : '#7dffb0', 18); }
+  const t = document.getElementById('overTitle');
+  const l = document.getElementById('overLine');
+  if (t) t.textContent = forfeit ? 'SHOT CLOCK' : ace ? 'HOLE IN ONE'
+    : (off ? 'OFF THE GREEN' : dist.toFixed(1) + 'm FROM THE PIN');
+  if (l) l.innerHTML = (forfeit ? 'You never swung — ' : ace ? '' : dist.toFixed(1) + 'm out — ')
+    + 'Score <b id="finalScore">0</b>';
+  el.finalScore = document.getElementById('finalScore') || el.finalScore;
+  gameOver();
+}
+
+function step(m, dt) {
+  elapsed += dt;
+
+  if (!flying) {
+    /* ---- 조준 ----
+       키보드와 드래그가 같은 두 값(ang·pull)에 쓴다. 드래그가 있으면 그쪽이 이긴다. */
+    const rate = 1.6;
+    if (input.left || input.right) {
+      aim.ang += ((input.left ? 1 : 0) - (input.right ? 1 : 0)) * SPREAD * rate * dt;
+      aim.ang = Math.max(Math.PI / 2 - SPREAD, Math.min(Math.PI / 2 + SPREAD, aim.ang));
+    }
+    if (input.up || input.down) {
+      aim.pull += ((input.up ? 1 : 0) - (input.down ? 1 : 0)) * 0.55 * dt;
+      aim.pull = Math.max(0.15, Math.min(1, aim.pull));
+    }
+    if (input.aiming) {
+      // 좌우 드래그 폭 전체를 ±SPREAD에 편다. 드래그 벡터를 그대로 atan2로 쓰면
+      // 조준창이 4.3°(드래그 ±6px)가 되어 손가락으로 낼 수 없는 정밀도가 된다.
+      const maxPull = H * 0.22, aimW = H * 0.17;
+      const dx = ball.x - input.ax;                 // 왼쪽으로 당기면 오른쪽으로 나간다
+      const down = Math.max(0, input.ay - ball.y);
+      const u = Math.max(-1, Math.min(1, dx / aimW));
+      aim.ang = Math.PI / 2 - u * SPREAD;
+      aim.pull = Math.min(1, Math.hypot(dx, down) / maxPull);
+    }
+
+    // 손을 뗀 것도, Space도 발사다. 신호는 읽고 지운다 — 남겨두면 다음 판이 제 발로 나간다.
+    const fired = input.released || input.fire;
+    input.released = input.fire = false;
+    if (fired && aim.pull > 0.12) { swing(); return; }
+
+    // 방치 종결 — 샷 클락. 다 되면 공이 티에서 굴러떨어지고 판이 끝난다.
+    clock -= dt;
+    if (clock <= 0) {
+      FX.shake(H * 0.02); FX.flash('#ff5fa2', 0.25);
+      ball.x += W * 0.02; finish(true, true);
+    }
+    return;
+  }
+
+  /* ---- 비행 ----
+     서브스텝을 쪼개는 것은 장식이 아니라 터널링 방어다. 최고 속도가 1.75H/s인데
+     60fps 한 프레임이면 0.029H를 지나가고, 바의 두께는 그보다 얇다.
+     쪼개지 않으면 공이 장애물을 그냥 통과해 "막았는데 안 막히는" 게임이 된다. */
+  const G = H * GRAV_K, windA = course.wind * H * WIND_K;
+  const gy = course.green.y * H;
+  const gx0 = (course.green.x - course.green.half) * W;
+  const gx1 = (course.green.x + course.green.half) * W;
+  const SUB = 6, h = dt / SUB;
+  for (let s = 0; s < SUB; s++) {
+    const y0 = ball.y;
+    if (!ball.onGreen) { ball.vy += G * h; ball.vx += windA * h; }
+    else { ball.vx *= Math.pow(0.13, h); ball.vy = 0; }
+    ball.x += ball.vx * h;
+    ball.y += ball.vy * h;
+
+    for (const b of course.bars) {
+      const by = b.y * H;
+      // 바 하나는 한 발에 한 번만 친다. 안 그러면 튕김이 감쇠하면서 공이 바 위에서
+      // 위아래로 진동하며 영영 갇힌다 — 실측에서 비행이 9초 상한까지 갔다.
+      // 게이트 눈에는 "판이 안 끝나는 게임"으로 보인다.
+      if (b.hit) continue;
+      if ((y0 - by) * (ball.y - by) > 0 || Math.abs(ball.vy) <= 1) continue;
+      // 몸이 통째로 들어가야 통과다. 그린 폭(gapHalf)은 이미 BODY_HALF만큼 넓혀뒀으므로
+      // 여기서 도로 빼면 유효 통과폭은 도깨비를 넣기 전과 정확히 같다.
+      const inner = b.gapHalf - BODY_HALF;
+      if (ball.x > (b.gapX - inner) * W && ball.x < (b.gapX + inner) * W) continue;
+      b.hit = true;
+      ball.y = by + (ball.vy > 0 ? -2 : 2);
+      ball.vy = -ball.vy * 0.34;
+      ball.vx *= 0.55;
+      FX.burst(ball.x, by, '#ff5fa2', 14);
+      FX.shake(H * 0.012);
+      beep(180, 50);
+    }
+
+    if (!ball.onGreen && ball.vy > 0 && y0 <= gy && ball.y >= gy && ball.x > gx0 && ball.x < gx1) {
+      ball.y = gy;
+      if (ball.vy > H * 0.55) { ball.vy = -ball.vy * 0.26; ball.vx *= 0.72; }
+      else { ball.onGreen = true; ball.vy = 0; }
+      FX.burst(ball.x, gy, '#7dffb0', 12);
+      FX.shake(H * 0.010);
+    }
+    if (ball.onGreen && (ball.x < gx0 || ball.x > gx1)) { ball.onGreen = false; ball.vy = 1; }
+  }
+
+  FX.trail(ball.x, ball.y, '#7dffb0', m.ball * 0.8, m.ball * 0.8, 0.30);
+
+  if (ball.onGreen && Math.abs(ball.vx) < W * 0.012) { ball.vx = 0; settleT += dt; }
+  else settleT = 0;
+
+  flyT += dt;
+  const gone = ball.y > H + 40 || ball.x < -60 || ball.x > W + 60;
+  // 정상 비행은 2초 안팎이다. 6초는 안전망이지 정상 경로가 아니다 —
+  // 여기에 자주 걸리면 물리가 어디선가 공을 붙잡고 있다는 신호다.
+  if (settleT > 0.35 || gone || flyT > 6) finish(gone || !ball.onGreen);
+}
+
+// 배경은 클립 밖에서 그린다 — 밴드가 아니라 화면 전체를 덮는다.
+// 가로 창에서 여백이 검게 비면 순수 레터박스가 되고, 그 그림이 포털 썸네일에 박힌다.
+function backdrop(m, dt) {
+  // 위상은 여기서 진행시킨다 — backdrop은 모든 상태에서 매 프레임 불리므로
+  // 타이틀·일시정지·게임오버 화면에서도 격자가 흐른다(게이트1이 어디서 찍어도 움직인다).
+  gridOff = (gridOff + m.grid * GRID_SCROLL * dt) % m.grid;
+
+  const L = -OX, R = SW - OX;      // 화면 좌우 끝을 밴드 좌표로 옮긴 값
+  ctx.fillStyle = '#070912';
+  ctx.fillRect(L, 0, SW, H);
+
+  // 배경 그리드 — 화면이 비지 않게 하고 속도감을 준다
+  ctx.strokeStyle = 'rgba(0,229,255,.10)';
+  ctx.lineWidth = m.line;
+  for (let y = gridOff; y < H; y += m.grid) { ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(R, y); ctx.stroke(); }
+  // 세로선은 밴드의 0에서 출발한 격자를 양쪽으로 이어 붙인다 —
+  // 여백에서 따로 시작하면 밴드 경계에서 간격이 어긋나 이음매가 보인다.
+  for (let x = -Math.ceil(OX / m.grid) * m.grid; x < R; x += m.grid) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+
+  ctx.fillStyle = sky();
+  ctx.fillRect(L, 0, SW, H);
+}
+
+function draw(m, dt) {
+  if (!course) return;
+
+  // 바람 — 흐르는 선으로 세기와 방향을 보여준다. 코스를 '읽을 수 있게' 만드는 장치라
+  // 숨기지 않는다. 여기서 숨기면 한 발 게임이 곧바로 제비뽑기가 된다.
+  ctx.strokeStyle = 'rgba(140,190,255,.22)';
+  ctx.lineWidth = m.line * 1.5;
+  for (let i = 0; i < 7; i++) {
+    const yy = (0.10 + i * 0.085) * H;
+    const x0 = ((elapsed * course.wind * W * 0.55 + i * 137) % (W + 90)) - 45;
+    ctx.beginPath(); ctx.moveTo(x0, yy);
+    ctx.lineTo(x0 + Math.sign(course.wind) * W * 0.10 * Math.abs(course.wind), yy); ctx.stroke();
+  }
+
+  // 장애물
+  ctx.strokeStyle = '#ff5fa2'; ctx.lineWidth = m.bar;
+  ctx.shadowColor = '#ff5fa2'; ctx.shadowBlur = m.glow * 0.7;
+  for (const b of course.bars) {
+    const y = b.y * H;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo((b.gapX - b.gapHalf) * W, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo((b.gapX + b.gapHalf) * W, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+
+  // 그린과 핀
+  const gy = course.green.y * H, pinX = course.pinx * W;
+  ctx.strokeStyle = '#7dffb0'; ctx.lineWidth = m.green;
+  ctx.shadowColor = '#7dffb0'; ctx.shadowBlur = m.glow;
+  ctx.beginPath();
+  ctx.moveTo((course.green.x - course.green.half) * W, gy);
+  ctx.lineTo((course.green.x + course.green.half) * W, gy);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#e8f6ff'; ctx.lineWidth = m.line * 2;
+  ctx.beginPath(); ctx.moveTo(pinX, gy); ctx.lineTo(pinX, gy - m.pole); ctx.stroke();
+  // 깃발은 바람 쪽으로 날린다 — 바람 표시가 둘이면 하나를 놓쳐도 읽힌다
+  const flagDir = course.wind >= 0 ? 1 : -1;
+  ctx.fillStyle = '#ffe27d';
+  ctx.beginPath();
+  ctx.moveTo(pinX, gy - m.pole);
+  ctx.lineTo(pinX + flagDir * W * 0.075, gy - m.pole + H * 0.016);
+  ctx.lineTo(pinX, gy - m.pole + H * 0.032);
+  ctx.fill();
+  ctx.fillStyle = '#0a1220';
+  ctx.beginPath(); ctx.ellipse(pinX, gy, W * 0.022, H * 0.005, 0, 0, 7); ctx.fill();
+
+  // 티
+  ctx.strokeStyle = 'rgba(180,210,255,.45)'; ctx.lineWidth = m.line * 2;
+  ctx.beginPath();
+  ctx.moveTo(course.teex * W - W * 0.10, course.teey * H + m.ball * 0.6);
+  ctx.lineTo(course.teex * W + W * 0.10, course.teey * H + m.ball * 0.6);
+  ctx.stroke();
+
+  // 조준 — 방향과 세기만. 궤적은 절대 보여주지 않는다. 보여주는 순간
+  // '읽고 판단하는' 게임이 '선을 맞추는' 게임이 되고, 한 발의 긴장이 사라진다.
+  if (!flying && state === S.PLAYING) {
+    const L = H * 0.20 * aim.pull;
+    ctx.strokeStyle = 'rgba(255,226,125,.9)'; ctx.lineWidth = m.line * 3;
+    ctx.beginPath(); ctx.moveTo(ball.x, ball.y);
+    ctx.lineTo(ball.x + Math.cos(aim.ang) * L, ball.y - Math.sin(aim.ang) * L);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,226,125,.35)'; ctx.lineWidth = m.line * 6;
+    ctx.beginPath(); ctx.arc(ball.x, ball.y, H * 0.045, -Math.PI, -Math.PI + Math.PI * aim.pull);
+    ctx.stroke();
+
+    // 샷 클락 — 줄어드는 링. 방치 종결이 보이지 않으면 "갑자기 끝났다"가 된다.
+    const left = Math.max(0, clock) / SHOT_CLOCK;
+    ctx.strokeStyle = left < 0.3 ? 'rgba(255,95,162,.95)' : 'rgba(125,255,176,.55)';
+    ctx.lineWidth = m.line * 3;
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, m.ball * 2.6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left);
+    ctx.stroke();
+  }
+
+  // 도깨비
+  if (ball.y < m.ball) {
+    // 화면 위로 벗어나면 위치를 알려준다. 안 그러면 "사라졌다"로 읽힌다
+    ctx.fillStyle = '#eaffff'; ctx.shadowColor = '#7dffb0'; ctx.shadowBlur = m.glow;
+    ctx.beginPath();
+    ctx.moveTo(ball.x, 4); ctx.lineTo(ball.x - W * 0.03, 20); ctx.lineTo(ball.x + W * 0.03, 20);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  } else {
+    // 몸 반폭이 BODY_HALF와 같아야 판정과 그림이 어긋나지 않는다:
+    // 폭 = 13 * scale = 2 * BODY_HALF * W 에서 scale을 거꾸로 뽑는다.
+    // 상수 두 개로 두면 반드시 어긋난다 — 한쪽에서 파생시킨다.
+    const scale = (BODY_HALF * 2 * W) / 13;
+    Sprite.draw(ctx, DOKKAEBI, ball.x, ball.y, scale, {
+      frame: Sprite.cycle(elapsed, 7, 2),
+      flip: ball.vx < 0,
+      rot: flying ? Math.max(-0.5, Math.min(0.5, ball.vx / (H * 1.2))) : 0,
+      glow: m.glow,
+      glowColor: '#7dffb0'
+    });
+  }
+}
+/* ===== GAME LOGIC 끝 ===== */
+
+/* ---------- 상태 전이 ---------- */
+function start() {
+  score = 0;
+  el.score.textContent = '0';
+  el.title.hidden = true;
+  el.over.hidden = true;
+  reset();
+  state = S.PLAYING;
+  Portal.gameplayStart();
+}
+function pause() { if (state === S.PLAYING) state = S.PAUSED; }
+function resume() { if (state === S.PAUSED) state = S.PLAYING; }
+function gameOver() {
+  state = S.OVER;
+  beep(160, 180);
+  Portal.gameplayStop();
+  if (score > best) { best = score; saveBest(best); }
+  if (score > today) { today = score; saveToday(today); }
+  el.best.textContent = today;
+  el.finalScore.textContent = score;
+  el.over.hidden = false;
+}
+
+/* ---------- 루프 ---------- */
+let last = 0;
+function frame(now) {
+  // dt 상한 0.05는 장식이 아니라 터널링 방어다. 이 게임의 최고 속도는 VMAX_K(1.75H/s)라
+  // 한 프레임에 0.088H를 지나갈 수 있는데 장애물 두께는 그보다 훨씬 얇다.
+  // step()이 다시 6등분(SUB)하는 것도 같은 이유다 — 둘 중 하나만 믿으면
+  // 공이 바를 그냥 통과해 "막았는데 안 막히는" 게임이 된다.
+  const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+  last = now;
+  tick++;
+  const m = M();               // 프레임당 한 번만 만든다 (step·draw가 같은 값을 본다)
+  if (state === S.PLAYING) {
+    step(m, dt);
+    el.score.textContent = score;
+  }
+  // FX는 모든 상태에서 돈다 — 죽은 뒤에도 파편과 흔들림이 끝까지 재생돼야
+  // 사망이 '멈춤'이 아니라 '사건'으로 보인다.
+  FX.update(dt);
+  FX.begin(ctx);
+  backdrop(m, dt);             // 화면 전체 — 클립 밖
+  ctx.save();                  // 여기부터 밴드 안에서만 그린다. 가장자리에 선 배가
+  ctx.beginPath();             // 반쯤 잘려 여백으로 새는 것을 막는다
+  ctx.rect(0, 0, W, H);
+  ctx.clip();
+  draw(m, dt);
+  FX.draw(ctx);
+  ctx.restore();
+  FX.end(ctx);                 // 플래시는 클립 밖 — 화면 전체를 덮는다
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 관측 계약: 게이트 2가 읽는 유일한 인터페이스 ---------- */
+window.__GAME__ = {
+  api: 1,
+  day: DAILY_NO,          // 오늘의 판 번호. 공유 문구가 이걸 쓴다
+  get state() { return state; },
+  get score() { return score; },
+  get tick() { return tick; },
+  // 플레이 밴드. 게이트가 가로 뷰포트에서 이 비율을 재서 난이도가 창 모양에
+  // 끌려가지 않는지 판정한다. 공식만 고치면 같은 결함이 다시 들어온다 — 축을 남긴다.
+  get field() { return { x: OX, w: W, h: H, screenW: SW }; },
+  // 판의 모양을 스스로 밝힌다. 이 게임은 한 번의 스윙으로 판이 끝나므로 판 길이를
+  // 생존이 아니라 숙고가 정한다 — 즉시 쏘는 자동 테스터가 재면 1.9초로 나온다.
+  // 게이트는 이 선언을 보고 '생존 3초' 대신 '방치했을 때 3초는 줬는가'를 검사한다.
+  // ⚠ 이걸 붙이면 생존 규칙이 꺼진다. 버티는 게임에는 절대 붙이지 말 것.
+  session: 'single-shot',
+  start, pause, resume
+};
+
+/* 타이틀 화면에 오늘 판 번호를 적는다. HTML이 아니라 여기서 넣는 이유는
+   게임 8개의 오버레이를 각각 고치면 반드시 한 곳이 달라지기 때문이다. */
+(function () {
+  const t = document.getElementById('titleScreen');
+  if (!t) return;
+  const p = document.createElement('p');
+  p.id = 'dailyTag';
+  p.style.cssText = 'font-size:12px;letter-spacing:.1em;opacity:.7;color:var(--neon);margin:0';
+  // "DAILY"는 횟수 제한으로 읽힌다. 실제로는 코스가 정해져 있을 뿐 몇 판이든 할 수 있고,
+  // 그 오해는 이 문구를 만든 사람조차 했다 — 처음 온 사람은 반드시 한다.
+  // \uc5ec\uae30\uc11c '\ud55c \ubc1c'\uc740 \uc9c4\uc9dc \uc81c\ud55c\uc774\ub2e4(\uc624\ub298\uc758 \ucf54\uc2a4\uc5d0 \ud55c\ud574\uc11c). \uadf8\ub798\uc11c \uc5f0\uc2b5\uc774 \ubb34\uc81c\ud55c\uc774\ub77c\ub294 \uac83\uc744
+  // \uac19\uc740 \ubb38\uc7a5\uc5d0 \ubd99\uc778\ub2e4 \u2014 \uc55e \uac8c\uc784\ub4e4\uc5d0\uc11c "\ud558\ub8e8\uc5d0 \ud55c \ud310\ubc16\uc5d0 \ubabb \ud558\ub0d0"\ub294 \uc624\ud574\uac00 \uc2e4\uc81c\ub85c \ub0ac\ub2e4.
+  p.textContent = "TODAY'S COURSE #" + DAILY_NO + " \u2014 same for everyone. One shot at the pin, then practise all you like";
+  t.insertBefore(p, t.querySelector('.btn'));
+})();
+
+resize();
+// SDK가 거부하거나 던져도 루프는 시작한다. 여기서 멈추면 화면이 영원히 검은 채로 남는데,
+// 포털 빌드에서 그게 가장 나쁜 실패다 — 광고 SDK 하나 때문에 게임이 아예 안 뜬다.
+const startLoop = () => requestAnimationFrame(frame);
+try {
+  Portal.ready().then(startLoop, startLoop);
+} catch {
+  startLoop();
+}
+</script>
+</body>
+</html>

@@ -271,6 +271,16 @@ async function collectPlayOn(page, target, T) {
   const api = await page.evaluate(() => (window.__GAME__ ? window.__GAME__.api : null));
   const mode = api === null ? 'legacy' : 'contract';
 
+  // 판의 모양. 기본값 'run'은 "버티는 게임"이고, 생존 시간이 곧 실력이다.
+  // 'single-shot'은 한 번의 행동으로 판이 끝나는 게임이다 — 판 길이를 정하는 것이
+  // 생존이 아니라 숙고라, 즉시 쏘는 자동 테스터가 재면 무조건 짧게 나온다.
+  // 게임이 스스로 밝히게 한다. 규칙을 조용히 완화하면 앞으로 만드는 모든 게임이
+  // 자기도 모르게 그 구멍에 들어가고, 그때는 아무도 눈치채지 못한다.
+  const session = await page.evaluate(() => {
+    const s = window.__GAME__ && window.__GAME__.session;
+    return s === 'single-shot' ? 'single-shot' : 'run';
+  });
+
   // 플레이 밴드. 이 패스만 가로 뷰포트(900x600)에서 돌기 때문에 창이 넓을 때
   // 게임판이 세로 비율을 지키는지 여기서만 볼 수 있다. 게이트 1은 세로만 잰다.
   const field = await page.evaluate(() => {
@@ -474,7 +484,7 @@ async function collectPlayOn(page, target, T) {
   const idleFps = idleSpans.length ? rate(idleSpans) : null;
 
   return {
-    label: target.label, mode, api,
+    label: target.label, mode, api, session,
     // frames는 rAF 프레임 총수. 0이면 setInterval 루프라 FPS를 셀 수 없다.
     frames: idleLast.frames,
     // 입력 단계의 길이와 표본 간격. gates.js가 이 둘로 평균 생존시간을 보정해 계산한다.
