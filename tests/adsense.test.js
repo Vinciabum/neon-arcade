@@ -32,12 +32,29 @@ test('변수가 없으면 아무것도 나가지 않는다 — ads.txt도 만들
   assert.ok(!existsSync('ads.txt'), '변수가 없는데 ads.txt를 만들었다');
 });
 
-test('변수가 있으면 홈·랜딩·정적 페이지·404 전부에 붙는다', () => {
+test('변수가 있으면 홈과 게임 랜딩에 붙는다', () => {
   assert.ok(build({ ADSENSE_CLIENT: CLIENT }).ok);
-  for (const f of ['index.html', 'games/pulse-lock/index.html', 'privacy/index.html', '404.html']) {
+  for (const f of ['index.html', 'games/pulse-lock/index.html']) {
     const html = readFileSync(f, 'utf8');
     assert.ok(html.includes(`client=${CLIENT}`), `${f} 에 안 붙었다`);
     assert.ok(html.includes('pagead2.googlesyndication.com'), `${f}`);
+  }
+});
+
+/* 2026-08-12에 뒤집힌 검사다. 예전에는 정적 페이지와 404에도 붙는 것이 옳다고
+   보고 그렇게 검증했다. 구글이 공표한 거절 사유에 "가치가 거의 없는 페이지에
+   광고 코드가 붙는 경우"가 그대로 있고, 여기 contact는 40단어, privacy는
+   125단어다. 40단어짜리 문의 양식이 정확히 그 문장이 가리키는 것이다.
+
+   게임 랜딩은 단어 수가 비슷해도 위 검사에 남아 있다. 그 페이지에는 플레이
+   가능한 자체 제작 게임이 실려 있고, 재는 것은 길이가 아니라 페이지에 무엇이
+   있느냐이기 때문이다. */
+test('정적 페이지와 404에는 붙지 않는다 — 내용 없는 페이지의 광고가 거절 사유다', () => {
+  assert.ok(build({ ADSENSE_CLIENT: CLIENT }).ok);
+  for (const f of ['about/index.html', 'contact/index.html', 'privacy/index.html', '404.html']) {
+    const html = readFileSync(f, 'utf8');
+    assert.ok(!html.includes('adsbygoogle'), `${f} 에 광고가 붙었다`);
+    assert.ok(!html.includes('googlesyndication'), `${f}`);
   }
 });
 

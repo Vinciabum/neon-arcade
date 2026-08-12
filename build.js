@@ -161,12 +161,24 @@ async function buildPages(templates) {
       slug: 'about',
       title: 'About Neon Arcade',
       description: 'Neon Arcade is an independent studio publishing original browser games. Learn who makes them and how they are built.',
-      body: `<p>Neon Arcade is an independent one-person studio. Every game on this site is
-built in-house with vanilla JavaScript and HTML5 Canvas — no engines, no licensed content,
-no third-party game feeds.</p>
-<p>The goal is simple: short, polished games you can play in a browser tab without
-downloading anything or creating an account. New games are published regularly.</p>
-<p>Questions, bug reports or business enquiries: see the <a href="/contact/">contact page</a>.</p>`
+      body: `<p>Neon Arcade is an independent one-person studio run by <strong>Jayden Hwang</strong>.
+Every game on this site is built in-house with vanilla JavaScript and HTML5 Canvas — no engines,
+no licensed content, no third-party game feeds. If you are playing it here, it was written here.</p>
+<p>That last part is worth spelling out, because most sites shaped like this one are not that.
+The usual browser-games site is a directory: a page of thumbnails wrapped around other people's
+games loaded from a feed, where the site itself has added nothing you could point at. Every game
+below is served from this domain because it was made for it, and each one ships with the thing a
+directory cannot supply — a page explaining how it plays and why it is built the way it is.</p>
+<p>The goal is narrow on purpose: short, finished games you can play in a browser tab without
+downloading anything, making an account, or waiting through a launcher. They are meant to be
+understood in about ten seconds and to keep being interesting after that, which is a harder
+constraint than it sounds and rules out most ideas.</p>
+<p>How they get made: each game starts as one mechanic that seems worth ten minutes. Most do not
+survive being playable. The ones that do get a control scheme that works with a thumb as well as
+a keyboard, because roughly half of everyone who plays these arrives on a phone.</p>
+<p>Questions, bug reports or business enquiries: see the <a href="/contact/">contact page</a>.
+Bugs are genuinely welcome — a game with a broken hitbox is worth more to me reported than
+politely ignored.</p>`
     },
     {
       slug: 'contact',
@@ -209,7 +221,12 @@ visits to this or other websites. You can opt out of personalised advertising th
       }),
       TITLE: esc(page.title),
       ANALYTICS,
-      ADSENSE,
+      // 광고를 싣지 않는다. about 88단어, privacy 125단어, contact 40단어 —
+      // 구글이 공표한 거절 사유에 "가치가 거의 없는 페이지에 광고 코드가
+      // 붙는 경우"가 그대로 있고, 40단어짜리 문의 양식이 정확히 그것이다.
+      // 게임 페이지는 단어 수가 비슷해도 플레이 가능한 자체 제작 게임이
+      // 실려 있으므로 다르다. 재는 것은 길이가 아니라 그 페이지에 뭐가 있느냐다.
+      ADSENSE: '',
 
       VERIFICATION,
       BODY: page.body
@@ -230,7 +247,8 @@ async function build404(games, templates) {
     }).replace('content="index,follow', 'content="noindex,follow'),
     TITLE: 'Page not found',
     ANALYTICS,
-    ADSENSE,
+    // 같은 이유. 404는 정의상 내용이 없는 페이지다.
+    ADSENSE: '',
 
     VERIFICATION,
     BODY: `<p>That address does not exist. It may have been a game that was taken down, or a typo.</p>
