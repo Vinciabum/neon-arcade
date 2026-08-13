@@ -7,6 +7,7 @@ import { ICON_SRC, ICON_SIZES, iconPath } from './tools/icon.js';
 import { gamePath, thumbPath, ogPath, landingUrl, landingOutPath, absUrl, SITE_ORIGIN } from './tools/paths.js';
 import { homeJsonLd, landingJsonLd, faqSection, headTags, validateSeo, SITE_NAME } from './tools/seo.js';
 import { shareBlock, SHARE_SCRIPT } from './tools/share.js';
+import { pickRelated } from './tools/related.js';
 
 const SITE_TITLE = 'Neon Arcade — Free Original Browser Games';
 const SITE_DESC = 'Play original HTML5 arcade games free in your browser. No download, no sign-up, works on mobile and desktop.';
@@ -102,52 +103,6 @@ async function buildHome(games, templates) {
   await write('index.html', html);
 }
 
-/*
-  "More Games" 고르기. 예전에는 games.json 앞에서 4개를 그냥 잘랐다:
-
-      games.filter(g => g.slug !== game.slug).slice(0, 4)
-
-  그래서 19개 중 4개가 각각 18번씩 추천되고 나머지 14개는 0번이었다. 어느
-  게임을 하든 같은 넷이 나오고, 그 넷 중 하나를 해도 또 같은 것들이 나오는
-  막다른 길이었다. 게임 사이트의 광고 수익은 방문자 수가 아니라 한 명이 몇
-  판 하느냐로 정해지므로, 이건 트래픽 문제가 아니라 트래픽 낭비였다.
-  색인에도 걸린다 — 내부 링크가 하나도 없는 페이지 14개는 홈에서만 닿는다.
-
-  두 겹으로 고른다.
-
-  1) 같은 tag 먼저, 최대 두 개. 퍼즐을 하던 사람에게 퍼즐을 준다. 다만 13개
-     태그 중 10개가 게임 하나뿐이라 이것만으로는 절반도 못 채운다.
-  2) 나머지는 자기 위치에서 한 칸씩 밀어가며 채운다. 어느 게임에서 출발해도
-     다른 경로가 나온다.
-
-  실측 결과는 게임당 2~8회로, 이상적인 4회 균등은 아니다. 퍼즐이 다섯 개라
-  서로를 물기 때문이다. 태그 우선을 한 개로 줄여도 봤는데 최소가 2에서 3으로
-  올라갈 뿐 최대는 8 그대로였고, 관련성만 절반이 됐다. 편중을 조금 안고
-  관련성을 갖는 쪽을 골랐다 — 목적이 "고르게 링크"가 아니라 "한 판 더"라서다.
-
-  중요한 건 0회가 없다는 것이다. 이전에는 열네 개가 0회였다.
-
-  결정론적이다. 무작위로 하면 빌드마다 diff가 생기고 무엇이 바뀌었는지 못
-  본다.
-*/
-function pickRelated(game, games, count = 4) {
-  const picked = [];
-  const take = g => {
-    if (g && g.slug !== game.slug && !picked.some(p => p.slug === g.slug)) picked.push(g);
-  };
-
-  for (const g of games) {
-    if (picked.length >= 2) break;
-    if (g.tag && g.tag === game.tag) take(g);
-  }
-
-  const start = games.findIndex(g => g.slug === game.slug);
-  for (let step = 1; step <= games.length && picked.length < count; step++) {
-    take(games[(start + step) % games.length]);
-  }
-
-  return picked.slice(0, count);
-}
 
 async function buildLanding(game, games, templates) {
   const related = pickRelated(game, games);

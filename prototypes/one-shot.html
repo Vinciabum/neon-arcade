@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>One Shot — prototype</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #070912; overflow: hidden;
+    font: 500 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #cfe3ff;
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  #hud { height: 38px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 12px; letter-spacing: .08em; }
+  #hud b { color: #7dffb0; font-weight: 700; }
+  #c { display: block; width: 100%; height: calc(100% - 38px); touch-action: none; }
+  #panel { position: fixed; left: 0; right: 0; bottom: 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, rgba(7,9,18,.97) 60%, rgba(7,9,18,0));
+    display: none; flex-direction: column; gap: 10px; align-items: center; }
+  #panel.on { display: flex; }
+  #verdict { font-size: 22px; letter-spacing: .04em; color: #7dffb0; text-align: center; }
+  #bar { font-size: 20px; letter-spacing: .12em; }
+  #sub { opacity: .65; text-align: center; line-height: 1.5; }
+  .btn { font: inherit; letter-spacing: .08em; padding: 11px 18px; border-radius: 8px;
+    border: 1px solid #2c4a6b; background: #101a30; color: #cfe3ff; cursor: pointer; }
+  .btn.go { border-color: #7dffb0; color: #7dffb0; }
+  #row { display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+
+<div id="hud"><span id="title">TODAY'S COURSE <b id="no">#1</b></span><span id="wind">WIND —</span></div>
+<canvas id="c"></canvas>
+
+<div id="panel">
+  <div id="verdict"></div>
+  <div id="bar"></div>
+  <div id="sub"></div>
+  <div id="row">
+    <button class="btn go" id="shareBtn">COPY RESULT</button>
+    <button class="btn" id="againBtn">PRACTICE →</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   One Shot — 하루 한 발. 재미 확인용 프로토타입.
+   빌드·게이트·SEO 밖에 있다. 프레임에서 가져온 것은 BAND 관례와 DAY 시드 규칙뿐이다.
+   ============================================================ */
+
+const SLUG = 'one-shot';
+const DAY_ZERO = Math.floor(Date.UTC(2026, 7, 1) / 86400000);
+const DAY = (() => {
+  const q = new URLSearchParams(location.search).get('day');
+  if (q !== null) return Math.max(0, parseInt(q, 10) || 0);
+  if (location.protocol === 'file:') return 0;      // 도구가 여는 경로는 언제나 0일차
+  const d = new Date();
+  return Math.max(0, Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000) - DAY_ZERO);
+})();
+const DAILY_NO = DAY + 1;
+const TODAY_KEY = 'just1game:' + SLUG + ':d' + DAY;
+
+/* 지난 날 키는 쌓이면 저장소를 채운다 — 프레임과 같은 규칙 */
+try {
+  const pre = 'just1game:' + SLUG + ':d';
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(pre) && k !== TODAY_KEY) localStorage.removeItem(k);
+  }
+} catch (e) {}
+
+/* ---------- 캔버스 · 플레이 밴드 ---------- */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const BAND = 390 / 806;
+let W = 0, H = 0, SW = 0, OX = 0;
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const r = canvas.getBoundingClientRect();
+  SW = Math.max(1, Math.round(r.width));
+  H = Math.max(1, Math.round(r.height));
+  W = Math.min(SW, Math.round(H * BAND));
+  OX = Math.round((SW - W) / 2);
+  canvas.width = Math.round(SW * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, OX * dpr, 0);
+}
+window.addEventListener('resize', resize);
+
+/* ---------- 결정적 난수 ---------- */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/* ---------- 코스 ---------- */
+const COURSE_M = 18;              // 밴드 폭이 18m다. 거리 숫자는 전부 여기서 나온다
+const HOLE_M = 0.35;              // 이 안이면 홀인원
+let course = null, mode = 'daily';
+
+/* 코스의 세로 폭이 조준 각도를 정한다.
+   처음엔 티 0.90 · 그린 0.21로 뒀다. 0.69H를 올리는데 옆으로는 밴드 폭의 절반(=0.165H)밖에
+   못 가므로 **발사각이 83°~97°에 갇혔다** — 조준 폭 14°짜리 드래그 게임은 성립하지 않는다.
+   중력이나 세기로는 못 고친다. 궤적 모양은 가로/세로 '거리 비'만 보기 때문이다.
+   티를 0.72로 내리고 그린을 0.30~0.40으로 내려 세로 폭을 0.37H로 줄였다 → 조준 폭 약 48°. */
+const TEE_Y = 0.72;
+
+function makeCourse(seed) {
+  const r = mulberry32(seed);
+  const pinx = 0.18 + r() * 0.64;                   // ±12° 안에서 닿아야 한다
+  const green = { y: 0.30 + r() * 0.10, half: 0.16 + r() * 0.08, x: pinx };
+  const wind = (r() * 2 - 1) * 0.85;
+  const bars = [];
+  const n = r() < 0.45 ? 1 : 2;
+  const hSpan = TEE_Y - green.y;
+  for (let i = 0; i < n; i++) {
+    const y = 0.46 + i * 0.09 + r() * 0.04;
+    // 구멍은 '핀을 노린 궤적'이 지나는 자리에 둔다. 무작위로 두면 구멍이 착지점을 대신
+    // 결정해버려서, 조준이 아니라 구멍 위치가 게임을 하게 된다(앞 버전이 그랬다).
+    // 정점까지 수평 이동 비율 = 1 - sqrt(1 - 높이비). 포물선에서 바로 나온다.
+    const hFrac = Math.min(0.95, (TEE_Y - y) / hSpan);
+    const xFrac = 1 - Math.sqrt(1 - hFrac);
+    const ideal = 0.5 + (pinx - 0.5) * xFrac;
+    bars.push({
+      y,
+      gapHalf: 0.15 + r() * 0.06,
+      gapX: Math.max(0.12, Math.min(0.88, ideal + (r() * 2 - 1) * 0.05))
+    });
+  }
+  return { pinx, green, wind, bars, teex: 0.5, teey: TEE_Y };
+}
+
+/* ---------- 상태 ---------- */
+const S = { AIM: 0, FLY: 1, DONE: 2 };
+let state = S.AIM;
+let ball = { x: 0, y: 0, vx: 0, vy: 0, onGreen: false };
+let aiming = false, aimPx = 0, aimPy = 0, pull = 0, ang = 0;
+let flyT = 0, settleT = 0, result = null, hint = 0;
+const trail = [];
+const parts = [];
+let shakeAmp = 0, flashT = 0;
+
+function px(u) { return u * W; }
+function py(u) { return u * H; }
+
+function reset(seed) {
+  course = makeCourse(seed);
+  ball.x = px(course.teex); ball.y = py(course.teey);
+  ball.vx = ball.vy = 0; ball.onGreen = false;
+  state = S.AIM; flyT = 0; settleT = 0; result = null; hint = 0;
+  trail.length = 0; parts.length = 0;
+  panel.classList.remove('on');
+  document.getElementById('title').innerHTML = mode === 'daily'
+    ? 'TODAY\'S COURSE <b>#' + DAILY_NO + '</b>'
+    : 'PRACTICE <b>·</b>';
+  paintWind();
+}
+
+function paintWind() {
+  const w = course.wind;
+  const dir = w > 0 ? '→' : '←';
+  document.getElementById('wind').textContent = 'WIND ' + dir + ' ' + Math.abs(w * 10).toFixed(1);
+}
+
+/* ---------- 물리 ---------- */
+function launch() {
+  // 세기의 '적정선'이 0.7 근처에 오도록 거꾸로 잡았다: 상승 = (vmax²/2G)(pull·sinθ)².
+  // 올려야 할 높이가 약 0.37H이므로 vmax ≈ 1.75H. 위아래로 틀릴 여지가 남아야 실력 차가
+  // 생긴다 — 상한에 붙여두면 모두가 같은 발을 쏘게 된다.
+  // 1.95로 올려봤다가 되돌렸다. "세기 여유가 는다"는 예상과 달리 코스 하나가
+  // 각도창 2°·세기창 5%로 무너졌다(평균 조준 여유 56px → 49px). 실측으로만 보였다.
+  const vmax = H * 1.75;
+  ball.vx = Math.cos(ang) * pull * vmax;
+  ball.vy = -Math.sin(ang) * pull * vmax;   // 화면 y는 아래로 자란다
+  state = S.FLY; flyT = 0;
+  burst(ball.x, ball.y, '#7dffb0', 10);
+  shakeAmp = Math.max(shakeAmp, H * 0.006);
+}
+
+function step(dt) {
+  const G = H * 1.9;
+  // 0.32로 뒀더니 2초 비행에서 밴드 폭보다 크게 밀렸다 — 바람이 실력을 덮는다. 0.14가 상한
+  const windA = course.wind * H * 0.14;
+  const gy = py(course.green.y);
+  const gx0 = px(course.green.x - course.green.half);
+  const gx1 = px(course.green.x + course.green.half);
+
+  const SUB = 6, h = dt / SUB;
+  for (let s = 0; s < SUB; s++) {
+    const py0 = ball.y;
+    if (!ball.onGreen) {
+      ball.vy += G * h;
+      ball.vx += windA * h;
+    } else {
+      ball.vx *= Math.pow(0.13, h);          // 그린 위 마찰
+      ball.vy = 0;
+    }
+    ball.x += ball.vx * h;
+    ball.y += ball.vy * h;
+
+    /* 장애물 — 구멍 밖이면 튕긴다 */
+    for (const b of course.bars) {
+      const by = py(b.y);
+      const crossed = (py0 - by) * (ball.y - by) <= 0 && Math.abs(ball.vy) > 1;
+      if (!crossed) continue;
+      const inGap = ball.x > px(b.gapX - b.gapHalf) && ball.x < px(b.gapX + b.gapHalf);
+      if (inGap) continue;
+      ball.y = by + (ball.vy > 0 ? -2 : 2);
+      ball.vy = -ball.vy * 0.34;
+      ball.vx *= 0.55;
+      burst(ball.x, by, '#ff5fa2', 14);
+      shakeAmp = Math.max(shakeAmp, H * 0.012);
+    }
+
+    /* 그린 착지 */
+    if (!ball.onGreen && ball.vy > 0 && py0 <= gy && ball.y >= gy && ball.x > gx0 && ball.x < gx1) {
+      ball.y = gy;
+      if (ball.vy > H * 0.55) { ball.vy = -ball.vy * 0.26; ball.vx *= 0.72; }
+      else { ball.onGreen = true; ball.vy = 0; }
+      burst(ball.x, gy, '#7dffb0', 12);
+      shakeAmp = Math.max(shakeAmp, H * 0.010);
+    }
+    /* 그린 밖으로 굴러 떨어짐 */
+    if (ball.onGreen && (ball.x < gx0 || ball.x > gx1)) { ball.onGreen = false; ball.vy = 1; }
+  }
+
+  trail.push(ball.x, ball.y);
+  if (trail.length > 120) trail.splice(0, 2);
+
+  if (ball.onGreen && Math.abs(ball.vx) < W * 0.012) { ball.vx = 0; settleT += dt; }
+  else settleT = 0;
+
+  flyT += dt;
+  const gone = ball.y > H + 40 || ball.x < -60 || ball.x > W + 60;
+  if (settleT > 0.35 || gone || flyT > 9) finish(gone);
+}
+
+function finish(gone) {
+  if (state === S.DONE) return;
+  state = S.DONE;
+  const pinX = px(course.pinx);
+  let dist;
+  if (gone || !ball.onGreen) {
+    dist = Math.abs(ball.x - pinX) / W * COURSE_M + 4.0;   // 그린을 놓치면 벌점
+    result = { dist, off: true };
+  } else {
+    dist = Math.abs(ball.x - pinX) / W * COURSE_M;
+    result = { dist, off: false };
+  }
+  result.ace = !result.off && dist <= HOLE_M;
+  if (result.ace) { flashT = 0.5; shakeAmp = Math.max(shakeAmp, H * 0.03); burst(pinX, py(course.green.y), '#ffe27d', 60); }
+  if (mode === 'daily') { try { localStorage.setItem(TODAY_KEY, JSON.stringify(result)); } catch (e) {} }
+  showResult();
+}
+
+/* ---------- 파티클 ---------- */
+function burst(x, y, color, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = H * (0.12 + Math.random() * 0.42);
+    parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - H * 0.1, t: 0.5 + Math.random() * 0.4, m: 0.5 + Math.random() * 0.4, c: color });
+  }
+  if (parts.length > 260) parts.splice(0, parts.length - 260);
+}
+
+/* ---------- 결과 · 공유 ---------- */
+const panel = document.getElementById('panel');
+function barCells(r) {
+  const d = r.dist;
+  let lv = 0;
+  if (r.ace) lv = 6;
+  else if (d <= 1.0) lv = 5; else if (d <= 2.0) lv = 4; else if (d <= 3.5) lv = 3;
+  else if (d <= 5.5) lv = 2; else if (d <= 9.0) lv = 1;
+  let s = '🟩'.repeat(lv);
+  if (lv < 6) s += '🟨' + '⬛'.repeat(5 - lv);
+  return s;
+}
+function shareText(r) {
+  const head = mode === 'daily' ? "TODAY'S COURSE #" + DAILY_NO : 'ONE SHOT — practice';
+  const line = r.ace ? '🕳️ HOLE IN ONE' : '⛳ ' + r.dist.toFixed(1) + 'm from the pin';
+  return head + '\n\n' + line + '\n' + barCells(r) +
+    '\n\nOne shot. Same course for everyone today.\njust1game.com';
+}
+function showResult() {
+  document.getElementById('verdict').textContent = result.ace ? '🕳️ HOLE IN ONE' :
+    (result.off ? 'OFF THE GREEN — ' : '') + result.dist.toFixed(1) + 'm';
+  document.getElementById('bar').textContent = barCells(result);
+  document.getElementById('sub').textContent = mode === 'daily'
+    ? 'One shot a day. Come back tomorrow for course #' + (DAILY_NO + 1) + '.'
+    : 'Practice does not count. Today\'s course is one shot.';
+  document.getElementById('againBtn').textContent = mode === 'daily' ? 'PRACTICE →' : 'NEXT COURSE';
+  panel.classList.add('on');
+}
+document.getElementById('shareBtn').onclick = async () => {
+  const t = shareText(result);
+  try {
+    if (navigator.share) await navigator.share({ text: t });
+    else { await navigator.clipboard.writeText(t); document.getElementById('shareBtn').textContent = 'COPIED ✓'; }
+  } catch (e) {}
+};
+document.getElementById('againBtn').onclick = () => {
+  mode = 'practice';
+  reset((Math.random() * 1e9) | 0);
+};
+
+/* ---------- 입력 ---------- */
+function local(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left - OX, y: e.clientY - r.top };
+}
+canvas.addEventListener('pointerdown', e => {
+  if (state !== S.AIM) return;
+  const p = local(e);
+  aiming = true; aimPx = p.x; aimPy = p.y;
+  canvas.setPointerCapture(e.pointerId);
+  updateAim();
+});
+canvas.addEventListener('pointermove', e => {
+  if (!aiming) return;
+  const p = local(e); aimPx = p.x; aimPy = p.y; updateAim();
+});
+canvas.addEventListener('pointerup', () => {
+  if (!aiming) return;
+  aiming = false;
+  if (pull > 0.12) launch();
+});
+/* 조준 감도 — 이 두 상수가 "실력이냐 운이냐"를 정한다.
+   드래그 벡터를 그대로 각도로 쓰면(atan2) 수직 근처에서 1°당 옆으로 1.5m가 튄다.
+   그린에 남는 각도창이 4.3°뿐이라 드래그 160px 기준 ±6px — 손가락으로 낼 수 없는 정밀도다.
+   물리는 그대로 두고 제스처만 다시 매핑한다: 좌우 드래그 폭 전체를 ±SPREAD에 편다.
+   그러면 1°가 약 11px이 되어 4.3°짜리 창이 46px이 된다. */
+const SPREAD = 12 * Math.PI / 180;
+function updateAim() {
+  const maxPull = H * 0.22, aimW = H * 0.17;
+  const dx = ball.x - aimPx;                        // 왼쪽으로 당기면 오른쪽으로 나간다
+  const down = Math.max(0, aimPy - ball.y);         // 아래로 당긴 만큼이 세기다
+  const u = Math.max(-1, Math.min(1, dx / aimW));
+  ang = Math.PI / 2 - u * SPREAD;
+  pull = Math.min(1, Math.hypot(dx, down) / maxPull);
+}
+
+/* ---------- 그리기 ---------- */
+function draw() {
+  ctx.save();
+  if (shakeAmp > 0.4) ctx.translate((Math.random() * 2 - 1) * shakeAmp, (Math.random() * 2 - 1) * shakeAmp);
+
+  /* 배경 — 밴드 밖까지 덮는다 */
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#0d1730'); g.addColorStop(1, '#070912');
+  ctx.fillStyle = g; ctx.fillRect(-OX, -20, SW, H + 40);
+  ctx.strokeStyle = 'rgba(80,130,200,.10)'; ctx.lineWidth = 1;
+  for (let y = 0; y < H; y += H * 0.06) { ctx.beginPath(); ctx.moveTo(-OX, y); ctx.lineTo(SW - OX, y); ctx.stroke(); }
+
+  /* 바람 — 흐르는 선으로 세기를 보여준다 */
+  const t = performance.now() / 1000;
+  ctx.strokeStyle = 'rgba(140,190,255,.20)';
+  for (let i = 0; i < 7; i++) {
+    const yy = py(0.12 + i * 0.10);
+    const sp = course.wind * W * 0.55;
+    const x0 = ((t * sp + i * 137) % (W + 90)) - 45;
+    ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x0 + Math.sign(course.wind) * W * 0.10 * Math.abs(course.wind), yy); ctx.stroke();
+  }
+
+  /* 장애물 */
+  for (const b of course.bars) {
+    const y = py(b.y), g0 = px(b.gapX - b.gapHalf), g1 = px(b.gapX + b.gapHalf);
+    ctx.strokeStyle = '#ff5fa2'; ctx.lineWidth = Math.max(3, H * 0.006);
+    ctx.shadowColor = '#ff5fa2'; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(g0, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(g1, y); ctx.lineTo(W, y); ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  /* 그린 + 핀 */
+  const gy = py(course.green.y), gx0 = px(course.green.x - course.green.half), gx1 = px(course.green.x + course.green.half);
+  ctx.strokeStyle = '#7dffb0'; ctx.lineWidth = Math.max(3, H * 0.007);
+  ctx.shadowColor = '#7dffb0'; ctx.shadowBlur = 14;
+  ctx.beginPath(); ctx.moveTo(gx0, gy); ctx.lineTo(gx1, gy); ctx.stroke();
+  ctx.shadowBlur = 0;
+  const pinX = px(course.pinx), poleH = H * 0.075;
+  ctx.strokeStyle = '#e8f2ff'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(pinX, gy); ctx.lineTo(pinX, gy - poleH); ctx.stroke();
+  ctx.fillStyle = '#ffe27d';
+  ctx.beginPath(); ctx.moveTo(pinX, gy - poleH); ctx.lineTo(pinX + W * 0.075, gy - poleH + H * 0.016); ctx.lineTo(pinX, gy - poleH + H * 0.032); ctx.fill();
+  ctx.fillStyle = '#0a1220';
+  ctx.beginPath(); ctx.ellipse(pinX, gy, W * 0.022, H * 0.005, 0, 0, 7); ctx.fill();
+
+  /* 티 */
+  ctx.strokeStyle = 'rgba(180,210,255,.45)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(px(0.5) - W * 0.10, py(course.teey) + 6); ctx.lineTo(px(0.5) + W * 0.10, py(course.teey) + 6); ctx.stroke();
+
+  /* 궤적 잔상 */
+  ctx.strokeStyle = 'rgba(125,255,176,.35)'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < trail.length; i += 2) { if (i === 0) ctx.moveTo(trail[0], trail[1]); else ctx.lineTo(trail[i], trail[i + 1]); }
+  ctx.stroke();
+
+  /* 파티클 */
+  ctx.globalCompositeOperation = 'lighter';
+  for (const p of parts) {
+    if (p.t <= 0) continue;
+    ctx.fillStyle = p.c; ctx.globalAlpha = Math.max(0, p.t);
+    const s = Math.max(1.5, H * 0.005) * p.m;
+    ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+
+  /* 공 — 화면 위로 벗어나면 위치를 알려준다. 안 그러면 "공이 사라졌다"로 읽힌다 */
+  ctx.fillStyle = '#eaffff'; ctx.shadowColor = '#7dffb0'; ctx.shadowBlur = 16;
+  if (ball.y < 6) {
+    ctx.beginPath(); ctx.moveTo(ball.x, 4); ctx.lineTo(ball.x - W * 0.03, 20); ctx.lineTo(ball.x + W * 0.03, 20); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(ball.x, ball.y, Math.max(4, H * 0.010), 0, 7); ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  /* 조준 — 방향과 세기만. 궤적은 절대 안 보여준다 */
+  if (state === S.AIM) {
+    const L = H * 0.16 * pull;
+    if (pull > 0.02) {
+      ctx.strokeStyle = 'rgba(255,226,125,.9)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(ball.x, ball.y);
+      ctx.lineTo(ball.x + Math.cos(ang) * L, ball.y - Math.sin(ang) * L); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,226,125,.35)'; ctx.lineWidth = Math.max(4, H * 0.008);
+      ctx.beginPath(); ctx.arc(ball.x, ball.y, H * 0.045, -Math.PI, -Math.PI + Math.PI * pull); ctx.stroke();
+    } else {
+      hint += 0.03;
+      ctx.globalAlpha = 0.45 + Math.sin(hint) * 0.25;
+      ctx.fillStyle = '#cfe3ff'; ctx.textAlign = 'center';
+      ctx.font = '600 ' + Math.round(H * 0.019) + 'px ui-monospace, monospace';
+      ctx.fillText('PULL BACK & RELEASE', px(0.5), py(course.teey) + H * 0.055);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  if (flashT > 0) { ctx.fillStyle = 'rgba(255,226,125,' + (flashT * 0.8).toFixed(3) + ')'; ctx.fillRect(-OX, 0, SW, H); }
+  ctx.restore();
+}
+
+/* ---------- 루프 ---------- */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (state === S.FLY) step(dt);
+  for (const p of parts) { if (p.t <= 0) continue; p.t -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += H * 0.9 * dt; }
+  shakeAmp *= Math.exp(-dt * 9); if (shakeAmp < 0.4) shakeAmp = 0;
+  if (flashT > 0) flashT -= dt;
+  draw();
+  requestAnimationFrame(frame);
+}
+
+resize();
+reset(Math.imul(DAY + 1, 2654435761) >>> 0);
+
+/* 오늘 이미 쐈으면 결과부터 보여준다 — 하루 한 발이 규율이다 */
+try {
+  const saved = localStorage.getItem(TODAY_KEY);
+  if (saved) { result = JSON.parse(saved); state = S.DONE; showResult(); }
+} catch (e) {}
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
