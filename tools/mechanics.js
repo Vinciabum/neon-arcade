@@ -12,7 +12,8 @@ export const AXES = {
     'tap-target',        // 화면의 특정 대상을 누른다
     'type-answer',       // 값을 입력한다
     'drag-object',       // 대상을 끌어 옮긴다
-    'aim-and-release'    // 당겨서 각도·세기를 잡고 놓는다. 조작이 판 전체에 한 번뿐이다
+    'aim-and-release',   // 당겨서 각도·세기를 잡고 놓는다. 조작이 판 전체에 한 번뿐이다
+    'tap-anywhere'       // 화면 아무 데나 누른다. 그 자리로 캐릭터가 가서 행동한다 — 이동과 행동이 한 입력이다
   ],
   goal: [
     'survive',           // 오래 버틴다
@@ -23,7 +24,8 @@ export const AXES = {
     'recall-sequence',   // 순서를 기억해 재현한다
     'climb',             // 높이를 올린다
     'solve',             // 문제를 푼다
-    'land-close'         // 목표에 얼마나 가까이 놓느냐가 점수다. 성공/실패가 아니라 거리다
+    'land-close',        // 목표에 얼마나 가까이 놓느냐가 점수다. 성공/실패가 아니라 거리다
+    'mend'               // 풀린 것을 되돌린다. 이기는 것이 아니라 원래대로 만드는 것이 목표다
   ],
   failure: [
     'collision',         // 부딪히면 끝
@@ -39,7 +41,8 @@ export const AXES = {
     'fixed-grid',        // 고정 격자
     'fixed-arena',       // 고정 화면, 격자 아님
     'free-arena',        // 자유 이동 공간
-    'falling-column'     // 위에서 떨어진다
+    'falling-column',    // 위에서 떨어진다
+    'single-scene'       // 스크롤도 전환도 없는 화면 하나. 세로 한 장에 전부 들어간다
   ]
 };
 

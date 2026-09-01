@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateGames, validateOutput } from '../tools/validate.js';
 import { SEO } from '../tools/seo.js';
+import { validateMechanics } from '../tools/mechanics.js';
 
 // 모든 파일이 존재하고 크기가 적정한 기본 환경
 const okEnv = { exists: () => true, sizeOf: () => 50_000 };
@@ -186,3 +187,12 @@ test('브랜드명을 genreTerm에 넣은 것을 잡는다 — 검색 수요가 
   const errors = validateGames([game], okEnv);
   assert.ok(errors.some(e => e.includes('genreTerm')));
 });
+
+/* 코지 게임이 자기를 축으로 표현할 수 있어야 중복 게이트가 의미를 갖는다. 맞는 값이
+   없으면 게임이 억지로 아케이드 동사를 골라 적게 되고, 그 순간 중복 검사는 사실이
+   아닌 라벨끼리 비교하기 시작한다. */
+test('코지 게임의 메커니즘을 축으로 표현할 수 있다', () => {
+  const cozy = { input: 'tap-anywhere', goal: 'mend', failure: 'none', world: 'single-scene' };
+  assert.deepEqual(validateMechanics(cozy), []);
+});
+
