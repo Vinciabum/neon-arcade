@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Feltling</title>
+<style>
+  :root { --wool: #f3e7d3; --ink: #4a3f35; --sky: #dcebe4; --ground: #cfe0d4; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--sky); }
+  body { font: 15px/1.4 ui-rounded, "SF Pro Rounded", system-ui, sans-serif; color: var(--ink);
+         -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  #wrap { display: flex; flex-direction: column; height: 100%; }
+  #hud { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center;
+         padding: 8px 14px; height: 38px; font-size: 13px; letter-spacing: .04em; }
+  #hud b { font-weight: 700; }
+  #muteBtn { appearance: none; border: 0; background: transparent; color: inherit;
+             font: inherit; letter-spacing: .04em; cursor: pointer; padding: 4px; }
+  #stage { position: relative; flex: 1 1 auto; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span>YARN <b id="yarn">0</b></span>
+    <span id="stageLabel">BARE</span>
+    <button id="muteBtn" type="button" aria-label="Toggle sound">SOUND <b>ON</b></button>
+  </div>
+  <div id="stage"><canvas id="c"></canvas></div>
+</div>
+
+<script>
+/* ============================================================
+   Feltling — 펠트로 짜인 세계. 물범은 원래 털이 없고, 고양이가 실을 가져다 준다.
+
+   입력은 탭 하나다. 탭하면 고양이가 그리로 걸어가 앞발로 톡 친다 — 이동과 행동이
+   한 동작이다. 탭과 소리 사이의 지연은 결함이 아니라 캐릭터다(고양이가 총총 걸어간다).
+
+   실패도 시간 제한도 없고, 손을 놓아도 끝나지 않는다. 게이트에는 session:'cozy'로
+   그것을 선언한다 — tools/gates.js가 그 선언을 보고 종결 규칙을 뒤집어 판정한다.
+
+   그림: 지금은 전부 캔버스로 그린다. 펠트 그림이 준비되면 ART 블록만 채운다.
+   ============================================================ */
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+/* 플레이 밴드. 창이 가로로 넓어도 게임이 도는 판은 늘 세로 비율이다.
+   게이트 2가 가로 뷰포트에서 이 비율을 재므로 공식을 바꾸면 판정이 깨진다. */
+const BAND = 390 / 806;
+let W = 0, H = 0, SW = 0, OX = 0;
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  SW = Math.max(1, Math.round(rect.width));
+  H = Math.max(1, Math.round(rect.height));
+  W = Math.min(SW, Math.round(H * BAND));
+  OX = Math.round((SW - W) / 2);
+  canvas.width = Math.round(SW * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, OX * dpr, 0);
+  layout();
+}
+window.addEventListener('resize', resize);
+
+/* ---------- 그림 자리 ----------
+   펠트 시트가 오면 여기에 WebP data URI를 넣는다. 외부 파일로 두지 않는 이유는
+   포털 납품본이 자립형 한 파일이어야 하기 때문이다 (tools/validate.js: 500KB 상한).
+   비어 있으면 아래 canvas 그리기가 대신 그린다 — 게임은 그림 없이도 돈다. */
+const ART = { seal: [], cat: [], props: {} };
+
+/* ---------- 소리 ----------
+   진행도를 막대기가 아니라 소리로 보여준다. 털이 두꺼워질수록 배 치는 소리는
+   커지는 것이 아니라 먹먹해진다 — 완성의 증거가 우렁참이 아니라 포근함이다. */
+const Audio_ = (() => {
+  let ac = null, on = true;
+  const ready = () => {
+    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } }
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
+    return ac;
+  };
+  // 펠트를 두드리는 소리는 음정이 아니라 잡음이다. 짧은 노이즈를 필터로 깎아 만든다.
+  const thud = (freq, dur, damp, vol) => {
+    const a = ready(); if (!a || !on) return;
+    const n = Math.max(1, Math.floor(a.sampleRate * dur));
+    const buf = a.createBuffer(1, n, a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) {
+      const t = i / n;
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, damp);
+    }
+    const src = a.createBufferSource(); src.buffer = buf;
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = freq;
+    const g = a.createGain(); g.gain.value = vol;
+    src.connect(lp); lp.connect(g); g.connect(a.destination);
+    src.start();
+  };
+  return {
+    // 재질마다 다른 소리. 마을 전체가 악기가 된다.
+    prop: (kind) => ({
+      felt: () => thud(420, 0.16, 5, 0.5),
+      wood: () => thud(900, 0.13, 7, 0.42),
+      stone: () => thud(1800, 0.07, 12, 0.34),
+      water: () => thud(1300, 0.22, 3, 0.3),
+      grass: () => thud(2400, 0.10, 8, 0.22)
+    }[kind] || (() => thud(600, 0.14, 6, 0.4)))(),
+    // 빈 소리. 여기에 실이 있다.
+    hollow: () => thud(240, 0.30, 2, 0.5),
+    /* 물범 배. 단계가 오를수록 저역만 남고 짧아진다 — 맨살은 챱! 하고 밝게,
+       다 채워지면 폭 하고 먹먹하게. */
+    belly: (stage) => {
+      const f = [2600, 1900, 1400, 1000, 720, 520][Math.min(stage, 5)];
+      const dur = [0.10, 0.11, 0.13, 0.15, 0.17, 0.20][Math.min(stage, 5)];
+      const damp = [10, 8, 7, 6, 5, 4][Math.min(stage, 5)];
+      thud(f, dur, damp, 0.55);
+    },
+    // 단계 상승. 물범이 고양이 엉덩이를 팡팡팡 쳐준다 — 이 게임에서 가장 드문 소리다.
+    pat3: () => { [0, 150, 300].forEach((ms, i) => setTimeout(() => thud(620 - i * 40, 0.18, 4, 0.6), ms)); },
+    toggle: () => { on = !on; if (on) ready(); return on; },
+    get on() { return on; }
+  };
+})();
+
+/* ---------- 세계 ---------- */
+const STAGE_COST = [3, 5, 8, 12, 18, 25];   // 단계마다 필요한 실. 뒤로 갈수록 털이 많이 든다
+const STAGE_NAME = ['BARE', 'TUFTS', 'PATCHY', 'EVEN', 'THICK', 'PLUSH', 'FELTLING'];
+const PROP_KINDS = ['felt', 'wood', 'stone', 'water', 'grass'];
+
+let props = [], cat = null, seal = null;
+let carried = 0, stage = 0, filled = 0, given = 0;
+let state = 'playing', tick = 0, muted = false;
+
+const SAVE = 'feltling.v1';
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE) || '{}');
+    stage = Math.min(6, s.stage | 0); filled = s.filled | 0; given = s.given | 0;
+  } catch { /* 저장이 깨졌으면 처음부터 한다. 코지 게임에서 그건 사고가 아니라 새 시작이다 */ }
+}
+function save() {
+  try { localStorage.setItem(SAVE, JSON.stringify({ stage, filled, given })); } catch {}
+}
+
+/* 방문할 때마다 세계가 조금 더 풀려 있다. 타이머도 대기도 보여주지 않는다 —
+   원래 풀리는 세계라 설정과 맞고, 올 때마다 할 것이 있으면 그것으로 충분하다. */
+function seedScene() {
+  const n = 11;
+  props = [];
+  for (let i = 0; i < n; i++) {
+    props.push({
+      i,
+      kind: PROP_KINDS[i % PROP_KINDS.length],
+      loose: false,
+      spent: false,
+      squash: 0
+    });
+  }
+  const looseCount = 6 + Math.floor(Math.random() * 3);
+  const order = props.map(p => p.i).sort(() => Math.random() - 0.5);
+  order.slice(0, looseCount).forEach(i => { props[i].loose = true; });
+}
+
+/* 배치는 밴드 크기가 정해진 뒤에 잡는다. 좌표를 비율로 두면 화면이 바뀌어도
+   같은 그림이 나온다. */
+const HORIZON = 0.17;   // 하늘은 위 17%만. 나머지는 전부 땅이다
+
+function layout() {
+  if (!W || !H) return;
+  /* 소품은 땅 위에 앉아 있어야 한다. 처음엔 격자로 두고 지평선을 0.66H에 뒀더니
+     소품 전부가 하늘에 떠 있었다 — 그림을 바꿔도 배치가 틀린 채로 남는 종류의 실수다.
+     격자 대신 흩어 놓는다. 규칙적인 배열은 마을이 아니라 진열대로 읽힌다. */
+  const top = H * (HORIZON + 0.06), bottom = H * 0.66;
+  props.forEach((p) => {
+    const t = (p.i + 0.5) / props.length;
+    const sx = ((p.i * 73) % 100) / 100;      // 결정론적 흩뿌림. 매 방문 같은 마을이어야 한다
+    const sy = ((p.i * 47) % 100) / 100;
+    p.y = top + (bottom - top) * (t * 0.82 + sy * 0.18);
+    const depth = (p.y - top) / (bottom - top);   // 아래로 갈수록 가깝다
+    const inset = 0.14 - depth * 0.03;
+    p.x = W * (inset + (1 - inset * 2) * ((sx + t * 0.6) % 1));
+    p.r = W * (0.058 + depth * 0.030);            // 가까울수록 크다
+  });
+  props.sort((a, b) => a.y - b.y);                // 뒤에 있는 것부터 그린다
+  seal = { x: W * 0.5, y: H * 0.84, r: W * 0.20 };
+  if (!cat) cat = { x: W * 0.22, y: H * 0.70, tx: W * 0.22, ty: H * 0.70, target: null, paw: 0 };
+}
+
+/* ---------- 입력 — 탭 하나가 전부다 ---------- */
+function pointAt(e) {
+  const rect = canvas.getBoundingClientRect();
+  const src = e.touches && e.touches[0] ? e.touches[0] : e;
+  return { x: src.clientX - rect.left - OX, y: src.clientY - rect.top };
+}
+function onTap(e) {
+  if (state !== 'playing') return;
+  const { x, y } = pointAt(e);
+  const onSeal = Math.hypot(x - seal.x, y - seal.y) < seal.r * 1.15;
+  if (onSeal) { cat.tx = seal.x - seal.r * 0.9; cat.ty = seal.y - seal.r * 0.15; cat.target = { type: 'seal' }; return; }
+  let best = null, bd = W * 0.16;
+  for (const p of props) {
+    const d = Math.hypot(x - p.x, y - p.y);
+    if (d < bd) { bd = d; best = p; }
+  }
+  cat.tx = Math.max(W * 0.08, Math.min(W * 0.92, x));
+  cat.ty = Math.max(H * (HORIZON + 0.04), Math.min(H * 0.78, y));   // 고양이는 땅 위에만 선다
+  cat.target = best ? { type: 'prop', p: best } : null;
+}
+canvas.addEventListener('pointerdown', onTap);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onTap(e); }, { passive: false });
+
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', () => {
+  muted = !Audio_.toggle();
+  muteBtn.querySelector('b').textContent = muted ? 'OFF' : 'ON';
+});
+
+/* ---------- 고양이가 도착해서 톡 친다 ---------- */
+function arrive() {
+  const t = cat.target; cat.target = null; cat.paw = 0.28;
+  if (!t) return;
+  if (t.type === 'seal') {
+    if (carried > 0) {
+      carried--; filled++; given++;
+      Audio_.belly(stage);
+      seal.wob = 0.35;                       // 물범이 좋다고 자기 배를 친다
+      if (stage < 6 && filled >= STAGE_COST[stage]) {
+        filled -= STAGE_COST[stage]; stage++;
+        seal.blink = 1.1;                    // 표정은 여기서만 바뀐다
+        cat.patted = 1.3;                    // 물범이 고양이 엉덩이를 팡팡팡
+        Audio_.pat3();
+      }
+      save();
+    } else {
+      Audio_.belly(stage);                   // 실이 없으면 진행도만 듣는다
+      seal.wob = 0.22;
+    }
+    return;
+  }
+  const p = t.p;
+  p.squash = 0.3;
+  if (p.loose && !p.spent) { p.spent = true; carried++; Audio_.hollow(); }
+  else Audio_.prop(p.kind);
+}
+
+/* ---------- 그리기 ----------
+   펠트는 매끈한 도형이 아니다. 가장자리를 흔들고 섬유 알갱이를 얹어 흉내낸다.
+   그림이 오면 이 함수들이 drawImage로 바뀐다. */
+function feltBlob(x, y, r, fill, seed, squash) {
+  const sq = 1 - (squash || 0) * 0.45;
+  ctx.save(); ctx.translate(x, y); ctx.scale(1 / sq, sq);
+  ctx.beginPath();
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 14) {
+    const w = r * (1 + Math.sin(a * 3 + seed) * 0.045 + Math.sin(a * 7 + seed * 2) * 0.02);
+    const px = Math.cos(a) * w, py = Math.sin(a) * w;
+    a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+  ctx.globalAlpha = 0.12; ctx.fillStyle = '#fff';
+  for (let i = 0; i < 14; i++) {
+    const a = (i * 2.399 + seed), rr = r * (0.2 + (i % 5) / 6);
+    ctx.beginPath(); ctx.arc(Math.cos(a) * rr, Math.sin(a) * rr, r * 0.06, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
+
+const PROP_FILL = { felt: '#e0b9a4', wood: '#c9a273', stone: '#b9bcc0', water: '#a9c9d8', grass: '#a7c48c' };
+
+function draw(dt) {
+  ctx.clearRect(-OX, 0, SW, H);
+  ctx.fillStyle = '#dcebe4'; ctx.fillRect(-OX, 0, SW, H);
+  ctx.fillStyle = '#cfe0d4'; ctx.fillRect(-OX, H * HORIZON, SW, H * (1 - HORIZON));
+
+  for (const p of props) {
+    p.squash = Math.max(0, p.squash - dt * 2.6);
+    // 접지 그림자. 이게 없으면 소품이 땅에 앉지 않고 떠 보인다.
+    ctx.save(); ctx.globalAlpha = 0.10; ctx.fillStyle = '#3b332c';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + p.r * 0.86, p.r * 0.82, p.r * 0.22, 0, 0, 7); ctx.fill();
+    ctx.restore();
+    feltBlob(p.x, p.y, p.r, PROP_FILL[p.kind], p.i * 1.7, p.squash);
+    // 풀린 것은 실밥이 삐져나와 보인다. 소리를 끈 사람도 찾을 수 있어야 한다.
+    if (p.loose && !p.spent) {
+      ctx.strokeStyle = '#f6efe0'; ctx.lineWidth = Math.max(2, p.r * 0.10); ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p.x + p.r * 0.5, p.y - p.r * 0.5);
+      ctx.quadraticCurveTo(p.x + p.r * 1.25, p.y - p.r * 1.05, p.x + p.r * 0.75, p.y - p.r * 1.35);
+      ctx.stroke();
+    }
+  }
+
+  // 물범. 단계가 오를수록 몸이 커지고 털색이 덮는다.
+  seal.wob = Math.max(0, (seal.wob || 0) - dt * 2.2);
+  seal.blink = Math.max(0, (seal.blink || 0) - dt);
+  const grow = 1 + stage * 0.035;
+  const skin = '#b6b3ae', wool = '#f0e3cb';
+  ctx.save(); ctx.globalAlpha = 0.10; ctx.fillStyle = '#3b332c';
+  ctx.beginPath(); ctx.ellipse(seal.x, seal.y + seal.r * grow * 0.92, seal.r * 0.9, seal.r * 0.20, 0, 0, 7); ctx.fill();
+  ctx.restore();
+  feltBlob(seal.x, seal.y, seal.r * grow, skin, 4.2, seal.wob * 0.6);
+  /* 털은 반투명 덩어리를 겹치는 대신 뭉치를 하나씩 얹어서 늘린다. 처음에는 덩어리를
+     알파로 흐리게 겹쳤는데, 1단계가 그냥 '색이 조금 밝은 물범'으로 읽혀서 진행이
+     눈에 안 보였다. 진행도를 소리로만 보여주기로 한 것이지, 안 보이게 하기로 한 것이 아니다. */
+  const TUFTS = [0, 3, 8, 16, 26, 38, 54][stage];
+  if (TUFTS) {
+    const rr = seal.r * grow;
+    for (let i = 0; i < TUFTS; i++) {
+      const a = i * 2.399;                       // 황금각. 겹치지 않고 고르게 퍼진다
+      const rad = Math.sqrt((i + 0.5) / TUFTS) * rr * 0.88;
+      const tx = seal.x + Math.cos(a) * rad, ty = seal.y - rr * 0.10 + Math.sin(a) * rad * 0.86;
+      /* 얼굴에는 털을 얹지 않는다. 표정이 이 게임의 보상인데 뭉치가 눈을 덮으면
+         그 보상이 사라진다 — 실제로 첫 판에서 눈 위에 얹혔다. */
+      if (Math.hypot(tx - seal.x, (ty - (seal.y - rr * 0.16)) * 1.15) < rr * 0.5) continue;
+      ctx.fillStyle = wool;
+      ctx.beginPath(); ctx.arc(tx, ty, rr * (stage >= 5 ? 0.19 : 0.15), 0, 7); ctx.fill();
+    }
+  }
+  // 눈. 단계가 오른 직후에만 감는다 — 그때만 표정이 바뀐다.
+  const closed = seal.blink > 0;
+  ctx.fillStyle = '#3b332c';
+  for (const s of [-1, 1]) {
+    const ex = seal.x + s * seal.r * 0.32, ey = seal.y - seal.r * 0.22;
+    if (closed) { ctx.lineWidth = 3; ctx.strokeStyle = '#3b332c'; ctx.beginPath(); ctx.arc(ex, ey + 2, seal.r * 0.11, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); }
+    else { ctx.beginPath(); ctx.arc(ex, ey, seal.r * 0.075, 0, 7); ctx.fill(); }
+  }
+  ctx.beginPath(); ctx.arc(seal.x, seal.y - seal.r * 0.04, seal.r * 0.075, 0, 7); ctx.fill();
+
+  // 고양이
+  cat.paw = Math.max(0, cat.paw - dt * 3);
+  cat.patted = Math.max(0, (cat.patted || 0) - dt);
+  const bob = Math.sin(tick * 0.012) * (cat.moving ? 3 : 1);
+  feltBlob(cat.x, cat.y + bob, W * 0.062, '#d8c3a8', 2.5, cat.paw * 0.5);
+  ctx.fillStyle = '#3b332c';
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(cat.x + s * W * 0.020, cat.y + bob - W * 0.012, W * 0.007, 0, 7); ctx.fill(); }
+  if (carried > 0) {
+    feltBlob(cat.x + W * 0.05, cat.y + bob - W * 0.03, W * 0.028, '#f6efe0', 1.1, 0);
+    ctx.fillStyle = '#4a3f35'; ctx.font = `600 ${Math.round(W * 0.038)}px ui-rounded, system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.fillText(String(carried), cat.x + W * 0.05, cat.y + bob - W * 0.02);
+  }
+  if (cat.patted > 0) {                       // 팡팡팡 맞는 중. 고양이가 전부 표현한다
+    ctx.globalAlpha = cat.patted / 1.3; ctx.fillStyle = '#f6efe0';
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath(); ctx.arc(cat.x - W * 0.05 + i * W * 0.05, cat.y - W * 0.10 - i * 4, W * 0.012, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ---------- 루프 ---------- */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; tick++;
+  const dx = cat.tx - cat.x, dy = cat.ty - cat.y, d = Math.hypot(dx, dy);
+  /* 화면을 가로지르는 데 0.6초쯤 걸리는 속도. 처음엔 W*1.15로 뒀는데 대각선이 1.8초가
+     걸려서, 다음 탭이 도착 전에 목표를 덮어써 탭이 조용히 사라졌다. 총총 걸어가는 지연은
+     매력이지만 그건 0.5초까지의 이야기다. */
+  const speed = W * 3.0;
+  cat.moving = d > 2;
+  if (cat.moving) {
+    const step = Math.min(d, speed * dt);
+    cat.x += dx / d * step; cat.y += dy / d * step;
+    if (Math.hypot(cat.tx - cat.x, cat.ty - cat.y) <= 2 && cat.target) arrive();
+  } else if (cat.target) arrive();
+  draw(dt);
+  document.getElementById('yarn').textContent = String(carried);
+  document.getElementById('stageLabel').textContent = STAGE_NAME[stage];
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 관측 계약: 게이트 2가 읽는 유일한 인터페이스 ----------
+   session:'cozy'가 핵심이다. 이 선언이 없으면 게이트는 아케이드 규칙으로 판정하고,
+   "방치했는데 안 끝난다"를 결함으로 잡는다 — 이 게임에서는 그게 정상이다.
+   score 자리에는 점수가 아니라 진행도(지금까지 준 실)를 싣는다. */
+window.__GAME__ = {
+  api: 1,
+  session: 'cozy',
+  get state() { return state; },
+  get score() { return given; },
+  get tick() { return tick; },
+  get field() { return { x: OX, w: W, h: H, screenW: SW }; },
+  start() { state = 'playing'; },
+  pause() { state = 'paused'; },
+  resume() { state = 'playing'; }
+};
+
+load();
+seedScene();
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
