@@ -217,6 +217,19 @@ export function checkPlay(r) {
     }
   }
 
+  /* 코지는 종결 규칙이 뒤집힌다. 아케이드는 손을 놓으면 판이 끝나야 하고, 코지는
+     끝나지 않아야 한다 — 손을 놓았다고 판을 뺏는 것이 코지에서는 결함이다.
+     'single-shot'과 같이 게임이 스스로 선언할 때만 이 경로를 탄다. 조용히 넓히면
+     앞으로 만드는 모든 게임이 자기도 모르게 들어가고, 그때는 아무도 눈치채지 못한다.
+     점수 검사는 위에 그대로 둔다 — 코지 게임은 score 자리에 진행도를 싣는다. */
+  if (r.session === 'cozy') {
+    if (r.idle?.ended) {
+      errors.push(`${at}: ended while idle after ${r.idle?.afterMs ?? '?'}ms — a cozy game must not take the session away when the player stops`);
+    }
+    skipped.push(`${at}: restart not checked — a cozy game has no run to restart`);
+    return { errors, skipped };
+  }
+
   if (!r.idle?.ended) {
     errors.push(`${at}: never ends when idle — no game over after ${r.idle?.afterMs ?? '?'}ms without input`);
   }

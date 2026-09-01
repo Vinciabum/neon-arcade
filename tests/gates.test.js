@@ -551,3 +551,40 @@ test('기존 okPlay 리포트는 새 생존 판정에 걸리지 않는다', () =
   assert.ok(!errors.some(e => e.includes('dies too fast')));
   assert.ok(!skipped.some(s => s.includes('survival not judged')));
 });
+
+/* ---------- 코지 모드 ----------
+   코지 게임은 점수도 죽음도 없고 방치해도 끝나지 않는다. 계약 모드의 종결 규칙은
+   그 중 하나를 정확히 반대로 판정한다 — 아케이드는 손을 놓으면 판이 끝나야 하고,
+   코지는 끝나지 않아야 한다. 손을 놓았다고 판을 뺏는 것이 코지에서는 결함이다.
+   'single-shot'과 같이 게임이 스스로 선언할 때만 이 경로를 탄다. */
+const okCozy = () => ({
+  ...okPlay(),
+  session: 'cozy',
+  idle: { ended: false, afterMs: 20_000 },
+  restart: null
+});
+
+test('코지 게임은 방치해도 안 끝나는 것이 정상이다', () => {
+  const { errors, skipped } = checkPlay(okCozy());
+  assert.deepEqual(errors, []);
+  assert.ok(skipped.some(s => s.includes('restart not checked')));
+});
+
+test('코지 게임이 방치 중에 끝나버리면 잡는다 — 코지에서는 그게 결함이다', () => {
+  const r = okCozy();
+  r.idle.ended = true;
+  assert.ok(checkPlay(r).errors.some(e => e.includes('ended while idle')));
+});
+
+test('코지 게임도 진행이 없으면 잡는다 — 점수 자리에 진행도를 싣는다', () => {
+  const r = okCozy();
+  r.scoreSamples = [0, 0, 0, 0];
+  assert.ok(checkPlay(r).errors.some(e => e.includes('no progress')));
+});
+
+test('코지가 아닌 계약 게임은 방치하면 끝나야 한다 — 기존 규칙이 그대로다', () => {
+  const r = okCozy();
+  delete r.session;
+  assert.ok(checkPlay(r).errors.some(e => e.includes('never ends when idle')));
+});
+
