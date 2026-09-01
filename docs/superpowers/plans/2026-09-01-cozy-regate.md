@@ -21,9 +21,34 @@
 
 ---
 
-### Task 1: reel.js 폰트 경로를 macOS로
+### Task 1: reel.js 자막 — 보류 (결정 필요)
 
-숏폼이 유통 1순위인데 숏폼 도구가 이 기계에서 안 돈다. `tools/reel.js:47`의 폰트 경로가 Windows 것이라 `ffmpeg`가 자막을 그리다 죽는다.
+**시도했고 되돌렸다.** 폰트 경로만 고치는 것은 가짜 수정이었다.
+
+실제로 확인한 것:
+
+```
+$ ffmpeg -filters | grep -c drawtext
+0
+$ ffmpeg -version | grep -o enable-libfreetype
+(없음)
+```
+
+이 기계의 ffmpeg(Homebrew `ffmpeg 9.0.1_1` 병)는 **`--enable-libfreetype` 없이 빌드되어 `drawtext` 필터 자체가 없다.** 폰트 경로가 맞아도 자막은 못 그린다. 처음 쓴 테스트는 폰트 파일 존재만 검사해서 **통과하면서 기능은 망가진 채로 남았다** — 그래서 커밋하지 않고 되돌렸다.
+
+**선택지 두 개:**
+
+| | 방법 | 장점 | 단점 |
+|---|---|---|---|
+| **A** | `brew install ffmpeg-full` (병 있음, keg-only라 기존 ffmpeg와 충돌 없음, freetype·fontconfig·harfbuzz·libass 포함) | 지금 바로 됨. `reel.js` 구조 그대로 | 의존성 47개. keg-only라 `reel.js`가 `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg`를 직접 가리켜야 함. 다른 기계에서 또 깨진다 |
+| **B** | 자막을 **브라우저에서** 그린다. Playwright가 이미 페이지를 녹화하므로 DOM 오버레이로 얹는다 | ffmpeg 의존성 제거. 어느 기계에서나 됨. 폰트 경로 문제가 영구히 사라짐. **자막이 게임의 펠트 톤을 그대로 쓴다** | `reel.js` 자막 경로를 다시 씀 |
+
+**추천: B.** 지금 자막 문구(`'NO ADS. NO SIGNUP.'`, `'3 SECONDS TO PLAY'`)는 아케이드 피치라 어차피 다시 쓴다. 흰 글씨 + 검은 반투명 박스도 펠트 코지에 정확히 안 맞는다. 어차피 새로 쓸 것이면 의존성을 없애는 쪽으로 쓴다.
+
+**단, 지금은 못 한다** — 자막 문구에 브랜드명이 들어가는데 이름이 아직 확정되지 않았다. **삭제·리브랜딩 계획으로 넘긴다.**
+
+<details>
+<summary>원래 계획했던 폰트 경로 수정 (참고용, 실행하지 않음)</summary>
 
 **Files:**
 - Modify: `tools/reel.js:45-48`
@@ -94,15 +119,14 @@ Expected: `pass 216`, `fail 0`
 
 ```bash
 git add tools/reel.js tests/reel.test.js
-git commit -m "Point the reel captions at a font this machine actually has
-
-The path was written on Windows and never ran here, so the one tool the
-short-form plan depends on died on its first real invocation."
+git commit -m "Point the reel captions at a font this machine actually has"
 ```
+
+</details>
 
 ---
 
-### Task 2: checkPlay에 코지 모드를 넣는다
+### Task 2: checkPlay에 코지 모드를 넣는다 ✅ 완료 — `1218852`
 
 계약 모드의 세 규칙이 좋은 코지 게임을 무조건 떨어뜨린다. 그 중 하나는 정확히 반대다 — 아케이드는 방치하면 끝나야 하고, 코지는 방치해도 안 끝나야 한다.
 
@@ -242,7 +266,7 @@ opts in by accident."
 
 ---
 
-### Task 3: rubric.js를 코지 기준으로
+### Task 3: rubric.js를 코지 기준으로 ✅ 완료 — `0b4aa0a`
 
 채점표의 두 축이 아케이드를 재고 있다. `session`은 "킬링타임 1~3분 규격"을 20점으로 매기는데 코지는 길수록 좋고, `difficulty`는 "난이도 곡선"을 재는데 코지에는 난이도 곡선이 없다. 지금 기준으로는 좋은 코지 게임이 감점된다.
 
@@ -352,7 +376,7 @@ when it yields nothing, and whether there is a reason to remain."
 
 ---
 
-### Task 4: mechanics.js에 코지 동사를 넣는다
+### Task 4: mechanics.js에 코지 동사를 넣는다 ✅ 완료 — `29d6e80`
 
 중복 방지 게이트(게이트 4)가 네 축의 조합만 보고 판정한다. 지금 goal 축에는 `survive / destroy / collect / clear-board / match-pairs / recall-sequence / climb / solve / land-close`밖에 없어서 코지 게임이 자기를 설명할 수 없다. 파일 상단 주석에 적힌 규칙 그대로다 — "새 게임이 기존 축에 안 맞으면 여기에 값을 추가한다. 그 추가 자체가 새 장르라는 뜻이다."
 
@@ -456,11 +480,18 @@ labels that were never true."
 
 **3. Type consistency.** `session: 'cozy'`가 Task 2의 테스트·구현·Produces에서 일관되게 쓰인다. rubric 축 key 다섯 개가 Task 3의 세 곳에서 일치한다. mechanics 값 네 개가 Task 4의 테스트·구현·Produces에서 일치한다.
 
-## 이 계획이 끝나면
+## 실행 결과 (2026-09-01)
 
-- 코지 게임이 통과할 수 있는 게이트와 채점표가 선다
-- 숏폼 도구가 이 기계에서 돈다
-- 아케이드 게임 19개는 **그대로 남아 있고 전부 통과한다**
+| 태스크 | 상태 | 커밋 |
+|---|---|---|
+| 1. reel.js 자막 | **보류** — ffmpeg에 `drawtext` 없음. 결정 필요 | — |
+| 2. checkPlay 코지 모드 | 완료 | `1218852` |
+| 3. rubric.js 코지 축 | 완료 | `0b4aa0a` |
+| 4. mechanics.js 코지 동사 | 완료 | `29d6e80` |
+
+테스트 215 → **220 통과, 실패 0.** `node build.js` → `Done. 19 games, 23 indexable URLs.` 아케이드 게임 19개는 그대로 남아 있고 전부 통과한다.
+
+코지 게임이 통과할 수 있는 게이트와 채점표가 섰다. 숏폼 도구는 아직 안 돈다.
 
 ## 다음 계획
 
