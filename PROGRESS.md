@@ -77,6 +77,32 @@
 
 220 → **249 통과, 실패 0.**
 
+### 게이트 전수 검사 결과
+
+`node tools/verify.js --quick` 20개 → **16 통과**. 실패 4개를 전부 끝까지 확인했다.
+
+| 게임 | 실패 | 판정 |
+|---|---|---|
+| one-shot | never ends when idle (8.0s) | **quick 모드 인공물.** 이 게임의 샷 클락이 15초라 8초 창을 못 넘긴다. full 모드(20초 창)에서 통과 — idle grace 15,067ms |
+| lantern-keeper | never ends when idle (8.0s) | **quick 모드 인공물.** 설계상 방치 사망이 ~11초. full 모드에서 통과 |
+| ember-drift | no progress — score never changed | **quick 모드 인공물.** full 모드에서 통과 |
+| synaptic-grid | horizontal overflow on mobile — scrollWidth 585 > 390 | **진짜 버그였다. 고쳤다.** |
+
+`synaptic-grid`의 `#bg-pulse`가 `200vw`인데 `position: absolute`였다. 390px 폰에서 문서 폭이
+585px가 되어 페이지가 가로로 밀렸다. `body { overflow: hidden }`은 `documentElement.scrollWidth`를
+줄이지 않는다. `position: fixed`로 바꾸면 문서 흐름 밖이라 넘침이 사라지고 화면은 똑같다.
+사이트 첫 커밋(`0c6bf91`)부터 있던 버그다.
+
+**교훈: `--quick`의 실패는 그대로 믿으면 안 된다.** 입력·방치 창이 8초라 방치 사망이 8초보다
+느린 게임은 전부 걸린다. 실패가 나오면 그 게임만 full 모드로 다시 돌려 판정한다.
+
+### 크레딧 페이지가 틀렸던 것
+
+이 세션에서 내가 쓴 `/credits/`에 "서드파티 웹폰트를 쓰지 않는다"고 적었는데 **사실이 아니었다.**
+`assets/site.css`가 Fredoka·Outfit을, 게임 9개가 Audiowide·Orbitron·Press Start 2P·Share Tech Mono를
+구글 폰트에서 받는다. 검증 가능하라고 만든 페이지에 틀린 문장을 실은 것이라 바로 고쳤고,
+privacy에 폰트 요청이 IP를 구글에 넘긴다는 절을 추가했다. 새 게임은 시스템 폰트를 쓴다(Feltling은 외부 요청 0).
+
 ### 여기서 할 것
 
 1. **AdSense 재심사 요청 — Jayden이 직접 누른다.** (세션이 대신 누르지 않는다)
