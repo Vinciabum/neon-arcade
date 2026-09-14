@@ -1,5 +1,70 @@
 [
   {
+    "slug": "feltling",
+    "title": "Feltling",
+    "tagline": "The seal has no fur. The cat is fixing that, one thread at a time.",
+    "description": "Knock on a felt meadow until something gives up its thread, then carry it to the seal. Six coats later the seal is felt all the way through.",
+    "tag": "Cozy",
+    "genreTerm": "cozy tapping game",
+    "controls": {
+      "keyboard": "None. Click anywhere on the meadow.",
+      "touch": "Tap anywhere. The cat walks there and knocks."
+    },
+    "howToPlay": [
+      "Tap anywhere. The cat trots to that spot and knocks on whatever is there — one input does both the moving and the doing.",
+      "Anything with a thread hanging off it is loose. Knock it and the thread comes away; the cat carries it.",
+      "Tap the seal to hand the thread over. It pats its own belly each time, and the sound tells you how thick the coat is getting.",
+      "Nothing here can be lost or failed. Put the phone down mid-tap and the meadow will still be there."
+    ],
+    "tips": [
+      "Knock on things that are not loose anyway. Stone, wood, water and wool each answer differently, and the meadow is the instrument.",
+      "The belly is a progress bar you listen to. Bare skin answers bright and sharp; a full coat answers soft and low.",
+      "The world keeps coming loose while you play, so there is never a point where there is nothing to do."
+    ],
+    "mechanics": {
+      "input": "tap-anywhere",
+      "goal": "mend",
+      "failure": "none",
+      "world": "single-scene"
+    },
+    "faq": [
+      {
+        "q": "Is there any way to lose?",
+        "a": "No. There is no timer, no score, no failure state and no way to undo progress. Leaving the tab open and walking away does nothing bad — the gate that normally fails a game for not ending was inverted for this one."
+      },
+      {
+        "q": "How long does it take to finish the seal?",
+        "a": "Six coats cost 71 threads in total, rising from three for the first to twenty-five for the last. A first sitting usually gets two coats in; the rest is meant to be picked up again later."
+      },
+      {
+        "q": "Why does the cat walk instead of acting instantly?",
+        "a": "Because the walk is the character. There is a half-second between your tap and the knock, and that delay is the cat trotting over — in a cozy game that reads as charm rather than input lag."
+      },
+      {
+        "q": "Does my progress save?",
+        "a": "Yes, in your browser's local storage on that device. It never leaves your machine and is not sent anywhere, so clearing site data starts the seal over from bare."
+      },
+      {
+        "q": "Why does the seal not have fur to begin with?",
+        "a": "Seals do not have fur like that; nothing is wrong with it. The cat simply decided otherwise, and the game never explains why, because explaining it would spoil the joke."
+      }
+    ],
+    "releasedAt": "2026-09-14",
+    "status": "published",
+    "featured": true,
+    "captureFromMs": 2600,
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "Everything you see is drawn in code. There are no image files and no audio files in this game — the felt texture is a 200&times;200 tile of random fibre strokes generated once at load and composited over the finished frame in <code>overlay</code> blend mode, so every object on screen inherits the same weave in a single draw call. Shapes are never perfect: each outline is a closed path whose radius wobbles by about three percent using two overlapping sine terms, seeded per object so a mushroom keeps its own silhouette from frame to frame.",
+      "The seal&rsquo;s coat took three attempts. Fading a translucent wool layer in made stage one look like a colour-graded seal, with no visible progress at all. Scattering small cream circles gave even coverage and looked like bubble wrap, and adding straight fibres around the outline to soften it produced a hedgehog. What works is coverage rather than count: the body&rsquo;s base colour interpolates from grey towards cream so bare skin never shows through as mottling, the wool is drawn as large irregular clumps that merge into a coat, and the clump positions are sorted top to bottom in advance so fur appears on the crown first.",
+      "Movement runs at twelve frames per second while rendering stays at sixty. The cat snaps from pose to pose rather than gliding, because interpolated motion on a felt character reads as a sticker being dragged and snapped motion reads as a puppet moved by hand between exposures. The half-second between your tap and the knock is the same decision — in an arcade game that delay would be input lag, and here it is the cat trotting over. There is a longer account in <a href=\"/notes/drawing-felt-without-image-files/\">drawing felt without image files</a> and <a href=\"/notes/progress-you-listen-to/\">progress you listen to</a>."
+    ]
+  },
+  {
     "slug": "duck-line",
     "title": "Duck Line",
     "tagline": "Lead the ducklings home. The longer the line, the harder it steers.",
@@ -47,7 +112,12 @@
       "gamedistribution": null,
       "gamepix": null,
       "crazygames": null
-    }
+    },
+    "notes": [
+      "The ducklings do not retrace your path. An earlier version recorded the mother&rsquo;s positions and replayed them down the line, which made the tail effectively invincible — an automated test cleared the whole pond without losing a single duckling, because the tail only ever went where the head had already safely been. They now lag-chase the duckling in front (<code>c.cx += (leadX - c.cx) * min(1, 5.5 * dt)</code>), which means the line swings wide across the inside of every turn and can clip something the mother just dodged.",
+      "Steering gets worse as you succeed. The drag factor is <code>max(0.55, 1 - line * 0.035)</code>, so a full line of twelve turns at just over half the responsiveness of an empty one. This is the only difficulty curve in the game and the player builds it themselves by playing well, which is a more interesting shape than a timer.",
+      "Roughly one duckling in three is deliberately placed next to a ball. Every third index is snapped near a toy position at generation time, so a meaningful fraction of the pond is a genuine question rather than free score: taking that duckling costs steering you may need in ten seconds. Arriving with eight is frequently better than losing nine. The ducks themselves are drawn with canvas bezier paths rather than the shared pixel sprite system, because a 13&times;11 sprite has nowhere to put an eye, a bill curve and a blush."
+    ]
   },
   {
     "slug": "one-shot",
@@ -96,7 +166,12 @@
       "gamedistribution": null,
       "gamepix": null,
       "crazygames": null
-    }
+    },
+    "notes": [
+      "The trajectory is never drawn. That is the entire game: showing an aim line would turn a round of reading and judging into a round of tracing a line, and the tension of having exactly one shot would go with it. What you get instead is a twelve-degree spread cone, a wind vector, and fifteen seconds on the shot clock. Everything else you have to estimate.",
+      "The course is not random. A deterministic <code>mulberry32</code> generator seeded from the UTC date builds one course that every player gets on a given day, which is what makes comparing a score meaningful. Obstacle gaps are not scattered either — they are placed along the ideal trajectory to the pin, derived from the parabola with <code>xFrac = 1 - sqrt(1 - hFrac)</code>, so the bars sit exactly where a perfect shot wants to be rather than wherever a random number generator put them.",
+      "Physics runs six substeps per frame. With a single step per frame a fast ball can pass straight through a thin bar between one position and the next, and in a one-shot game that bug is indistinguishable from a lucky shot. This is also the game that made the automated play gate learn about <code>session: 'single-shot'</code>: a robot tester fires immediately and therefore always scores a terrible survival time, which said nothing about the game. The gate now judges whether the round gives a person time to think instead — <a href=\"/notes/making-a-game-testable/\">that mechanism is described here</a>."
+    ]
   },
   {
     "slug": "lantern-keeper",
@@ -145,7 +220,12 @@
       "gamedistribution": null,
       "gamepix": null,
       "crazygames": null
-    }
+    },
+    "notes": [
+      "The darkness is a pressure device, not a blindfold. The vignette closes in as fuel drops — light radius is <code>H * (0.32 + 0.44 * min(1, fuel))</code> — but the darkest stop in the gradient is capped at 88% opacity rather than solid black, on purpose. Falling objects stay faintly visible at all times, because dying to something genuinely invisible is not difficulty, it is a coin toss.",
+      "Four separate curves ramp at four different rates: fall speed saturates around forty seconds, spawn gap around fifty-five, the proportion of soot around eighty-one, and the fuel drain not until roughly five minutes. Staggering them means the game never has a single moment where it obviously gets harder — the texture of the pressure keeps changing while the numbers move underneath.",
+      "Two implementation details that fixed real problems. The darkness gradient is generated once at unit radius and scaled with a canvas transform rather than regenerated every frame, which removed a steady stream of garbage collection pauses. And spawn positions use a golden-ratio low-discrepancy sequence instead of the usual sine-based scatter — measured, the sine version clustered drops at the screen edges and left the centre lane noticeably under-served, which players would have felt as unfairness without ever being able to name it."
+    ]
   },
   {
     "slug": "dino-jump",
@@ -154,23 +234,51 @@
     "description": "Run, jump and dodge obstacles in this neon endless runner. Collect coins, unlock power-ups in the shop and push for your best distance.",
     "tag": "Runner",
     "genreTerm": "dinosaur runner game",
-    "controls": { "keyboard": "Space or Up Arrow to jump", "touch": "Tap anywhere to jump" },
+    "controls": {
+      "keyboard": "Space or Up Arrow to jump",
+      "touch": "Tap anywhere to jump"
+    },
     "howToPlay": [
       "Press Space or tap the screen to jump over incoming obstacles.",
       "Collect coins while you run to spend in the shop.",
       "The longer you survive, the faster the game gets."
     ],
-    "tips": ["Save coins for the shield power-up before pushing for a long run."],
-    "mechanics": { "input": "one-button", "goal": "survive", "failure": "collision", "world": "auto-scroll" },
+    "tips": [
+      "Save coins for the shield power-up before pushing for a long run."
+    ],
+    "mechanics": {
+      "input": "one-button",
+      "goal": "survive",
+      "failure": "collision",
+      "world": "auto-scroll"
+    },
     "faq": [
-      { "q": "How is the score calculated in Dino Jump?", "a": "The score is the distance you cover. The run keeps speeding up, so the last stretch of a good run is worth more than the whole start." },
-      { "q": "What should I spend coins on first?", "a": "The shield. It absorbs one hit, and one hit is what usually ends a long run." },
-      { "q": "Can I play Dino Jump on a phone?", "a": "Yes. Tap anywhere on the screen to jump. The whole game works with one thumb and no keyboard." }
+      {
+        "q": "How is the score calculated in Dino Jump?",
+        "a": "The score is the distance you cover. The run keeps speeding up, so the last stretch of a good run is worth more than the whole start."
+      },
+      {
+        "q": "What should I spend coins on first?",
+        "a": "The shield. It absorbs one hit, and one hit is what usually ends a long run."
+      },
+      {
+        "q": "Can I play Dino Jump on a phone?",
+        "a": "Yes. Tap anywhere on the screen to jump. The whole game works with one thumb and no keyboard."
+      }
     ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "The animation loop never stops. An earlier version halted <code>requestAnimationFrame</code> whenever an overlay was up — lobby, shop, game over — and the automated performance gate measured the game at 33.5 frames per second, which looked like a serious problem. It was not: actual play was 59.7fps and roughly forty percent of the measured window was time when nothing was being drawn at all, which the harness could not distinguish from a stall. Now only the physics step is gated by the running flag and the render loop runs continuously.",
+      "The runner is not an image. Its body is built from quadratic curve paths and rendered once per pose into offscreen canvases at load — run A, run B, airborne — then blitted with a single <code>drawImage</code> per frame. It is a sprite sheet that happens to be generated by the game instead of drawn by an artist, which means it scales to the device pixel ratio without a second asset.",
+      "The score element is only touched when the displayed value changes. The counter advances ten times faster than the number shown, so writing to the DOM every frame would rebuild a string sixty times a second to display the same digits. Rebuilding it six times a second instead is invisible to the player and measurably cheaper on a phone."
+    ]
   },
   {
     "slug": "space-shooter",
@@ -179,23 +287,51 @@
     "description": "Pilot a neon starfighter through waves of enemies. Dodge incoming fire, upgrade your weapons and survive as long as you can in this retro shooter.",
     "tag": "Action",
     "genreTerm": "retro arcade shooter game",
-    "controls": { "keyboard": "Arrow keys to move, Space to fire", "touch": "Drag to move, auto-fire enabled" },
+    "controls": {
+      "keyboard": "Arrow keys to move, Space to fire",
+      "touch": "Drag to move, auto-fire enabled"
+    },
     "howToPlay": [
       "Move your ship to dodge enemy fire.",
       "Destroy enemies to raise your score and earn upgrades.",
       "Enemy waves get denser as the game progresses."
     ],
-    "tips": ["Stay near the bottom of the screen for more reaction time."],
-    "mechanics": { "input": "steer-free", "goal": "destroy", "failure": "collision", "world": "free-arena" },
+    "tips": [
+      "Stay near the bottom of the screen for more reaction time."
+    ],
+    "mechanics": {
+      "input": "steer-free",
+      "goal": "destroy",
+      "failure": "collision",
+      "world": "free-arena"
+    },
     "faq": [
-      { "q": "How do you survive longer in Space Shooter?", "a": "Fly low. Sitting near the bottom of the screen buys you the most time to read incoming fire before it reaches you." },
-      { "q": "Do I have to press fire on mobile?", "a": "No. Auto-fire is on for touch controls, so you only drag to move and the ship keeps shooting." },
-      { "q": "Is Space Shooter free to play?", "a": "Yes. It runs in the browser with no download, no install and no sign-up." }
+      {
+        "q": "How do you survive longer in Space Shooter?",
+        "a": "Fly low. Sitting near the bottom of the screen buys you the most time to read incoming fire before it reaches you."
+      },
+      {
+        "q": "Do I have to press fire on mobile?",
+        "a": "No. Auto-fire is on for touch controls, so you only drag to move and the ship keeps shooting."
+      },
+      {
+        "q": "Is Space Shooter free to play?",
+        "a": "Yes. It runs in the browser with no download, no install and no sign-up."
+      }
     ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "Difficulty is tied to score, not to a clock. The spawn interval closes as <code>max(20, 60 - score / 500)</code> frames and enemy speed carries a <code>score * 0.001</code> term, so a player who is shooting well is the reason the game gets harder. Surviving passively keeps the pressure flat, which makes the run length a function of skill rather than patience.",
+      "Firing is automatic on a fifteen frame cycle. Removing the fire button leaves exactly one thing to think about, which is where the ship is — and in a game played with a thumb on a phone, a second control would cost more than it adds.",
+      "There are no image files. The ship and the UFOs are SVG documents written inline in the source and base64-encoded into data URIs at load. It keeps the game a single self-contained file with zero network requests, which is the constraint every game on this site is built under: the same file that runs here can be handed to a portal without an asset bundle."
+    ]
   },
   {
     "slug": "neon-dodge",
@@ -204,23 +340,51 @@
     "description": "Survive as long as you can in an arena filling with hazards. Read the patterns, weave through the gaps and beat your personal best time.",
     "tag": "Survival",
     "genreTerm": "obstacle dodging survival game",
-    "controls": { "keyboard": "Arrow keys or WASD to move", "touch": "Drag to move your marker" },
+    "controls": {
+      "keyboard": "Arrow keys or WASD to move",
+      "touch": "Drag to move your marker"
+    },
     "howToPlay": [
       "Move your marker to avoid every incoming hazard.",
       "Your score is the time you survive.",
       "Hazards spawn faster the longer you last."
     ],
-    "tips": ["Keep to the centre of the arena so you have escape routes on both sides."],
-    "mechanics": { "input": "steer-free", "goal": "survive", "failure": "collision", "world": "free-arena" },
+    "tips": [
+      "Keep to the centre of the arena so you have escape routes on both sides."
+    ],
+    "mechanics": {
+      "input": "steer-free",
+      "goal": "survive",
+      "failure": "collision",
+      "world": "free-arena"
+    },
     "faq": [
-      { "q": "What is the goal in Neon Dodge?", "a": "Stay alive. Your score is how long you last, and hazards spawn faster the longer you survive." },
-      { "q": "Where is the safest place to stand?", "a": "Near the centre. You keep an escape route on both sides there, while a corner cuts your options in half." },
-      { "q": "Does Neon Dodge work on a touchscreen?", "a": "Yes. Drag your marker with a finger — it moves exactly as it does with the arrow keys." }
+      {
+        "q": "What is the goal in Neon Dodge?",
+        "a": "Stay alive. Your score is how long you last, and hazards spawn faster the longer you survive."
+      },
+      {
+        "q": "Where is the safest place to stand?",
+        "a": "Near the centre. You keep an escape route on both sides there, while a corner cuts your options in half."
+      },
+      {
+        "q": "Does Neon Dodge work on a touchscreen?",
+        "a": "Yes. Drag your marker with a finger — it moves exactly as it does with the arrow keys."
+      }
     ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "The hazard sprite is baked once. Drawing a glowing spiked shape with <code>shadowBlur</code> every frame for every hazard is one of the reliably expensive things you can do on a canvas, so it is rendered a single time into an offscreen buffer at twice the display size and then blitted. The supersample is what keeps the edges clean when the sprite is drawn rotated.",
+      "Rotation is computed from elapsed time multiplied by each hazard&rsquo;s own spin rate, rather than accumulated per frame. Accumulating means a device that drops frames spins its hazards more slowly, which quietly makes the game easier on a slower phone — the exact opposite of what should happen.",
+      "Difficulty moves on two axes at once: hazard speed is <code>3 + elapsed / 10</code> while the spawn interval closes from 1000ms towards a floor of 200ms at 20ms per second. The shield is the one purchase in the game and it is deliberately a permanent upgrade that grants exactly one save per run, so it changes how a run ends without ever removing the reason to dodge."
+    ]
   },
   {
     "slug": "cyber-snake",
@@ -229,23 +393,51 @@
     "description": "Guide a growing neon snake around the grid, eat data nodes and avoid crashing into your own tail in this smooth take on the arcade classic.",
     "tag": "Classic",
     "genreTerm": "online snake game",
-    "controls": { "keyboard": "Arrow keys or WASD to turn", "touch": "Swipe in the direction you want to turn" },
+    "controls": {
+      "keyboard": "Arrow keys or WASD to turn",
+      "touch": "Swipe in the direction you want to turn"
+    },
     "howToPlay": [
       "Steer the snake to eat the glowing nodes.",
       "Every node makes the snake longer.",
       "Hitting a wall or your own tail ends the run."
     ],
-    "tips": ["Plan a loop around the outside before the snake gets long."],
-    "mechanics": { "input": "swipe-turn", "goal": "collect", "failure": "collision", "world": "fixed-grid" },
+    "tips": [
+      "Plan a loop around the outside before the snake gets long."
+    ],
+    "mechanics": {
+      "input": "swipe-turn",
+      "goal": "collect",
+      "failure": "collision",
+      "world": "fixed-grid"
+    },
     "faq": [
-      { "q": "Is Cyber Snake the same as the classic Snake game?", "a": "The rules are the same — eat, grow, do not crash. The grid, the movement and the visuals are rebuilt from scratch." },
-      { "q": "How do you stop crashing into your own tail?", "a": "Commit to a loop around the outside early. A long snake needs a predictable path, not tight turns in the middle of the grid." },
-      { "q": "How do you steer on a phone?", "a": "Swipe in the direction you want to turn. On desktop it is the arrow keys or WASD." }
+      {
+        "q": "Is Cyber Snake the same as the classic Snake game?",
+        "a": "The rules are the same — eat, grow, do not crash. The grid, the movement and the visuals are rebuilt from scratch."
+      },
+      {
+        "q": "How do you stop crashing into your own tail?",
+        "a": "Commit to a loop around the outside early. A long snake needs a predictable path, not tight turns in the middle of the grid."
+      },
+      {
+        "q": "How do you steer on a phone?",
+        "a": "Swipe in the direction you want to turn. On desktop it is the arrow keys or WASD."
+      }
     ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "Speed is a millisecond interval, not a multiplier. Each piece of food takes two milliseconds off the move timer, starting at 150 and floored at 50, so the acceleration is linear in delay rather than in velocity — which means it feels gentle early and vicious late, because the same two milliseconds is a much larger proportion of a 60ms step than of a 150ms one.",
+      "The food is a rotating eight-point concave star in magenta, and that shape was chosen against the snake rather than for itself. The body is axis-aligned, cyan, and rectangular; anything rectangular or cyan placed on the same grid disappears into it at a glance. The rotation phase is derived from the animation timestamp rather than a frame counter, so it turns at the same speed on a 120Hz display as on a 60Hz one.",
+      "Death is staggered on purpose. Each segment of the snake explodes 50 milliseconds after the one before it, so a long snake produces a visibly long unravelling rather than a single pop. It is the one moment in the game with no input, and giving it duration proportional to how well you did turns the failure into a small readout of the run."
+    ]
   },
   {
     "slug": "neon-breaker",
@@ -254,23 +446,51 @@
     "description": "Bounce the ball off your paddle to clear every neon brick. Angle your shots carefully, chain rebounds and clear the board without losing the ball.",
     "tag": "Puzzle",
     "genreTerm": "brick breaker game",
-    "controls": { "keyboard": "Left and Right arrows to move the paddle", "touch": "Drag left and right to move the paddle" },
+    "controls": {
+      "keyboard": "Left and Right arrows to move the paddle",
+      "touch": "Drag left and right to move the paddle"
+    },
     "howToPlay": [
       "Move the paddle to keep the ball in play.",
       "Destroy every brick to clear the board.",
       "The ball angle depends on where it hits the paddle."
     ],
-    "tips": ["Hit the ball with the paddle edge for sharp angles into corner bricks."],
-    "mechanics": { "input": "steer-horizontal", "goal": "clear-board", "failure": "ball-lost", "world": "fixed-arena" },
+    "tips": [
+      "Hit the ball with the paddle edge for sharp angles into corner bricks."
+    ],
+    "mechanics": {
+      "input": "steer-horizontal",
+      "goal": "clear-board",
+      "failure": "ball-lost",
+      "world": "fixed-arena"
+    },
     "faq": [
-      { "q": "How do you control the angle of the ball?", "a": "By where it lands on the paddle. A centre hit sends the ball straight up; an edge hit sends it out at a sharp angle." },
-      { "q": "How do you clear bricks stuck in the corners?", "a": "Use the paddle edge to push the ball wide, then let it rebound between the side wall and the brick." },
-      { "q": "Do I need to install anything to play Neon Breaker?", "a": "No. It loads in a browser tab on desktop or mobile, and it is free." }
+      {
+        "q": "How do you control the angle of the ball?",
+        "a": "By where it lands on the paddle. A centre hit sends the ball straight up; an edge hit sends it out at a sharp angle."
+      },
+      {
+        "q": "How do you clear bricks stuck in the corners?",
+        "a": "Use the paddle edge to push the ball wide, then let it rebound between the side wall and the brick."
+      },
+      {
+        "q": "Do I need to install anything to play Neon Breaker?",
+        "a": "No. It loads in a browser tab on desktop or mobile, and it is free."
+      }
     ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "The launch angle comes from where the ball hits the paddle, not from a reflection: the horizontal velocity is set to the normalised hit offset multiplied by 1.5 times ball speed. That makes the paddle an aiming device rather than a wall, which is the difference between a brick game you steer and one you merely survive.",
+      "Two guards exist because pure reflection produces degenerate games. A ball whose vertical speed falls below one gets snapped away from horizontal, because a ball travelling almost flat can rattle between two walls for a very long time while the player does nothing. Brick collisions choose which axis to flip by comparing overlap on each axis rather than computing a true surface normal — an approximation that is wrong in rare corner cases and right in the ones that matter.",
+      "Arrow key support was added late, for an embarrassing reason: the landing page advertised keyboard controls that had never been implemented. Pointer input sets the paddle position absolutely while keys move it by delta time at 620 pixels per second, and the two coexist in the same frame. Ball physics was deliberately left on fixed per-frame stepping — converting it would have meant re-tuning every brick collision for a change nobody would have been able to see."
+    ]
   },
   {
     "slug": "cyber-memory",
@@ -279,23 +499,51 @@
     "description": "Flip holographic tiles to find matching pairs. Build combos for bonus points and unlock larger grids as your memory sharpens in this brain trainer.",
     "tag": "Brain",
     "genreTerm": "matching pairs memory game",
-    "controls": { "keyboard": "Not required", "touch": "Tap a tile to flip it" },
+    "controls": {
+      "keyboard": "Not required",
+      "touch": "Tap a tile to flip it"
+    },
     "howToPlay": [
       "Tap two tiles to reveal them.",
       "Matching tiles stay face up and score points.",
       "Consecutive matches build a combo multiplier."
     ],
-    "tips": ["Clear the outer edges first so the remaining tiles are easier to track."],
-    "mechanics": { "input": "tap-target", "goal": "match-pairs", "failure": "none", "world": "fixed-grid" },
+    "tips": [
+      "Clear the outer edges first so the remaining tiles are easier to track."
+    ],
+    "mechanics": {
+      "input": "tap-target",
+      "goal": "match-pairs",
+      "failure": "none",
+      "world": "fixed-grid"
+    },
     "faq": [
-      { "q": "How does the combo multiplier work?", "a": "Matches made one after another raise it. A wrong pair breaks the chain, so it pays to be sure before the second tap." },
-      { "q": "Is there a trick to remembering the tiles?", "a": "Clear the outer edges first. What is left then sits in one block, which is easier to hold than a scattered grid." },
-      { "q": "Do I need a keyboard for Cyber Memory?", "a": "No. The whole game is tap or click, so it plays the same on a phone as on a desktop." }
+      {
+        "q": "How does the combo multiplier work?",
+        "a": "Matches made one after another raise it. A wrong pair breaks the chain, so it pays to be sure before the second tap."
+      },
+      {
+        "q": "Is there a trick to remembering the tiles?",
+        "a": "Clear the outer edges first. What is left then sits in one block, which is easier to hold than a scattered grid."
+      },
+      {
+        "q": "Do I need a keyboard for Cyber Memory?",
+        "a": "No. The whole game is tap or click, so it plays the same on a phone as on a desktop."
+      }
     ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "There is no way to lose. Clearing the board raises the level and deals a bigger one — pairs grow as <code>min(6 + level * 2, 18)</code> and the grid widens from four columns to five above ten pairs and six above fourteen. The scoring carries the pressure instead: a match is worth 100 times the current combo, and a single mismatch resets the combo to one. The interesting decision is therefore never whether to flip, it is whether you are confident enough to flip now.",
+      "The timing numbers exist to let the animation finish. A match waits 400 milliseconds before scoring and a mismatch waits 800 before flipping back, because the cards are DOM elements with a 0.6 second CSS 3D transform and releasing the input lock early lets a player flip a card that is still visibly turning. Playing this one with a stopwatch shows a game that is mostly waiting for its own animation, which is the correct trade in a memory game.",
+      "It is also the only game here rendered entirely with DOM elements rather than canvas, with a separate canvas layer used solely for particle effects. That made it one of the games that taught the automated harness to run keyboard and pointer input in separate passes: its reactivity measurement was zero until taps were added, and adding taps broke a different game in the catalogue completely."
+    ]
   },
   {
     "slug": "data-fall",
@@ -304,23 +552,51 @@
     "description": "Defend the system from falling data. Solve each equation before it reaches the floor and fire your laser to destroy the numbers in this math arcade game.",
     "tag": "Math",
     "genreTerm": "math game",
-    "controls": { "keyboard": "Number keys to answer, Enter to fire", "touch": "Tap the on-screen keypad" },
+    "controls": {
+      "keyboard": "Number keys to answer, Enter to fire",
+      "touch": "Tap the on-screen keypad"
+    },
     "howToPlay": [
       "Read the equation attached to each falling block.",
       "Type the answer and fire to destroy it.",
       "Blocks that reach the floor damage the system."
     ],
-    "tips": ["Target the lowest block first, not the easiest one."],
-    "mechanics": { "input": "type-answer", "goal": "destroy", "failure": "timeout", "world": "falling-column" },
+    "tips": [
+      "Target the lowest block first, not the easiest one."
+    ],
+    "mechanics": {
+      "input": "type-answer",
+      "goal": "destroy",
+      "failure": "timeout",
+      "world": "falling-column"
+    },
     "faq": [
-      { "q": "What kind of maths does Data Fall use?", "a": "Short arithmetic you can answer in a couple of seconds. The pressure comes from the falling blocks, not from the difficulty of the sums." },
-      { "q": "Which block should I answer first?", "a": "The lowest one. An easy sum near the top scores the same as a hard one about to hit the floor." },
-      { "q": "Can I play Data Fall without a keyboard?", "a": "Yes. An on-screen keypad appears on touch devices, so a phone works as well as a desktop." }
+      {
+        "q": "What kind of maths does Data Fall use?",
+        "a": "Short arithmetic you can answer in a couple of seconds. The pressure comes from the falling blocks, not from the difficulty of the sums."
+      },
+      {
+        "q": "Which block should I answer first?",
+        "a": "The lowest one. An easy sum near the top scores the same as a hard one about to hit the floor."
+      },
+      {
+        "q": "Can I play Data Fall without a keyboard?",
+        "a": "Yes. An on-screen keypad appears on touch devices, so a phone works as well as a desktop."
+      }
     ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "A wrong answer costs nothing. There is an error tone, the input buffer clears, and that is the end of it — a deliberate choice rather than an oversight, because the game is already applying pressure through the falling drops and punishing a mistyped digit on top of that turns a thinking game into a typing test.",
+      "When a typed answer matches more than one drop, the game destroys the lowest one. Drops are sorted by vertical position before matching, so answering a number that is on screen twice always removes the more urgent of the two. Without that, the game occasionally rewards a correct answer by clearing the safe copy and letting the dangerous one keep falling.",
+      "The screen is never fully cleared. Each frame paints black at 20% alpha over the previous one instead of erasing, which produces the motion trail behind every drop for free. The exception is a breach: that draws one frame of solid white with no fade at all, because a flash that eases out reads as an effect and a flash that simply happens reads as damage."
+    ]
   },
   {
     "slug": "synaptic-grid",
@@ -329,23 +605,51 @@
     "description": "Watch the grid light up, then repeat the sequence in order. Each round adds a step in this musical memory challenge that tests focus and timing.",
     "tag": "Focus",
     "genreTerm": "memory sequence game",
-    "controls": { "keyboard": "Not required", "touch": "Tap the tiles in the order they lit up" },
+    "controls": {
+      "keyboard": "Not required",
+      "touch": "Tap the tiles in the order they lit up"
+    },
     "howToPlay": [
       "Watch the sequence of lit tiles.",
       "Repeat the sequence by tapping the tiles in the same order.",
       "Each successful round adds one more step."
     ],
-    "tips": ["Say the pattern out loud — audio memory holds longer sequences than visual memory."],
-    "mechanics": { "input": "tap-target", "goal": "recall-sequence", "failure": "wrong-input", "world": "fixed-grid" },
+    "tips": [
+      "Say the pattern out loud — audio memory holds longer sequences than visual memory."
+    ],
+    "mechanics": {
+      "input": "tap-target",
+      "goal": "recall-sequence",
+      "failure": "wrong-input",
+      "world": "fixed-grid"
+    },
     "faq": [
-      { "q": "Is Synaptic Grid like Simon?", "a": "Yes. Watch the tiles light up, repeat the order, and one more step is added every round." },
-      { "q": "How do I remember longer sequences?", "a": "Say the pattern out loud as it plays. Audio memory holds longer strings than visual memory does." },
-      { "q": "How long can the sequence get?", "a": "There is no ceiling. A round is added every time you get it right, so the run ends when your memory does." }
+      {
+        "q": "Is Synaptic Grid like Simon?",
+        "a": "Yes. Watch the tiles light up, repeat the order, and one more step is added every round."
+      },
+      {
+        "q": "How do I remember longer sequences?",
+        "a": "Say the pattern out loud as it plays. Audio memory holds longer strings than visual memory does."
+      },
+      {
+        "q": "How long can the sequence get?",
+        "a": "There is no ceiling. A round is added every time you get it right, so the run ends when your memory does."
+      }
     ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "The grid grows exactly once, from 2&times;2 to 3&times;3 at round five, and never again. A continuous scaling formula was the obvious design and it is worse: the difficulty in a sequence game comes from sequence length, and changing the board underneath the player at the same time makes each round feel like a different game rather than a longer one.",
+      "Each tile carries a fixed pitch from a six-note set — C4, E4, G4, C5, A4, F4 — synthesised with an oscillator and a gain envelope rather than played from a file. There are more tiles than notes on the larger board, so pitches repeat, which means the melody stops being a complete second channel for the answer at exactly the point the game gets hard. That is the intended shape.",
+      "It is built from DOM elements and listens for <code>pointerdown</code>, which unifies mouse and touch in one handler. It is also the game that proved the automated test harness had to run keyboard and pointer input separately: adding taps to a combined input pass revived a different game from zero reactivity and simultaneously took this one from 0.0346 to zero, because in a Simon-style game every stray click is a wrong answer and a wrong answer ends the round."
+    ]
   },
   {
     "slug": "neon-rise",
@@ -354,23 +658,51 @@
     "description": "Jump from platform to platform and climb as high as you can. Every run generates a new tower, so no two climbs are the same in this endless platformer.",
     "tag": "Endless",
     "genreTerm": "endless jumping platformer",
-    "controls": { "keyboard": "Left and Right arrows to steer", "touch": "Tilt or drag to steer while jumping" },
+    "controls": {
+      "keyboard": "Left and Right arrows to steer",
+      "touch": "Tilt or drag to steer while jumping"
+    },
     "howToPlay": [
       "Your character jumps automatically on landing.",
       "Steer left and right to land on the next platform.",
       "Falling off the bottom of the screen ends the run."
     ],
-    "tips": ["Small corrections beat large ones — overshooting is the most common way to fall."],
-    "mechanics": { "input": "steer-horizontal", "goal": "climb", "failure": "fall", "world": "vertical-scroll" },
+    "tips": [
+      "Small corrections beat large ones — overshooting is the most common way to fall."
+    ],
+    "mechanics": {
+      "input": "steer-horizontal",
+      "goal": "climb",
+      "failure": "fall",
+      "world": "vertical-scroll"
+    },
     "faq": [
-      { "q": "Do I have to press jump in Neon Rise?", "a": "No. The character jumps by itself every time it lands. You only steer left and right." },
-      { "q": "Why do I keep falling off the platforms?", "a": "Overshooting. Small steering corrections land the next platform far more often than big ones." },
-      { "q": "Is every run the same tower?", "a": "No. The tower is generated fresh for each run, so the platform layout is never the same twice." }
+      {
+        "q": "Do I have to press jump in Neon Rise?",
+        "a": "No. The character jumps by itself every time it lands. You only steer left and right."
+      },
+      {
+        "q": "Why do I keep falling off the platforms?",
+        "a": "Overshooting. Small steering corrections land the next platform far more often than big ones."
+      },
+      {
+        "q": "Is every run the same tower?",
+        "a": "No. The tower is generated fresh for each run, so the platform layout is never the same twice."
+      }
     ],
     "releasedAt": "2026-02-18",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "The player wraps around the screen edges instead of being clamped by them. That single choice changes the whole feel of a vertical climber: the left and right walls stop being obstacles and become a shortcut, and a platform that looked out of reach on one side is reachable by leaving on the other.",
+      "Score is distance rather than events. It increments by the number of pixels the world has scrolled, so the number on screen is a direct readout of height and never has to be reconciled with a separate scoring rule. Platform generation keeps pace above the highest existing one at a spacing of 100 to 150 pixels with widths between 80 and 140, which keeps the climb possible without ever laying out a fixed route.",
+      "The glow that travels along each platform is positioned from <code>performance.now()</code>, with a comment in the source explaining why: an earlier version advanced it per frame and ran at double speed on a 120Hz display. It is a small effect and it was the thing that made the whole game feel subtly wrong on newer phones."
+    ]
   },
   {
     "slug": "flux-sort",
@@ -379,23 +711,51 @@
     "description": "Shards pile up in a spinning core. Drag each one out to the channel matching its colour and shape. Every sort buys time, and the core fills faster the longer you last.",
     "tag": "Puzzle",
     "genreTerm": "colour sorting puzzle game",
-    "controls": { "keyboard": "Not required", "touch": "Drag a shard from the core into one of the four channels" },
+    "controls": {
+      "keyboard": "Not required",
+      "touch": "Drag a shard from the core into one of the four channels"
+    },
     "howToPlay": [
       "Grab a shard from the core with your finger or the mouse.",
       "Drag it out to the channel that matches its colour and shape — up, right, down or left.",
       "Each correct sort buys time. Let the core overflow and the run ends."
     ],
-    "tips": ["Clear the shard nearest a full channel first — the core overflows before the clock runs out."],
-    "mechanics": { "input": "drag-object", "goal": "clear-board", "failure": "timeout", "world": "fixed-arena" },
+    "tips": [
+      "Clear the shard nearest a full channel first — the core overflows before the clock runs out."
+    ],
+    "mechanics": {
+      "input": "drag-object",
+      "goal": "clear-board",
+      "failure": "timeout",
+      "world": "fixed-arena"
+    },
     "faq": [
-      { "q": "How do you play Flux Sort on a phone?", "a": "Drag a shard out of the core with one finger and release it over the matching channel. No keyboard is needed." },
-      { "q": "What ends a run?", "a": "The core overflowing, or the clock reaching zero. Overflow is what usually gets you, so keep the core clear." },
-      { "q": "What happens if I drop a shard in the wrong channel?", "a": "It bounces back into the core and you lose a little time, so a wrong guess costs less than a slow one." }
+      {
+        "q": "How do you play Flux Sort on a phone?",
+        "a": "Drag a shard out of the core with one finger and release it over the matching channel. No keyboard is needed."
+      },
+      {
+        "q": "What ends a run?",
+        "a": "The core overflowing, or the clock reaching zero. Overflow is what usually gets you, so keep the core clear."
+      },
+      {
+        "q": "What happens if I drop a shard in the wrong channel?",
+        "a": "It bounces back into the core and you lose a little time, so a wrong guess costs less than a slow one."
+      }
     ],
     "releasedAt": "2026-07-31",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "The drop target is the whole quadrant of background, not a box. On a phone, a small target under your own finger is a target you cannot see, so dragging a shard anywhere into the lower-left region sorts it into that channel. The visible channel marker is a label for a region rather than the region itself.",
+      "The four channels use shapes with different vertex counts — triangle, pentagon, square, hexagon — and that spread is deliberate. Shapes drift and rotate, and a rotating square is a diamond; pick two shapes with similar counts and there is an angle at which they become the same silhouette. Colour is the fast cue and shape is the reliable one, and the reliable one has to survive rotation.",
+      "The run does not end on a countdown. An early version used a literal timer and every real session ended in seven to ten seconds, which scored 9 out of 20 in review — a game that is over before it is understood. What ends a run now is the core overflowing: shards accumulate faster than you sort them, and the live count exceeding its cap is the failure. The clock still exists, but it is a resource you top up by playing well rather than a fuse."
+    ]
   },
   {
     "slug": "stack-purge",
@@ -404,23 +764,51 @@
     "description": "Rows of blocks push up from below. Tap two or more touching blocks that match and the stack collapses into the gap. Every purge buys time.",
     "tag": "Puzzle",
     "genreTerm": "block clearing puzzle game",
-    "controls": { "keyboard": "Not required", "touch": "Tap a group of two or more matching blocks" },
+    "controls": {
+      "keyboard": "Not required",
+      "touch": "Tap a group of two or more matching blocks"
+    },
     "howToPlay": [
       "Find two or more touching blocks that share a colour and pip count.",
       "Tap the group to purge it — the blocks above collapse down into the gap.",
       "Bigger groups score more and buy more time. Let the stack reach the top line and the run ends."
     ],
-    "tips": ["Purge low, not high. Clearing near the floor drops the whole column and buys you room."],
-    "mechanics": { "input": "tap-target", "goal": "clear-board", "failure": "timeout", "world": "fixed-grid" },
+    "tips": [
+      "Purge low, not high. Clearing near the floor drops the whole column and buys you room."
+    ],
+    "mechanics": {
+      "input": "tap-target",
+      "goal": "clear-board",
+      "failure": "timeout",
+      "world": "fixed-grid"
+    },
     "faq": [
-      { "q": "How do I know which blocks match?", "a": "Colour and the pip pattern both have to match, so you can still play it if you do not see colour well." },
-      { "q": "Do bigger groups score more?", "a": "Yes, and they buy more time too. A group of six is worth far more than three groups of two." },
-      { "q": "What ends a run in Stack Purge?", "a": "The stack reaching the top line, or the clock running out. The stack is what usually gets you." }
+      {
+        "q": "How do I know which blocks match?",
+        "a": "Colour and the pip pattern both have to match, so you can still play it if you do not see colour well."
+      },
+      {
+        "q": "Do bigger groups score more?",
+        "a": "Yes, and they buy more time too. A group of six is worth far more than three groups of two."
+      },
+      {
+        "q": "What ends a run in Stack Purge?",
+        "a": "The stack reaching the top line, or the clock running out. The stack is what usually gets you."
+      }
     ],
     "releasedAt": "2026-07-31",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "Scoring is <code>n * (n - 1) * mult</code>, which is quadratic in group size. Clearing two blocks twice is worth two points; clearing four at once is worth twelve. Every frame you spend looking for a bigger group is paid for by the formula, and that is the only thing pushing a player to plan rather than tap.",
+      "The five colours carry a pip count from one to five, dice-style, baked into each block. Colour is the fast read and the pips are the one that works for a player who cannot rely on hue — the same rule applied across this catalogue after an earlier game encoded a do-not-touch state in colour alone.",
+      "Two performance details worth stealing. Group detection is a flood fill over a pre-allocated stack rather than recursion, which avoids both call-depth risk and an allocation per tap on a ninety-six cell grid. And the particle count per cleared block drops from eight to four once a group exceeds eight blocks — without that, one big satisfying clear exhausts the shared 220-slot effects pool and the next several clears produce no particles at all, which reads to the player as the game losing interest exactly when they did something good."
+    ]
   },
   {
     "slug": "pulse-lock",
@@ -429,23 +817,51 @@
     "description": "A pointer sweeps around a ring. Tap the moment it crosses a lit lock — dead centre pays most, and the hatched guards must be left alone.",
     "tag": "Timing",
     "genreTerm": "timing tap game",
-    "controls": { "keyboard": "Any key to strike", "touch": "Tap anywhere to strike" },
+    "controls": {
+      "keyboard": "Any key to strike",
+      "touch": "Tap anywhere to strike"
+    },
     "howToPlay": [
       "Watch the pointer sweep around the ring toward a lit lock.",
       "Tap at the moment it crosses. A dead-centre hit pays more than a clipped edge.",
       "Hatched locks are guards — tapping one costs you charge. Let them pass."
     ],
-    "tips": ["Read the ruler under the ring. If your marks pile up on one side you are always early or always late, and that is fixable."],
-    "mechanics": { "input": "one-button", "goal": "destroy", "failure": "timeout", "world": "fixed-arena" },
+    "tips": [
+      "Read the ruler under the ring. If your marks pile up on one side you are always early or always late, and that is fixable."
+    ],
+    "mechanics": {
+      "input": "one-button",
+      "goal": "destroy",
+      "failure": "timeout",
+      "world": "fixed-arena"
+    },
     "faq": [
-      { "q": "How does Pulse Lock decide a hit is perfect?", "a": "By how close to the centre of the lock you tapped. Three tiers pay different scores and restore different amounts of charge." },
-      { "q": "Why did tapping that lock cost me charge?", "a": "It was a guard — drawn hatched with an X across it. Guards are there to be left alone, and skipping one scores." },
-      { "q": "Does it play the same on a 120Hz phone?", "a": "Yes. The sweep and the hit window are measured in real time, not in frames." }
+      {
+        "q": "How does Pulse Lock decide a hit is perfect?",
+        "a": "By how close to the centre of the lock you tapped. Three tiers pay different scores and restore different amounts of charge."
+      },
+      {
+        "q": "Why did tapping that lock cost me charge?",
+        "a": "It was a guard — drawn hatched with an X across it. Guards are there to be left alone, and skipping one scores."
+      },
+      {
+        "q": "Does it play the same on a 120Hz phone?",
+        "a": "Yes. The sweep and the hit window are measured in real time, not in frames."
+      }
     ],
     "releasedAt": "2026-07-31",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "Tap timing is corrected for the gap between the event and the frame. A pointer or key event carries a timestamp that is usually a few milliseconds older than the last rendered frame, so judging against the last drawn needle angle systematically reads every tap as slightly early — up to 0.034 radians at 60Hz, which at high spin speeds is the difference between a perfect hit and a miss. The game re-advances the needle to the event&rsquo;s actual timestamp before judging it.",
+      "The needle angle is never wrapped to the range &minus;&pi; to &pi;. Letting it grow without bound means &ldquo;has the needle passed this segment&rdquo; is one subtraction instead of a pile of wrap-around cases, and wrap-around cases in angle maths are where timing games hide their worst bugs.",
+      "Guard segments — the ones you must not hit — are marked with hatching and an X as well as colour. That is a direct correction of an earlier game on this site that encoded the same distinction in hue alone and was unreadable for anyone with a colour vision deficiency. The idle death is also engineered rather than timed: an untouched run bleeds its charge to zero in about seven seconds through the ordinary cost schedule, so the automated gate sees a game that ends when abandoned without the game ever having to count down at the player."
+    ]
   },
   {
     "slug": "ember-drift",
@@ -454,23 +870,51 @@
     "description": "You are an ember losing its glow. Sparks drift across the arena and reaching one restores your light. Your glow is also your reach.",
     "tag": "Survival",
     "genreTerm": "space collecting game",
-    "controls": { "keyboard": "Arrow keys or WASD to thrust", "touch": "Drag to steer the ember" },
+    "controls": {
+      "keyboard": "Arrow keys or WASD to thrust",
+      "touch": "Drag to steer the ember"
+    },
     "howToPlay": [
       "Steer the ember by dragging, or thrust with the arrow keys.",
       "Drift into a spark and its light becomes yours.",
       "Your glow shrinks constantly, and it is also how far you can reach. When it goes out the run ends."
     ],
-    "tips": ["Do not chase a fleeing spark head-on. Cut across where it is drifting to — turning costs more than aiming ahead."],
-    "mechanics": { "input": "steer-free", "goal": "collect", "failure": "timeout", "world": "free-arena" },
+    "tips": [
+      "Do not chase a fleeing spark head-on. Cut across where it is drifting to — turning costs more than aiming ahead."
+    ],
+    "mechanics": {
+      "input": "steer-free",
+      "goal": "collect",
+      "failure": "timeout",
+      "world": "free-arena"
+    },
     "faq": [
-      { "q": "Why do the sparks move away from me?", "a": "They flee when your glow gets close, so a big light pushes them off. Approach from the side rather than straight on." },
-      { "q": "How do you steer on a phone?", "a": "Drag anywhere to point the ember. Lift your finger and it coasts on its own momentum instead of stopping dead." },
-      { "q": "Is there anything that can kill me?", "a": "Nothing chases you. The only thing that ends a run is your own light running out." }
+      {
+        "q": "Why do the sparks move away from me?",
+        "a": "They flee when your glow gets close, so a big light pushes them off. Approach from the side rather than straight on."
+      },
+      {
+        "q": "How do you steer on a phone?",
+        "a": "Drag anywhere to point the ember. Lift your finger and it coasts on its own momentum instead of stopping dead."
+      },
+      {
+        "q": "Is there anything that can kill me?",
+        "a": "Nothing chases you. The only thing that ends a run is your own light running out."
+      }
     ],
     "releasedAt": "2026-07-31",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "One line contains the whole difficulty curve: pickup range is tied to the light you have left, <code>lightR = U * (0.075 + 0.165 * min(1.15, light))</code>. Losing light shrinks your reach, which makes sparks harder to catch, which loses you more light. The spiral is the game, and it is why a run that goes badly goes badly quickly.",
+      "Sparks are not simply fleeing. Inside your light radius they are pulled towards you; in the shell between that radius and 2.6 times it, they are pushed away. The result is that you cannot drift up to a spark and absorb it — you have to commit to a dash that crosses the repulsion band, which is the entire feel of the game and about eight lines of code.",
+      "The wind is a closed-form function rather than a stored grid: two sine terms evaluated at the position you ask about. That keeps the field identical at every screen resolution and costs no memory, where a baked grid would have to be sized against the viewport and would quietly differ between a phone and a monitor. Large ember shards are distinguished by being a four-point star at 1.45 times the radius, not by colour alone — the same accessibility rule the rest of the catalogue follows."
+    ]
   },
   {
     "slug": "signal-relay",
@@ -479,23 +923,51 @@
     "description": "Rotate conduit tiles to route a signal from source to sink. Corruption spreads across the board while you think, and turning a corrupted tile purges it.",
     "tag": "Puzzle",
     "genreTerm": "pipe connecting puzzle game",
-    "controls": { "keyboard": "WASD to move the marker, arrow keys to turn it", "touch": "Tap a conduit to turn it, or drag across several" },
+    "controls": {
+      "keyboard": "WASD to move the marker, arrow keys to turn it",
+      "touch": "Tap a conduit to turn it, or drag across several"
+    },
     "howToPlay": [
       "Tap a conduit tile to rotate it a quarter turn.",
       "Build an unbroken path from the source to the sink to complete the link.",
       "Corruption spreads while you work — rotating a corrupted tile purges it and buys integrity."
     ],
-    "tips": ["Trace backwards from the sink. Working from the source wastes turns on the decoy branches."],
-    "mechanics": { "input": "swipe-turn", "goal": "solve", "failure": "timeout", "world": "fixed-grid" },
+    "tips": [
+      "Trace backwards from the sink. Working from the source wastes turns on the decoy branches."
+    ],
+    "mechanics": {
+      "input": "swipe-turn",
+      "goal": "solve",
+      "failure": "timeout",
+      "world": "fixed-grid"
+    },
     "faq": [
-      { "q": "Is every board in Signal Relay solvable?", "a": "Yes. Each layout is generated from a real path first, then scrambled, so a solution always exists." },
-      { "q": "What does the pink hatching mean?", "a": "That tile is corrupted and draining your integrity. Rotating it clears the corruption." },
-      { "q": "How do you play it on a phone?", "a": "Tap a tile to turn it, or drag across a row to turn several in one motion. No keyboard needed." }
+      {
+        "q": "Is every board in Signal Relay solvable?",
+        "a": "Yes. Each layout is generated from a real path first, then scrambled, so a solution always exists."
+      },
+      {
+        "q": "What does the pink hatching mean?",
+        "a": "That tile is corrupted and draining your integrity. Rotating it clears the corruption."
+      },
+      {
+        "q": "How do you play it on a phone?",
+        "a": "Tap a tile to turn it, or drag across a row to turn several in one motion. No keyboard needed."
+      }
     ],
     "releasedAt": "2026-07-31",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "A pipe is a four-bit mask — north, east, south, west — and rotating it is a bit rotation: <code>((msk &lt;&lt; k) | (msk &gt;&gt; (4 - k))) &amp; 15</code>. Connectivity is then a plain breadth-first search from the source, re-run across all twenty-five cells on every single rotation. Recomputing the whole board is wasteful on paper and free in practice at this size, and it removes the entire class of bug where an incremental update leaves a stale connection behind.",
+      "The displayed rotation and the logical rotation are kept in separate variables. The logic uses a monotonically increasing turn count masked to two bits; the sprite uses a floating angle that keeps climbing. Sharing one value makes the pipe visibly snap backwards every time it wraps from the fourth turn to the first, which looks like a bug even when the board is correct.",
+      "Boards are generated by walking one guaranteed-solvable path from source to sink column by column, then filling the remaining cells with weighted random decoys. No backtracking and no solver — the solution is laid down first and the puzzle is built around it, which is the cheap way to guarantee that every board can actually be finished. Corruption never spreads into a cell carrying live signal, which quietly makes keeping a circuit lit a defensive move."
+    ]
   },
   {
     "slug": "shard-weave",
@@ -504,23 +976,51 @@
     "description": "Shards drift on the loom in pairs. Draw a thread from one to its twin, matching shape and colour, without crossing a thread already woven. Unwoven pairs fray and snap.",
     "tag": "Puzzle",
     "genreTerm": "connect the dots puzzle game",
-    "controls": { "keyboard": "Not required", "touch": "Drag from one shard to its twin, or tap one then the other" },
+    "controls": {
+      "keyboard": "Not required",
+      "touch": "Drag from one shard to its twin, or tap one then the other"
+    },
     "howToPlay": [
       "Find two shards that share a shape and colour.",
       "Drag a thread from one to the other, or tap one and then its twin.",
       "Threads must not cross. Pairs left unwoven fray and snap, costing integrity."
     ],
-    "tips": ["Weave the outside pairs first. A thread across the middle blocks everything behind it for several seconds."],
-    "mechanics": { "input": "drag-object", "goal": "match-pairs", "failure": "wrong-input", "world": "fixed-arena" },
+    "tips": [
+      "Weave the outside pairs first. A thread across the middle blocks everything behind it for several seconds."
+    ],
+    "mechanics": {
+      "input": "drag-object",
+      "goal": "match-pairs",
+      "failure": "wrong-input",
+      "world": "fixed-arena"
+    },
     "faq": [
-      { "q": "How do I tell twins apart in Shard Weave?", "a": "Every kind has its own silhouette as well as its own colour, so shape alone is enough to pair them." },
-      { "q": "Do I have to drag, or can I tap?", "a": "Either works. Tap one shard and then its twin, or drag a thread between them in one motion." },
-      { "q": "What happens if my thread crosses another?", "a": "The weave fails and costs you. Woven threads stay on the loom for a few seconds, so order matters." }
+      {
+        "q": "How do I tell twins apart in Shard Weave?",
+        "a": "Every kind has its own silhouette as well as its own colour, so shape alone is enough to pair them."
+      },
+      {
+        "q": "Do I have to drag, or can I tap?",
+        "a": "Either works. Tap one shard and then its twin, or drag a thread between them in one motion."
+      },
+      {
+        "q": "What happens if my thread crosses another?",
+        "a": "The weave fails and costs you. Woven threads stay on the loom for a few seconds, so order matters."
+      }
     ],
     "releasedAt": "2026-07-31",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "Crossing your own thread costs integrity, so the game needs to know what counts as a crossing. A plain line-segment intersection test reports a false positive every time two threads meet at a node they legitimately share. The check trims four percent off each end of both segments before testing, which removes shared endpoints from consideration and leaves genuine crossings intact.",
+      "Shapes never rotate, and that is a decision rather than an omission. A rotating square is a diamond, and a diamond is close enough to the star and spark silhouettes that the shape cue — the one that works without colour — stops being reliable. Holding rotation at zero keeps seven shapes distinguishable by outline alone.",
+      "New pairs are placed by sampling six candidate positions and keeping whichever is furthest from every existing node. It is a crude maximum-minimum heuristic and it costs almost nothing, but it is the difference between a loom that stays readable for a long run and one that degenerates into overlapping shapes within a minute."
+    ]
   },
   {
     "slug": "null-cascade",
@@ -529,22 +1029,50 @@
     "description": "Corrupted packets fall toward your firewall. Tap one to null it before it lands. Armoured packets take more than one hit, and sealed traffic must be let through.",
     "tag": "Action",
     "genreTerm": "tap to destroy falling blocks game",
-    "controls": { "keyboard": "Not required", "touch": "Tap a falling packet to null it" },
+    "controls": {
+      "keyboard": "Not required",
+      "touch": "Tap a falling packet to null it"
+    },
     "howToPlay": [
       "Tap a falling square to null it before it reaches the firewall line.",
       "Armoured packets show extra outlines and need more than one tap.",
       "Circles with a tick are sealed traffic — tapping one costs you. Let them land."
     ],
-    "tips": ["Let a packet fall into the hatched band before you tap it. It pays double, and you still have time if you commit early."],
-    "mechanics": { "input": "tap-target", "goal": "survive", "failure": "collision", "world": "falling-column" },
+    "tips": [
+      "Let a packet fall into the hatched band before you tap it. It pays double, and you still have time if you commit early."
+    ],
+    "mechanics": {
+      "input": "tap-target",
+      "goal": "survive",
+      "failure": "collision",
+      "world": "falling-column"
+    },
     "faq": [
-      { "q": "Which packets should I not tap?", "a": "The circles with a tick through them. They are sealed traffic, and nulling one costs firewall integrity." },
-      { "q": "Why did one packet take two taps?", "a": "It was armoured. The concentric outlines show how many layers are left, so you can see it before you commit." },
-      { "q": "Does letting a packet fall further help?", "a": "Yes. Nulling inside the hatched band near the floor pays double, but you get one chance at it." }
+      {
+        "q": "Which packets should I not tap?",
+        "a": "The circles with a tick through them. They are sealed traffic, and nulling one costs firewall integrity."
+      },
+      {
+        "q": "Why did one packet take two taps?",
+        "a": "It was armoured. The concentric outlines show how many layers are left, so you can see it before you commit."
+      },
+      {
+        "q": "Does letting a packet fall further help?",
+        "a": "Yes. Nulling inside the hatched band near the floor pays double, but you get one chance at it."
+      }
     ],
     "releasedAt": "2026-07-31",
     "status": "published",
     "featured": false,
-    "portals": { "gamedistribution": null, "gamepix": null, "crazygames": null }
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "Sealed packets — the ones you must let through — first appear 7.5 seconds into a run, and that number was chosen against the test harness rather than for the player. An abandoned run ends at roughly six seconds, so an idle player never encounters the do-not-tap rule and never has a chance to fail it by accident. The rule arrives only once somebody is actually playing.",
+      "Targeting picks exactly one packet: the nearest inside an elliptical hit test, wider than it is tall. A tap in a lane game is horizontally imprecise and vertically meaningful, so the forgiving axis is the one where imprecision does not change your intent.",
+      "Spawn decisions for armoured, sealed and heavy packets use probability accumulators rather than a random roll per frame — each frame adds the current rate to a counter and fires when it crosses one. The sequence is then completely deterministic for a given elapsed time, which makes a run reproducible and makes tuning possible at all. A sealed packet awards score but no integrity, so a passive player cannot accidentally heal their way past the point where the game is supposed to end."
+    ]
   }
 ]

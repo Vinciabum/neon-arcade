@@ -8,38 +8,28 @@
 {{ADSENSE}}
 </head>
 <body>
-<nav class="sidebar">
-  <div class="nav-icon active" title="Home">🏠</div>
-</nav>
-
 <main class="main-content">
-  <header>
-    <div class="logo">NEON</div>
-    <div class="wallet-pill"><span class="coin">💰</span><span id="coinDisplay">0</span></div>
-  </header>
+{{NAV}}
 
   <section class="hero">
     <div class="hero-pattern"></div>
     <div class="hero-text">
-      <p style="color:#fff;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Weekly Top Pick</p>
+      <p style="color:#fff;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Newest game</p>
       <h1>{{FEATURED_TITLE}}</h1>
       <p>{{FEATURED_TAGLINE}}</p>
       <a class="play-btn" href="{{FEATURED_URL}}">PLAY NOW</a>
     </div>
   </section>
 
-  <div class="grid-header"><span>🔥</span> All Games</div>
+  <h2 class="grid-header" id="games">All games</h2>
 
   <div class="game-grid" id="gameGrid">
 {{CARDS}}
   </div>
 
   <section class="site-copy">
-    <p>Welcome to Neon Arcade, a small studio publishing original <b>HTML5 games</b> you can play
-    straight in your browser. Every game here is built in-house — no downloads, no sign-up, no installs.
-    All titles are <b>mobile compatible</b> with responsive touch controls, so they run on phones,
-    tablets and desktops alike.</p>
-    <h2>Our Game Collection</h2>
+{{HOME_COPY}}
+    <h2>Every game on this site</h2>
     <ul>
 {{GAME_LIST}}
     </ul>
@@ -47,7 +37,7 @@
 
   <footer class="site-footer">
     <p>&copy; 2026 Neon Arcade. All rights reserved.</p>
-    <p><a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy Policy</a></p>
+    <p><a href="/">Games</a> · <a href="/notes/">Dev notes</a> · <a href="/about/">About</a> · <a href="/credits/">Credits</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy Policy</a></p>
   </footer>
 </main>
 

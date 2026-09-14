@@ -8,6 +8,7 @@ Every game is built in-house with vanilla JavaScript and HTML5 Canvas.
 | Path | Purpose |
 |---|---|
 | `games.json` | Single source of truth for all game metadata |
+| `content/notes/` | Dev-note articles — `index.json` for metadata, one HTML fragment per post |
 | `play/<slug>.html` | The game itself (self-contained, `noindex`) |
 | `templates/` | Page templates |
 | `build.js` | Static site generator + validation gates |
@@ -46,22 +47,32 @@ npm run verify    # run every game through the technical and play-test gates
 
 ## Games
 
-Nine games are published. `games.json` is the authoritative list.
+Twenty games are published. `games.json` is the authoritative list.
+
+Each entry carries a `notes` array — two or three paragraphs of design notes rendered
+into the landing page. That field is the reason the game pages are not twenty copies of
+one template, so a new game is not finished until it has one.
+
+## Dev notes
+
+Long-form posts live in `content/notes/`. Add one by writing the body as an HTML
+fragment at `content/notes/<slug>.html` (no `<h1>` — the template writes it) and adding
+a record to `content/notes/index.json`. The build refuses anything under 400 words or
+with a description outside the 70–170 character range the output SEO gate enforces.
 
 ## Third-party assets
 
-Most art is generated in code (SVG, canvas drawing). These raster sprites came from
-downloaded asset packs and are still in use:
+**There are none.** Every image, sound and line of code served from this domain is
+original work:
 
-| File | Used by | Origin |
-|---|---|---|
-| `assets/soldier_idle.png`, `assets/orc_walk.png` | Neon Dodge | itch.io [Tiny RPG Character Asset Pack](https://shubibubi.itch.io/tiny-rpg) |
-| `assets/dino/png/1x/raptor-*` (9 files) | Dino Jump | itch.io raptor sprite pack |
-| `assets/wood_bridge.png`, `assets/egg_item.png` | Cyber Snake, Neon Rise | itch.io Sprout Lands pack |
+- Game graphics are drawn at runtime in canvas code, or are SVG files drawn for this site
+  (`jumper.svg`, `cactus.svg`, `coin.svg`), or are inline base64 SVG data URIs.
+- All audio is synthesised with the Web Audio API. There are no sound files.
+- Thumbnails and share cards are generated from real screenshots of the games running.
+- No webfonts are loaded from third-party servers.
 
-**Licence status: unverified.** These packs must be confirmed to permit commercial
-use before the site carries advertising or the games are submitted to a game portal.
-If a licence does not permit it, replace the sprite or set that game to
-`"status": "draft"` in `games.json`.
-
-Icons: emoji and CSS graphics.
+An earlier version of the site used three downloaded itch.io sprite packs across four
+games. Their licences were never confirmed as permitting commercial use, so the files
+were deleted and those games were redrawn in code. Re-introducing a third-party asset
+means confirming its licence first and recording it on `/credits/`, which is generated
+from `build.js`.

@@ -138,7 +138,7 @@ export function headTags({ title, ogTitle, description, canonical, ogImage, ogTy
 <meta name="twitter:title" content="${ot}">
 <meta name="twitter:description" content="${d}">
 <meta name="twitter:image" content="${img}">
-<meta name="theme-color" content="#05060a">
+<meta name="theme-color" content="#6c5ce7">
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/icon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/icon-180.png">

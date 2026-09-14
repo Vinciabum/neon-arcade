@@ -10,6 +10,8 @@ Thumbs.db
 /about/
 /contact/
 /privacy/
+/credits/
+/notes/
 /sitemap.xml
 /robots.txt
 /404.html
@@ -20,8 +22,12 @@ Thumbs.db
 /docs/superpowers/
 
 # agent + skill definitions — local only. 공개 리포라 자동 생성 파이프라인이
-# 그대로 보이면 포털 심사에서 불리하게 읽힐 수 있다.
+# 그대로 보이면 포털 심사에서 불리하게 읽힐 수 있다. 작업 계약서도 같은 이유로 뺀다.
 /.claude/
+/CLAUDE.md
 
 # 포털 납품 빌드 산출물
 /dist/
+
+# 세션 중 확인용 스크린샷. 산출물이 아니다.
+.shots/

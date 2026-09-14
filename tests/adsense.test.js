@@ -32,9 +32,10 @@ test('변수가 없으면 아무것도 나가지 않는다 — ads.txt도 만들
   assert.ok(!existsSync('ads.txt'), '변수가 없는데 ads.txt를 만들었다');
 });
 
-test('변수가 있으면 홈과 게임 랜딩에 붙는다', () => {
+test('변수가 있으면 홈·게임 랜딩·개발 노트에 붙는다', () => {
   assert.ok(build({ ADSENSE_CLIENT: CLIENT }).ok);
-  for (const f of ['index.html', 'games/pulse-lock/index.html']) {
+  for (const f of ['index.html', 'games/pulse-lock/index.html',
+                   'notes/nineteen-games-zero-players/index.html']) {
     const html = readFileSync(f, 'utf8');
     assert.ok(html.includes(`client=${CLIENT}`), `${f} 에 안 붙었다`);
     assert.ok(html.includes('pagead2.googlesyndication.com'), `${f}`);
@@ -51,7 +52,8 @@ test('변수가 있으면 홈과 게임 랜딩에 붙는다', () => {
    있느냐이기 때문이다. */
 test('정적 페이지와 404에는 붙지 않는다 — 내용 없는 페이지의 광고가 거절 사유다', () => {
   assert.ok(build({ ADSENSE_CLIENT: CLIENT }).ok);
-  for (const f of ['about/index.html', 'contact/index.html', 'privacy/index.html', '404.html']) {
+  for (const f of ['about/index.html', 'contact/index.html', 'privacy/index.html',
+                   'credits/index.html', 'notes/index.html', '404.html']) {
     const html = readFileSync(f, 'utf8');
     assert.ok(!html.includes('adsbygoogle'), `${f} 에 광고가 붙었다`);
     assert.ok(!html.includes('googlesyndication'), `${f}`);
