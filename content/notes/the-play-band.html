@@ -1,0 +1,87 @@
+    <p>About half the people who play a browser game arrive on a phone, so these games are designed
+    portrait-first. The part that is easy to get wrong is what happens to a portrait game when
+    somebody opens it on a laptop, or when a portal embeds it in a wide iframe — which is how most
+    portals embed anything.</p>
+
+    <p>The wrong answer is to stretch. The interesting thing is <em>why</em> it is wrong, because it
+    is not a matter of taste. Stretching changes the difficulty.</p>
+
+    <h2>Same game, measurably harder</h2>
+
+    <p>Take a game where you steer something horizontally to avoid things falling from the top. On a
+    390-pixel phone screen, a dodge of one-tenth of the screen width is 39 pixels of travel. Put the
+    same game full-bleed on a 1280-pixel window and that same relative dodge is 128 pixels. The
+    obstacles are further apart in absolute terms, your finger or cursor has further to travel, and
+    the reaction time the designer tuned against no longer applies.</p>
+
+    <p>Measured across the catalogue, the worst case was <strong>3.2 times</strong> the effective
+    difficulty: a game tuned to be fair on a phone was, on a wide monitor, demanding more than three
+    times the input distance for the same evasive manoeuvre. Nobody on a laptop would say &ldquo;the
+    aspect ratio is wrong&rdquo;. They would say the game felt unfair and close the tab.</p>
+
+    <h2>A field that keeps its shape</h2>
+
+    <p>So every game here keeps a fixed portrait field regardless of window shape. Whatever the
+    viewport, the playable region is a column with the proportions of a phone, centred, with the
+    game's own background bleeding out to fill the rest:</p>
+
+<pre><code>const BAND = 390 / 806;         // 0.4839
+W  = Math.min(SW, Math.round(H * BAND));
+OX = Math.round((SW - W) / 2);  // centre it
+</code></pre>
+
+    <p>The number is not the phone's aspect ratio, which is a detail worth knowing. A 390&times;844
+    phone viewport gives 844 pixels of height, but the heads-up display takes 38 of them, leaving the
+    canvas 806 tall. Using the viewport ratio 390/844 instead produces a nine-pixel discrepancy on
+    the reference device itself — a thin band of dead space on exactly the screen the game was
+    designed for. The ratio has to describe the canvas, not the device.</p>
+
+    <h2>Making the constraint pay for itself</h2>
+
+    <p>A fixed portrait band on a wide screen leaves large empty margins, and an empty margin is a
+    design problem asking to be solved with a decorative frame. The cheaper answer is to have the
+    game draw its own background across the whole viewport and keep only the <em>interactive</em>
+    region banded. Nothing looks letterboxed; the meadow simply continues past where you can reach.</p>
+
+    <p>The constraint also turned out to be free money in a completely different direction. Short
+    vertical video is 720&times;1280, which is the same shape as the play band. A game that already
+    renders in that proportion can be screen-recorded straight into a clip with no cropping, no
+    repositioning and no letterbox filling. Playing it <em>is</em> the footage. That was not the
+    original reason for the rule, but it is now one of the reasons it will not be relaxed.</p>
+
+    <h2>Testing it, and where the test went wrong</h2>
+
+    <p>The band is enforced by an automated check, not by discipline. Every game exposes its current
+    field through the same observability contract the other gates use:</p>
+
+<pre><code>get field() { return { x: OX, w: W, h: H, screenW: SW }; }
+</code></pre>
+
+    <p>The gate opens each game at 900&times;600 — landscape, deliberately, because that is the shape
+    that reveals the problem — and fails any game whose field aspect is more than two percent off
+    0.4839. It also fails a band that extends past the edge of the screen, since a region the player
+    cannot reach is worse than one that is merely the wrong size.</p>
+
+    <p>Running this check in landscape exposed a second bug, in the checking tool itself. The gate
+    also taps the screen to confirm the game responds to input, and those taps were placed as
+    fractions of the <em>canvas</em> width. On a wide window, the canvas is the whole viewport while
+    the game occupies a narrow column in the middle — so every automated tap landed in the
+    background margin, the game correctly ignored all of them, and a perfectly healthy game was
+    reported as unresponsive.</p>
+
+    <p>The fix is one line and the principle behind it is worth more than the line: <strong>the
+    automated player should press where a person would press.</strong> Taps are now positioned
+    within the play band rather than the viewport. A tester that does not know where the game is
+    will eventually report that there is no game.</p>
+
+    <h2>The general shape of this</h2>
+
+    <p>Responsive design usually means a layout adapting to available space. For an action game that
+    is the wrong goal, because the thing being laid out is not content — it is a set of distances
+    the player has to cover under time pressure. Those distances <em>are</em> the difficulty
+    curve.</p>
+
+    <p>So the rule here is: the interactive region has a fixed shape, decoration fills whatever is
+    left, and an automated check enforces it on every game on every build. It costs a handful of
+    lines per game and it removes a whole class of &ldquo;this feels wrong on my machine&rdquo; that
+    would otherwise be invisible to anyone developing on the device it was designed for.</p>

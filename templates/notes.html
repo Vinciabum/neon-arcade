@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{{HEAD}}
+<script type="application/ld+json">{{JSONLD}}</script>
+{{VERIFICATION}}
+{{ANALYTICS}}
+</head>
+<body>
+<main class="main-content landing">
+{{NAV}}
+  <nav class="breadcrumb"><a href="/">Home</a> › <span>Dev notes</span></nav>
+
+  <h1>Dev notes</h1>
+  <p class="lede">Write-ups from building the games on this site: the mechanics, the rendering,
+  the automated checks that catch mistakes before they ship, and the things that went wrong
+  in public. Every post is about work done on this domain, by the person who did it.</p>
+
+  <div class="note-list">
+{{CARDS}}
+  </div>
+
+  <section class="site-copy">
+    <h2>Why these exist</h2>
+    <p>Most write-ups about making browser games describe a finished thing. These describe the
+    decisions while they are still reversible, including the ones that turned out to be wrong —
+    a quality gate that graded a game on the opposite of what it was trying to be, a thumbnail
+    that captured the one second before the game became legible, nineteen games that were
+    launched to an audience of nobody. The value in that is specific rather than general:
+    the numbers are real, the code is on this site, and the mistakes were paid for once already.</p>
+    <p>If you are building something similar, the parts most likely to be useful are the
+    <a href="/notes/every-check-exists-because-it-shipped/">build gates</a> and the
+    <a href="/notes/thumbnail-that-lied/">screenshot timing problem</a>. If you are here to
+    play something instead, the games are on the <a href="/">front page</a>.</p>
+  </section>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Neon Arcade. All rights reserved.</p>
+    <p><a href="/">Games</a> · <a href="/about/">About</a> · <a href="/credits/">Credits</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy Policy</a></p>
+  </footer>
+</main>
+</body>
+</html>

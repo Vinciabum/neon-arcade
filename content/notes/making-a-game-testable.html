@@ -1,0 +1,125 @@
+    <p>Automated tests for a game are awkward in a way that automated tests for most software are
+    not. There is no function to call and no return value to assert on. The thing you want to check
+    is whether a moving picture is behaving, and the only interface is a canvas element that tells
+    you nothing.</p>
+
+    <p>The approach used here is to make each game expose a tiny, deliberately boring object that a
+    test harness can read from the outside. It is about twelve lines per game, and it is the reason
+    every other quality gate on this site is possible.</p>
+
+    <h2>The contract</h2>
+
+    <p>Every game defines one global:</p>
+
+<pre><code>window.__GAME__ = {
+  api: 1,
+  session: 'cozy',
+  get state()  { return state; },        // 'playing' | 'paused' | 'over'
+  get score()  { return given; },        // any monotonic progress number
+  get tick()   { return tick; },
+  get field()  { return { x: OX, w: W, h: H, screenW: SW }; },
+  start()  { state = 'playing'; },
+  pause()  { state = 'paused'; },
+  resume() { state = 'playing'; }
+};
+</code></pre>
+
+    <p>That is the whole interface. Note what is absent: no event emitters, no test hooks scattered
+    through the game logic, no debug mode, no way to mutate internal state. The contract is
+    read-only apart from three lifecycle calls, and everything it exposes is something the game
+    already knew.</p>
+
+    <p>From those few values a surprising amount is checkable. Does anything advance when input
+    arrives? Sample <code>score</code> and see whether it ever changes. Does the round end when left
+    alone? Watch <code>state</code> for twenty seconds. Is the playable region the right shape in a
+    wide window? Read <code>field</code>, which is the subject of
+    <a href="/notes/the-play-band/">its own note</a>. Does the game restart cleanly? Call
+    <code>start()</code> and check that state is playing and score is back at zero.</p>
+
+    <h2>Why <code>api: 1</code> is there from the start</h2>
+
+    <p>The version number does nothing today. It exists so that the checker can say &ldquo;this game
+    speaks a contract version I do not understand&rdquo; and stop, instead of reading fields that
+    have quietly changed meaning and reporting confident nonsense. Adding a version to a format
+    after the format has shipped requires guessing what the unversioned ones meant; adding it at the
+    start costs one line.</p>
+
+    <h2>Declaring a variant instead of loosening a rule</h2>
+
+    <p>The <code>session</code> field is the most useful thing in the contract, and it took a while
+    to arrive at.</p>
+
+    <p>The default assumption behind the play gate is that a game is a run you survive: it should end
+    if you stop playing, and a round that lasts under three seconds means the game is unplayable.
+    Both rules caught real problems. Both are wrong for some perfectly good games.</p>
+
+    <p>A game that ends after a single action — one shot, one throw — always scores badly on mean
+    survival, because the automated tester fires immediately and never deliberates. A cozy game with
+    no fail state must <em>not</em> end when idle; ending is the bug. Two different genres, two
+    different rules, and in both cases the temptation is to weaken the general rule with a
+    condition.</p>
+
+    <p>Weakening it is the wrong move, because every future game then falls into the exemption
+    without anyone deciding that it should. Instead the game states which kind of thing it is, and
+    the checker branches on the declaration:</p>
+
+<pre><code>const DECLARED_SESSIONS = ['single-shot', 'cozy'];
+const session = await page.evaluate((allowed) => {
+  const s = window.__GAME__ &amp;&amp; window.__GAME__.session;
+  return allowed.includes(s) ? s : 'run';
+}, DECLARED_SESSIONS);
+</code></pre>
+
+    <p>An unrecognised value falls back to the strict path. The exception lives in the game's own
+    source where a reader will see it, the strict rule stays strict for everything else, and nothing
+    opts out by accident. (Wiring that declaration through the collector was itself forgotten for two
+    weeks, with the gate passing its unit tests the whole time —
+    <a href="/notes/a-gate-that-graded-the-opposite/">that story is here</a>.)</p>
+
+    <h2>The games that came first</h2>
+
+    <p>A dozen games on this site predate the contract. Retrofitting all of them would have been a
+    day's work with a real chance of breaking games that currently work, so they run in a
+    <strong>legacy mode</strong> where the harness judges only what it can observe from outside:
+    frame rate, load time, console errors, whether the canvas is drawing, and whether the screen
+    changes in response to input.</p>
+
+    <p>The critical design decision is that unjudgeable rules are reported as <em>skipped</em>, not
+    as passed:</p>
+
+<pre><code>skipped.push(`${at}: termination, idle-end, restart and play band
+  not checked — no window.__GAME__ contract`);
+</code></pre>
+
+    <p>The report distinguishes three states — failed, passed, and not checkable — and the summary
+    prints the skips. This sounds pedantic until you have a suite where missing instrumentation
+    silently counts as success, at which point the green build becomes a measure of how much is not
+    being tested.</p>
+
+    <h2>Measuring frames without trusting the game</h2>
+
+    <p>One thing deliberately sits outside the contract. Frame rate is measured by injecting a probe
+    that wraps <code>requestAnimationFrame</code> and counts calls, rather than asking the game to
+    report its own frame rate.</p>
+
+    <p>The reason is straightforward: a game reporting its own performance reports the performance of
+    its logic loop, not of the thing the player sees. A game can be stuttering visibly while its
+    internal counter is perfectly happy. Measure the browser's actual paint cycle and there is
+    nothing for the game to be wrong about.</p>
+
+    <p>This also produces the one case where the harness has to be careful about honesty. A game that
+    reloads itself on game over resets the probe's counter, and the difference between consecutive
+    samples goes negative — a five-second window once reported &minus;134.9 frames per second. The
+    gate now treats any non-positive frame rate as a broken measurement rather than a failing game,
+    because those are different claims and only one of them is about the game.</p>
+
+    <h2>What this buys</h2>
+
+    <p>Roughly twelve lines per game, written once, make it possible to check twenty games on every
+    build for: load under two seconds, average frame rate above 50, no five-second window under 30,
+    heap growth under 2.5&times; across a minute of play, touch handlers present, no console errors,
+    no failed network requests, input producing progress, correct termination behaviour for the
+    declared genre, and a playing field with the right proportions on a desktop monitor.</p>
+
+    <p>Without the contract, every one of those would be a manual check performed by a person who
+    is, by the twentieth game, no longer really looking.</p>

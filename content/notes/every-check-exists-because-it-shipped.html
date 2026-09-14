@@ -1,0 +1,111 @@
+    <p>Publishing a game on this site is not a matter of uploading a file. A build script runs every
+    game through a set of automated checks and refuses to generate the site at all if any of them
+    fail. There are currently a few dozen of these checks, and not one of them was designed in
+    advance. Every single one was added on the day the corresponding mistake was found in
+    production.</p>
+
+    <p>That is a deliberate rule rather than an accident of history: a gate that was never a real bug
+    is a guess about the future, and guesses accumulate until the build is slow and nobody trusts
+    the failures. A gate that corresponds to a specific afternoon spent finding out why a game
+    looked broken is a gate that has already paid for itself once.</p>
+
+    <p>Here is the useful half of the list, with the incident attached to each.</p>
+
+    <h2>The canvas is blank</h2>
+
+    <p>The first version of the technical gate checked that a game loaded without throwing. A game
+    shipped that loaded perfectly and drew nothing at all — an initialisation order bug meant the
+    render loop started before the context existed, so every frame painted onto a canvas that was
+    never attached. It looked fine in the test output and it was a grey rectangle in a browser.</p>
+
+    <p>The check that replaced it takes a screenshot of the canvas and computes the greyscale
+    standard deviation. Below three, the screen is effectively a single colour. That rule promptly
+    produced a false positive on a game whose whole screen is a dim starfield, so it gained a second
+    clause: a frame-to-frame pixel difference. Something that is almost one colour but is
+    <em>changing</em> is being drawn. Both conditions have to be true before a game is failed. The
+    thresholds are 3 and 2, and both came out of measuring real games rather than being chosen.</p>
+
+    <h2>The screenshot is of the title screen</h2>
+
+    <p>Thumbnails are captured automatically from the running game, which means the capture has to
+    dismiss whatever start overlay the game shows. One game's overlay was not being dismissed, and
+    the check that was supposed to notice compared standard deviation against a threshold. Measured
+    on the real thing, the title screen scored 10.8 and actual gameplay scored 9.2 — the title
+    screen was <em>busier</em> than the game. Any threshold that caught it would have failed half
+    the catalogue.</p>
+
+    <p>The replacement does not look at the pixels at all. It asks the browser which element is
+    actually on top at the centre of the canvas. If something is covering it, the screenshot is not
+    gameplay, whatever it looks like. There is a longer write-up of the capture problem in
+    <a href="/notes/thumbnail-that-lied/">the thumbnail that lied</a>.</p>
+
+    <h2>The frame rate collapses for two seconds</h2>
+
+    <p>Average frame rate is a comfortable metric and a misleading one. A game that runs at 60 for
+    fifty seconds and 12 for ten still averages above the bar, and the ten seconds are the entire
+    experience of playing it. So the gate records frame rate in five-second windows and fails on the
+    worst one, not the mean: 50 average, and never below 30 in any window.</p>
+
+    <p>That rule then caught something weirder. A window came back at &minus;134.9 frames per second.
+    The game reloaded itself on game over, which reset the frame counter the probe was reading, so
+    the difference between two samples went negative. The value was finite, so an <code>isFinite</code>
+    check waved it through. Now any non-positive or non-numeric window is reported as a broken
+    measurement rather than a passing game, because a gate that cannot tell &ldquo;fine&rdquo; from
+    &ldquo;not measured&rdquo; is worse than no gate.</p>
+
+    <h2>The game dies faster than a person can play it</h2>
+
+    <p>One game was technically flawless and unplayable: you died in about a second, every time.
+    Nothing in the gate objected, because dying is what arcade games do.</p>
+
+    <p>The rule that resulted measures mean survival — playtime divided by deaths — and fails below
+    three seconds. The first version of it was quietly wrong. The collector notices a death on its
+    next poll, which is up to half a second later, so every run carried up to half a second of
+    already-being-dead. With several deaths in a short session that inflated mean survival by nearly
+    double: two real rounds of 5.2 and 2.8 seconds were reported as eight seconds each. The fix is
+    one line — subtract the polling interval per death — and it is the kind of error that makes a
+    gate pass everything while looking rigorous.</p>
+
+    <h2>Input does not reach the game</h2>
+
+    <p>Some of the older games predate the observability contract, so there is no way to ask them
+    whether anything happened. For those, the gate hammers input at the page and measures how many
+    pixels changed. The first metric was mean absolute pixel difference, which failed immediately:
+    a game whose entire sprite is 24 pixels across changes 0.07% of the screen, and the average
+    difference across the whole frame washed that out to 0.6 out of 255. Switching from &ldquo;how
+    much did it change&rdquo; to &ldquo;how many pixels changed at all&rdquo; separated a static page
+    (0.0000) from the least visually active real game (0.0055) by enough margin to set a threshold
+    that means something.</p>
+
+    <p>Then it turned out that keyboard input and pointer input erase each other. Adding taps to the
+    input pass revived a memory game from 0 to 0.0279 and simultaneously killed a Simon-style game,
+    0.0346 to 0, because in that game a click is a wrong answer and a wrong answer stops the game.
+    The passes now run separately and the gate takes the better of the two.</p>
+
+    <h2>The page is lying about itself</h2>
+
+    <p>Separate from the gameplay checks, every generated page is parsed before it is written.
+    Exactly one H1. A canonical URL that is absolute and on the right origin. A share image on
+    <code>https</code>, because social crawlers do not resolve relative paths. A title between 15
+    and 70 characters, a description between 70 and 170. Structured data that is actually run
+    through a JSON parser rather than eyeballed — malformed structured data is invisible until a
+    search engine silently ignores it.</p>
+
+    <p>The strangest rule in this group scans output for phrases that only ever appear in authoring
+    notes. It exists because a commit in February 2026 pushed forty lines of working commentary
+    into a live page, where it sat until someone happened to read the source. The gate now fails the
+    build on a short list of telltale phrases. It has never fired again, which is the point.</p>
+
+    <h2>What this costs</h2>
+
+    <p>The full run takes a few minutes because it drives a real headless browser through every game
+    twice. In exchange, the failure mode of this project is a build that refuses to finish, rather
+    than a live site quietly serving something broken to the handful of people who arrive on it.</p>
+
+    <p>The gates also do something less obvious. Writing a check forces you to say exactly what was
+    wrong, in a sentence a future reader will understand — and quite often, in the middle of writing
+    that sentence, you discover the bug you thought you had was a different bug. The most recent
+    example of that is a whole post of its own:
+    <a href="/notes/a-gate-that-graded-the-opposite/">a gate that graded the opposite of what the
+    game was trying to be</a>, which passed its own unit tests for two weeks while being wired to
+    nothing at all.</p>

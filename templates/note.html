@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{{HEAD}}
+<script type="application/ld+json">{{JSONLD}}</script>
+{{VERIFICATION}}
+{{ANALYTICS}}
+{{ADSENSE}}
+</head>
+<body>
+<main class="main-content landing">
+{{NAV}}
+  <nav class="breadcrumb"><a href="/">Home</a> › <a href="/notes/">Dev notes</a> › <span>{{TITLE}}</span></nav>
+
+  <article class="note">
+    <h1>{{TITLE}}</h1>
+    <p class="note-meta">
+      <time datetime="{{DATE}}">{{DATE_HUMAN}}</time> ·
+      by <a href="/about/" rel="author">{{AUTHOR}}</a> ·
+      {{WORDS}} words
+    </p>
+    <p class="lede">{{SUMMARY}}</p>
+
+{{BODY}}
+  </article>
+
+{{FOOTER_NAV}}
+  <footer class="site-footer">
+    <p>Written by <a href="/about/">{{AUTHOR}}</a>, who built the games described above.</p>
+    <p>&copy; 2026 Neon Arcade. All rights reserved.</p>
+    <p><a href="/">Games</a> · <a href="/notes/">Dev notes</a> · <a href="/about/">About</a> · <a href="/credits/">Credits</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy Policy</a></p>
+  </footer>
+</main>
+</body>
+</html>

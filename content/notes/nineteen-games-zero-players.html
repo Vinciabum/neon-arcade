@@ -1,0 +1,98 @@
+    <p>On 13 August 2026 this site went live with nineteen original games. Every one of them was
+    written here, in vanilla JavaScript, with no engine and no borrowed art. Two weeks later the
+    analytics dashboard said the same thing it had said on day one: zero sessions. Not a handful.
+    Not a slow start. Zero.</p>
+
+    <p>The ad network application was rejected in the same fortnight. The reason given was the one
+    every publisher dreads because it sounds like an insult and is actually a diagnosis: not enough
+    original content of value to users. Nineteen games I had personally built, and the verdict was
+    that there was nothing here.</p>
+
+    <p>Both of those turn out to be the same failure, and it is worth writing down precisely,
+    because the obvious explanations were all wrong.</p>
+
+    <h2>The plumbing was never the problem</h2>
+
+    <p>The first instinct after a launch with no traffic is to suspect the technical layer. That
+    instinct was cheap to test and it came back clean. The sitemap was valid and submitted. The
+    robots file allowed everything that mattered. Every page carried a self-referencing canonical
+    URL, a description inside the length a search engine will actually display, structured data
+    that parsed, and a share image at the right dimensions. Twenty-three URLs were indexable and
+    the search console agreed they were indexable. Page weight was small, there were no render
+    blockers, and the games loaded in well under a second.</p>
+
+    <p>It is worth saying this clearly because a lot of advice about launches begins and ends with
+    that checklist. The checklist was complete and it bought nothing. Technical correctness is a
+    floor, not a strategy — it removes reasons to be excluded, and removing reasons to be excluded
+    is not the same as giving anyone a reason to arrive.</p>
+
+    <h2>Failure one: the keywords were words nobody types</h2>
+
+    <p>Every game page was optimised for a phrase describing the game. The trouble is that I had
+    invented the games, so I had also invented the phrases. <em>Duckling herding game.</em>
+    <em>Neon dodge.</em> These are accurate descriptions and they have essentially no search volume,
+    because nobody wakes up wanting a duckling herding game. They want &ldquo;free games&rdquo; or
+    &ldquo;games to play at school&rdquo; or a specific title they already heard of somewhere else.</p>
+
+    <p>The generic terms are owned. Poki, CrazyGames and itch sit on them with domain authority
+    accumulated over a decade and catalogues in the tens of thousands. A new domain does not
+    outrank them, this year or next year. That is not a pessimistic estimate; it is an arithmetic
+    one. So the honest position was that search was never going to be the first channel, and every
+    hour spent tuning page titles for it was an hour spent on the wrong problem.</p>
+
+    <h2>Failure two: nineteen games, zero brand</h2>
+
+    <p>The second failure is the one that took longer to see, because it does not show up in any
+    tool. The games had nothing in common. A snake variant, a brick breaker, a reaction test, a
+    duckling herder, a physics one-shot. Each was fine. None of them explained the others.</p>
+
+    <p>Play through one and leave, and there is no reason to remember the site. There is no
+    character you would recognise again, no look you would pick out of a grid of thumbnails, no
+    sentence a player could use to describe this place to somebody else. Nineteen games had been
+    built and zero brands. In a market where discovery happens because someone shares a thing with
+    a friend, a catalogue that cannot be described is a catalogue that cannot be shared.</p>
+
+    <h2>Why the ad rejection was the same failure</h2>
+
+    <p>The rejection looked unfair at first — the games are real, they are original, and they work.
+    But the reviewer was not playing the games. The game files themselves carry a noindex tag,
+    because the landing page around each game is the canonical URL. What a reviewer actually saw
+    was twenty pages of near-identical structure: a title, a one-line tagline, three bullet points
+    of instructions, a controls table, two questions in an FAQ. Roughly two hundred and fifty words
+    each, in the same order, twenty times.</p>
+
+    <p>Read that as a stranger and it does not look like a studio. It looks like output from a
+    template — which is the exact shape the low-value-content rule is written to catch. The
+    complaint was never that the games were worthless. The complaint was that the site around them
+    said almost nothing, and said it in the same voice twenty times over.</p>
+
+    <p>There was a second, smaller problem in the same direction: three sprite packs downloaded
+    from itch.io were still in use across four games, and their licences had never been confirmed
+    as permitting commercial use. Advertising had been switched on over pages carrying art whose
+    rights had not been checked. That was fixed the direct way — the files were deleted and the
+    games that used them were redrawn in code — but it should never have got as far as being
+    live.</p>
+
+    <h2>What changes</h2>
+
+    <p>Three conclusions came out of this, and everything published on this site since has followed
+    from them.</p>
+
+    <p><strong>Fewer games, more of each.</strong> Nineteen mediocre games are worth less than three
+    good ones, for every purpose at once: they do not persuade a reviewer, they do not survive a
+    comparison with an established portal, and they give nobody anything to talk about. The count
+    stopped being a metric.</p>
+
+    <p><strong>One world instead of a catalogue.</strong> People follow characters, not genres. The
+    newest game on the site, <a href="/games/feltling/">Feltling</a>, is the first built with that
+    in mind: a felt world with a seal and a cat in it, where the thing you remember is the seal
+    rather than the mechanic. Whether that works is not yet known. It is at least a thing a player
+    could describe to someone else in one sentence, which the previous nineteen were not.</p>
+
+    <p><strong>The site has to say something.</strong> Pages that exist only to wrap a game in
+    markup are not content, whatever the word count says. These dev notes are the other half of
+    that answer — the part of this work that only I can write, because I am the person who made the
+    mistake being described.</p>
+
+    <p>Zero sessions is a clean number to be handed. It removes any temptation to tell yourself the
+    launch half-worked.</p>

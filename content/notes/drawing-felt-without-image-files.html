@@ -1,0 +1,133 @@
+    <p><a href="/games/feltling/">Feltling</a> is set in a world made of felt — a wool meadow, felt
+    mushrooms, a seal that gains a felt coat one thread at a time. It contains no image files. Every
+    pixel is drawn at runtime with canvas paths, and this note is about how you get wool out of
+    <code>fillStyle</code> and <code>arc()</code>.</p>
+
+    <p>Drawing it rather than painting it was not a purity exercise. Felt photographs beautifully and
+    behaves terribly as a sprite: it is a real material with a real light direction baked into it,
+    so the moment you mirror a character to face the other way, the lighting is wrong and the
+    illusion dies. Shapes drawn in code can be lit correctly from whichever side they are on, and
+    they can also be resized without a second art pass, which matters when the same character has to
+    survive at 200 pixels in a thumbnail.</p>
+
+    <h2>Rule one: nothing is a perfect shape</h2>
+
+    <p>The single largest difference between &ldquo;drawn on a computer&rdquo; and &ldquo;made by
+    hand&rdquo; is that handmade edges are not exact. A circle drawn with <code>arc()</code> reads
+    instantly as vector art. So there is one primitive that everything in this game is built from, a
+    closed path whose radius wobbles with two overlapping sine terms:</p>
+
+<pre><code>function wobbleBlob(x, y, rx, ry, seed, lobes = 3) {
+  ctx.beginPath();
+  for (let a = 0; a &lt;= Math.PI * 2 + 0.01; a += Math.PI / 16) {
+    const k = 1 + Math.sin(a * lobes + seed) * 0.035
+                + Math.sin(a * 7 + seed * 2) * 0.016;
+    const px = x + Math.cos(a) * rx * k;
+    const py = y + Math.sin(a) * ry * k;
+    a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+</code></pre>
+
+    <p>The amplitudes are tiny — three and a half percent, then under two. Any larger and things look
+    deflated rather than handmade. The <code>seed</code> is what stops every mushroom on screen from
+    being the same mushroom: each prop passes its own index, so every object has a permanently
+    distinct outline that does not change between frames. Wobbling <em>per frame</em> was tried
+    early and looks like the whole world is boiling.</p>
+
+    <h2>Rule two: felt has thickness</h2>
+
+    <p>A flat fill reads as paper. Wool is a slab with a top and a bottom, so every shape gets a
+    vertical gradient clipped to its own path — white at the top, a warm brown at the base, both at
+    low alpha:</p>
+
+<pre><code>function shade(x, y, rx, ry, strength = 1) {
+  ctx.save(); ctx.clip();
+  const g = ctx.createLinearGradient(0, y - ry, 0, y + ry);
+  g.addColorStop(0,    `rgba(255,255,255,${0.22 * strength})`);
+  g.addColorStop(0.45, 'rgba(255,255,255,0)');
+  g.addColorStop(1,    `rgba(90,70,50,${0.20 * strength})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(x - rx * 1.6, y - ry * 1.6, rx * 3.2, ry * 3.2);
+  ctx.restore();
+}
+</code></pre>
+
+    <p>The second half of thickness is the shadow where the object meets the ground. Without a
+    contact shadow everything floats, and a scene of floating objects looks like a UI rather than a
+    place. Each prop draws a squashed dark ellipse under itself at about eleven percent alpha before
+    the object goes down. It is one ellipse and it does more work than any other line in the
+    renderer.</p>
+
+    <h2>Rule three: one fibre layer over everything</h2>
+
+    <p>Real felt is visibly made of fibres. The naive approach — scattering short strokes inside each
+    shape as it is drawn — costs hundreds of path operations per frame and, worse, the fibres move
+    with the object, which looks like fur on a moving animal rather than a world made of the same
+    cloth.</p>
+
+    <p>Instead, a 200&times;200 tile of random short strokes is generated once at startup, half of
+    them light and half dark, and turned into a repeating pattern. After the entire scene is drawn,
+    that pattern is painted over the whole canvas in <code>overlay</code> blend mode at 50% alpha —
+    a single <code>fillRect</code>. Every object on screen inherits the same weave, which is exactly
+    the story the game is telling: it is all one material. The cost is one draw call per frame
+    regardless of how much is on screen.</p>
+
+    <p>A soft radial vignette goes on top of that, dark at the corners. It reads as the inside of a
+    shadow box, which is where a diorama belongs.</p>
+
+    <h2>Stitches</h2>
+
+    <p>The fastest way to say &ldquo;textile&rdquo; is a dashed line. The horizon is a dashed cream
+    stroke, the boundary of the sand patch is another, and the bare seal has a single dashed seam
+    down its belly — the one piece of evidence that this animal was sewn. It is <code>setLineDash</code>
+    and nothing else, and it does more for the material than any amount of texture work.</p>
+
+    <h2>The fur, which took three attempts</h2>
+
+    <p>The seal gains a coat across six stages, and that transformation is the whole game, so it has
+    to be legible at a glance. It was wrong twice in ways worth recording.</p>
+
+    <p><strong>Attempt one: translucent layers.</strong> Draw a wool-coloured shape over the body and
+    raise its alpha as the coat thickens. Stage one looked like a seal that had been colour-graded
+    slightly warmer. Nobody could see progress, which defeats the point of a progress mechanic.</p>
+
+    <p><strong>Attempt two: scattered tufts.</strong> Draw N small cream circles inside the body,
+    distributed by golden angle so they spread evenly, with N rising per stage. Even coverage, good
+    performance, and it looked like bubble wrap. Circles read as circles no matter how many you use.
+    Adding straight fibres around the silhouette to soften it made it worse — evenly spaced straight
+    lines around an outline is the universal visual signature of a hedgehog.</p>
+
+    <p><strong>Attempt three, which works: coverage, not count.</strong> Three changes together. The
+    body's base colour interpolates from grey towards cream as the coat fills in, so bare skin never
+    shows through gaps as mottling. The wool is drawn as large irregular clumps — the same
+    <code>wobbleBlob</code> at about 0.29 of body radius — which overlap and merge into a coat
+    instead of reading as separate dots. And the clump positions are sorted top to bottom in advance,
+    so fur appears on the crown first and works down to the belly, which is both how the stages were
+    designed and how fur actually grows.</p>
+
+    <p>The silhouette is handled by drawing a second set of clumps <em>behind</em> the body, pushed
+    just outside its outline. A lumpy edge reads as soft; spikes read as armour. And the face keeps a
+    clean skin-coloured oval painted back over the coat at the end, because the expression is the
+    reward in this game and wool creeping over the eyes takes it away.</p>
+
+    <h2>Stop motion, on purpose</h2>
+
+    <p>Movement updates at twelve frames per second while rendering continues at sixty. Positions are
+    advanced in a fixed-step accumulator loop, so the cat visibly snaps from pose to pose rather than
+    gliding. Interpolated motion on a felt character looks like a sticker being dragged; snapped
+    motion looks like a puppet being moved by hand between exposures. The weakness of the material
+    becomes the aesthetic, which is usually where the good answers are.</p>
+
+    <p>Rendering stays at sixty because the automated play gate counts animation frames and fails
+    anything that drops below thirty in any five-second window — and because the fibre overlay and
+    the vignette want to be smooth even when the puppets are not.</p>
+
+    <h2>What it costs</h2>
+
+    <p>The whole game, including the world, both characters, the audio synthesis and the share-card
+    generator, is one HTML file of about 35KB with no external requests. It loads in well under a
+    second on a phone and holds 60fps. The art budget was zero, and the entire look can be changed by
+    editing a palette object at the top of the file — which is the other quiet advantage of drawing
+    things in code.</p>

@@ -1,0 +1,59 @@
+[
+  {
+    "slug": "thumbnail-that-lied",
+    "title": "The thumbnail that lied",
+    "date": "2026-08-18",
+    "description": "Automated screenshots captured the one second before each game became legible. Why a pixel-difference test cannot tell changed from recognisable, and the one-field fix.",
+    "summary": "A capture tool that picked the earliest changed frame produced a duck game with no ducklings and a rhythm game showing MISSED. Fixing it meant letting each game declare when it is worth looking at."
+  },
+  {
+    "slug": "every-check-exists-because-it-shipped",
+    "title": "Every check exists because it shipped",
+    "date": "2026-08-22",
+    "description": "A tour of the automated gates that refuse to publish a game on this site, and the specific production bug that caused each one to be written in the first place.",
+    "summary": "Blank canvases, frame rates reported as minus 134, a game you died in under a second, and forty lines of authoring notes pushed live. Each rule in the build gate has an incident behind it."
+  },
+  {
+    "slug": "the-play-band",
+    "title": "The play band",
+    "date": "2026-08-25",
+    "description": "A portrait game stretched across a desktop window measured 3.2 times harder. Why the interactive region keeps a phone's proportions on any screen.",
+    "summary": "Stretching a portrait game to fill a laptop screen does not just look wrong, it changes the difficulty. Keeping a fixed play band fixes that and makes vertical video clips free."
+  },
+  {
+    "slug": "nineteen-games-zero-players",
+    "title": "Nineteen games, zero players",
+    "date": "2026-08-29",
+    "description": "Two weeks after launching nineteen original browser games, analytics read zero sessions and the ad application was rejected. A post-mortem on both.",
+    "summary": "The technical checklist was complete and it bought nothing. The real failures were keywords nobody searches for and a catalogue with no identity, and the ad rejection was a diagnosis rather than an insult."
+  },
+  {
+    "slug": "making-a-game-testable",
+    "title": "Making a game testable from outside",
+    "date": "2026-09-01",
+    "description": "Twelve lines of read-only interface per game make twenty games checkable on every build. What the contract exposes, and how older games are handled.",
+    "summary": "A game has no function to call and no return value to assert on. A small read-only global changes that, and reporting unjudgeable rules as skipped rather than passed keeps the green build honest."
+  },
+  {
+    "slug": "a-gate-that-graded-the-opposite",
+    "title": "A gate that graded the opposite",
+    "date": "2026-09-05",
+    "updated": "2026-09-14",
+    "description": "The quality gate demanded that a game end when idle. The new game must never end. Inverting the rule was easy; finding it wired to nothing took two weeks.",
+    "summary": "Five new unit tests passed while the branch they covered was unreachable from any real game. A test that builds its own input cannot verify that anything produces that input."
+  },
+  {
+    "slug": "drawing-felt-without-image-files",
+    "title": "Drawing felt without image files",
+    "date": "2026-09-13",
+    "description": "How a wool world is rendered with canvas paths and no artwork at all: wobbled outlines, clipped gradients, one fibre tile over everything, and three attempts at fur.",
+    "summary": "Felt photographs beautifully and behaves terribly as a sprite. Drawing it in code fixes the lighting problem and costs nothing in assets, once you stop drawing perfect shapes."
+  },
+  {
+    "slug": "progress-you-listen-to",
+    "title": "Progress you listen to",
+    "date": "2026-09-14",
+    "description": "A game with no progress bar, where you check how far along you are by knocking on a seal and hearing how muffled it sounds. Every sound synthesised, no audio files.",
+    "summary": "Filtered noise makes a convincing knock, and moving the filter cutoff with progress turns a status readout into something you feel. The finished state is warmer, not louder."
+  }
+]

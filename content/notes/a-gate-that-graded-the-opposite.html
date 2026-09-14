@@ -1,0 +1,118 @@
+    <p>Every game on this site has to pass an automated play test before it can be published. One of
+    the rules in that test reads, in effect: <em>if nobody touches the controls for twenty seconds,
+    the round must end.</em> A game that runs forever while the player does nothing is a game whose
+    fail state is broken, and that rule has caught real bugs.</p>
+
+    <p>Then I set out to build a cozy game — no score, no timer, nothing to lose — and the rule
+    became exactly backwards. Taking the session away because someone put their phone down is not a
+    defect being caught. In a game like that, it <em>is</em> the defect.</p>
+
+    <h2>Three rules, all inverted</h2>
+
+    <p>It was not one rule. The play gate's contract mode ended with three assertions, and a good
+    cozy game fails all three:</p>
+
+    <ul>
+      <li><strong>It must end when idle.</strong> Inverted. This game must not.</li>
+      <li><strong>Restarting must work.</strong> Meaningless. There is no run to restart.</li>
+      <li><strong>Score must reset to zero on restart.</strong> Meaningless twice over. There is no
+      restart and there is no score.</li>
+    </ul>
+
+    <p>And in the scoring rubric used to judge whether a game is good enough to publish, two of the
+    five axes were measuring the opposite of the target as well. One awarded twenty points for
+    fitting a &ldquo;one to three minute time-killer&rdquo; shape; the new game wants to be stayed
+    in, and being short is a fault. Another graded the difficulty curve, and this game does not have
+    a difficulty curve at all — there is no difficulty.</p>
+
+    <p>This is a specific and common trap. Quality gates encode a definition of good, and that
+    definition is invisible until you try to build something the authors did not have in mind. The
+    checks did not fail loudly or say &ldquo;this looks like a different genre&rdquo;. They simply
+    reported the new game as broken, in the confident tone of a passing test suite.</p>
+
+    <h2>Widening the rule versus declaring the variant</h2>
+
+    <p>The tempting fix is to relax the assertion — only require termination if the game has a score,
+    say, or skip the restart check when there is no restart. That is the wrong shape, because every
+    future game then falls into the exemption without anybody deciding that it should. A year later
+    an arcade game with a genuinely broken fail state passes silently and nobody can reconstruct why
+    the gate stopped catching it.</p>
+
+    <p>The gate already had the right pattern in it for a different reason. Games that end after a
+    single action — one shot, one throw — cannot be measured by survival time, because the automated
+    tester fires immediately and always scores badly. Rather than weakening the survival rule, those
+    games <em>declare themselves</em>: the game exposes <code>session: 'single-shot'</code> and the
+    gate takes a different branch for it. The rule stays strict; the exception is explicit, visible
+    in the game's own source, and impossible to fall into by accident.</p>
+
+    <p>So the cozy game declares <code>session: 'cozy'</code>, and the gate inverts precisely the
+    rule that needs inverting:</p>
+
+<pre><code>if (r.session === 'cozy') {
+  if (r.idle?.ended) {
+    errors.push(`${at}: ended while idle after ${r.idle?.afterMs}ms — a cozy
+      game must not take the session away when the player stops`);
+  }
+  skipped.push(`${at}: restart not checked — a cozy game has no run to restart`);
+  return { errors, skipped };
+}</code></pre>
+
+    <p>Note what did not change. The progress check stayed exactly where it was. A cozy game still
+    has to demonstrate that something advances when you play it — it just reports threads given to
+    the seal in the field where an arcade game reports points. &ldquo;Nothing is happening&rdquo; is
+    a defect in any genre.</p>
+
+    <p>The rubric got the same treatment: the two arcade axes were replaced rather than removed, by
+    <em>hand feel</em> (is the tapping worth doing when it yields nothing?) and <em>dwell</em> (is
+    there a reason to remain?). Five axes, a hundred points, same pass mark. The scoring did not get
+    easier; it started measuring the right thing.</p>
+
+    <h2>The part that is actually worth reading</h2>
+
+    <p>All of that shipped on 1 September, with four new unit tests, and the suite went from 215
+    passing to 220. It was, on the evidence available, done.</p>
+
+    <p>Two weeks later I pointed the real gate at the real game for the first time, and it failed —
+    with <code>never ends when idle</code> and <code>score did not reset on restart</code>. The two
+    errors the entire change existed to prevent.</p>
+
+    <p>The branch was there. The tests covering it passed. They passed because each test constructs a
+    report object by hand, sets <code>session: 'cozy'</code> on it, and hands it to the judging
+    function. What no test covered was how that field gets into the report in the first place. The
+    collector reads the value out of the running game like this:</p>
+
+<pre><code>const session = await page.evaluate(() => {
+  const s = window.__GAME__ &amp;&amp; window.__GAME__.session;
+  return s === 'single-shot' ? 'single-shot' : 'run';
+});</code></pre>
+
+    <p>Everything that is not <code>single-shot</code> is flattened to <code>run</code>. The game
+    declared itself cozy, correctly, and one line in the collector threw the declaration away before
+    the judge ever saw it. The branch was unreachable from the real world, and the unit tests could
+    not tell, because they never went through that line — they started downstream of it.</p>
+
+    <p>The fix is four lines and a whitelist, so that an unrecognised value still falls back to the
+    strict path:</p>
+
+<pre><code>const DECLARED_SESSIONS = ['single-shot', 'cozy'];
+const session = await page.evaluate((allowed) => {
+  const s = window.__GAME__ &amp;&amp; window.__GAME__.session;
+  return allowed.includes(s) ? s : 'run';
+}, DECLARED_SESSIONS);</code></pre>
+
+    <h2>The lesson, stated precisely</h2>
+
+    <p>It would be easy to draw the lazy conclusion here — <em>unit tests are not enough, write
+    integration tests</em> — and that is true but too general to act on. The sharper version is
+    this: <strong>a test that builds its own input cannot verify that anything ever produces that
+    input.</strong> Every hand-built fixture is a claim about the shape of real data, and a claim is
+    not a check.</p>
+
+    <p>The signal was available and I ignored it. The change had a stated purpose — &ldquo;a game
+    that declares itself cozy is judged by cozy rules&rdquo; — and the only way to see that purpose
+    achieved is to have a game that declares itself cozy and watch it get judged. That took one
+    command. It was not run for two weeks, because five extra green tests felt like proof.</p>
+
+    <p>There is now a real cozy game on the site, it declares itself, and the gate agrees:
+    <code>restart not checked — a cozy game has no run to restart</code>. You can play the game that
+    caused all of this at <a href="/games/feltling/">Feltling</a>.</p>
