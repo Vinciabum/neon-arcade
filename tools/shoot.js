@@ -72,10 +72,14 @@ async function pickPlayFrame(page, target, baseline, fromMs) {
   return fallback ? { raw: fallback, diff: fallbackDiff, at: null } : null;
 }
 
-async function shoot(browser, slug, fromMs) {
+/* 게임이 자기를 "가장 잘 보여주는 상태"로 열 수 있게 한다. games.json 의 captureQuery 가
+   있으면 그대로 쿼리로 붙인다 — Feltling은 0단계가 맨몸 회색 물범이라, 썸네일이 이 게임이
+   무엇에 관한 것인지(털이 자란다) 한 장도 말해주지 못했다. 게임이 실제로 만드는 화면이라는
+   성질은 그대로다. 없으면 아무것도 붙지 않는다. */
+async function shoot(browser, slug, fromMs, query) {
   const page = await browser.newPage({ viewport: VIEWPORT });
   const file = path.resolve(gamePath(slug));
-  await page.goto(pathToFileURL(file).href, { waitUntil: 'load' });
+  await page.goto(pathToFileURL(file).href + (query ? `?${query}` : ''), { waitUntil: 'load' });
   await page.waitForTimeout(800);
 
   const canvas = page.locator('canvas').first();
@@ -107,7 +111,7 @@ const browser = await chromium.launch();
 for (const slug of slugs) {
   try {
     const entry = all.find(g => g.slug === slug);
-    const { out, diff, at } = await shoot(browser, slug, entry && entry.captureFromMs);
+    const { out, diff, at } = await shoot(browser, slug, entry && entry.captureFromMs, entry && entry.captureQuery);
     const when = at === null ? 'NO CLEAR START (fallback frame)' : `t=${at}ms`;
     console.log(`ok   ${slug} -> ${out}  [diff ${diff}, ${when}]`);
   } catch (err) {

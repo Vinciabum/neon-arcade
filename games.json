@@ -53,6 +53,7 @@
     "status": "published",
     "featured": true,
     "captureFromMs": 2600,
+    "captureQuery": "stage=3",
     "portals": {
       "gamedistribution": null,
       "gamepix": null,
