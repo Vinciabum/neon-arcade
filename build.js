@@ -388,9 +388,13 @@ envelope and pushed through a low-pass filter whose cutoff falls as the seal&rsq
 No samples, recorded or purchased, are used anywhere on this site.</p>
 
 <h2>Typefaces</h2>
-<p>The site sets text in the reader&rsquo;s own system UI typeface, with Fredoka used for headings
-where it is available. Games use the system rounded UI face. No webfonts are loaded from a
-third-party server.</p>
+<p>Headings and interface text use <strong>Fredoka</strong> and <strong>Outfit</strong>, and nine of
+the older games load a display face such as <strong>Audiowide</strong> or <strong>Orbitron</strong>.
+All are open-licence typefaces served from Google Fonts, which means your browser fetches them from
+Google&rsquo;s servers rather than from this domain &mdash; the one category of third-party request
+on this site besides analytics and advertising, and it is described on the
+<a href="/privacy/">privacy page</a>. Body text falls back to your own system typeface while they
+load. The newest game uses the system rounded face and loads nothing.</p>
 
 <h2>Code and tooling</h2>
 <ul>
@@ -464,6 +468,13 @@ advertising you see less relevant to you.</li>
 <p>Advertising is not shown inside the games themselves. Game files served from
 <code>/play/</code> load no external scripts of any kind, so nothing tracks you while you are
 actually playing.</p>
+
+<h2>Fonts</h2>
+<p>Pages on this site load typefaces from Google Fonts. Your browser requests those files from
+<code>fonts.googleapis.com</code> and <code>fonts.gstatic.com</code>, which means Google receives
+your IP address and standard request headers in order to serve them. No cookie is set by that
+request and it is not used to identify you. The typefaces in use are listed on the
+<a href="/credits/">credits page</a>.</p>
 
 <h2>Visitors in the EEA, UK and Switzerland</h2>
 <p>Where required, Google's consent tools ask for your permission before setting advertising and

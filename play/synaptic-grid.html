@@ -22,8 +22,12 @@
             touch-action: none;
         }
 
+        /* 배경 원은 200vw다. absolute로 두면 390px 폰에서 문서 폭이 585px가 되어
+           페이지가 가로로 밀린다 — body의 overflow:hidden은 documentElement의
+           scrollWidth를 줄이지 않는다. fixed는 문서 흐름 밖이라 넘침을 만들지 않고,
+           화면에 보이는 그림도 똑같다. */
         #bg-pulse {
-            position: absolute;
+            position: fixed;
             top: 50%;
             left: 50%;
             width: 200vw;

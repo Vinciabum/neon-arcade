@@ -69,7 +69,10 @@ original work:
   (`jumper.svg`, `cactus.svg`, `coin.svg`), or are inline base64 SVG data URIs.
 - All audio is synthesised with the Web Audio API. There are no sound files.
 - Thumbnails and share cards are generated from real screenshots of the games running.
-- No webfonts are loaded from third-party servers.
+
+The one exception is type: Fredoka and Outfit, plus a display face in nine of the older games, are
+served from Google Fonts rather than this domain. They are open-licence faces, and `/credits/` and
+`/privacy/` both say so. A new game should use the system face and load nothing.
 
 An earlier version of the site used three downloaded itch.io sprite packs across four
 games. Their licences were never confirmed as permitting commercial use, so the files
