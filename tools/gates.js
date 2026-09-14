@@ -71,6 +71,15 @@ export function checkTech(r) {
     errors.push(`${at}: horizontal overflow on mobile — scrollWidth ${r.mobile.scrollWidth} > viewport ${r.mobile.innerWidth}`);
   }
 
+  /* 넘침이 가로 스크롤로 나타나지 않는 경우가 있다. `width:100%` + padding에 box-sizing이
+     없으면 문서가 뷰포트보다 넓어지고, 브라우저는 스크롤바를 내보내는 대신 레이아웃
+     뷰포트 자체를 그 폭으로 벌린다. 그러면 scrollWidth === innerWidth가 되어 위 검사를
+     그대로 통과하고, 게임만 의도보다 작게 그려진다. 실측: dino-jump가 390px 폰에서
+     450px로 벌어져 13% 작게 나왔고, 게이트는 초록불이었다. */
+  if (r.mobile && r.mobile.innerWidth > TECH.MOBILE_VIEWPORT.width + 1) {
+    errors.push(`${at}: layout viewport widened to ${r.mobile.innerWidth}px on a ${TECH.MOBILE_VIEWPORT.width}px screen — something is wider than the phone, so the whole game is scaled down to fit`);
+  }
+
   return { errors, skipped };
 }
 

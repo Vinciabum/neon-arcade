@@ -5,7 +5,7 @@
     "tagline": "The seal has no fur. The cat is fixing that, one thread at a time.",
     "description": "Knock on a felt meadow until something gives up its thread, then carry it to the seal. Six coats later the seal is felt all the way through.",
     "tag": "Cozy",
-    "genreTerm": "cozy tapping game",
+    "genreTerm": "cozy game",
     "controls": {
       "keyboard": "None. Click anywhere on the meadow.",
       "touch": "Tap anywhere. The cat walks there and knocks."
@@ -71,7 +71,7 @@
     "tagline": "Lead the ducklings home. The longer the line, the harder it steers.",
     "description": "Swim the pond collecting ducklings. Each one makes you slower to turn, and the tail cuts the corner — so the ball you just dodged can still take half your line.",
     "tag": "Herd",
-    "genreTerm": "duckling herding game",
+    "genreTerm": "duck game",
     "controls": {
       "keyboard": "Arrow keys or A/D to swim",
       "touch": "Drag anywhere to swim"
@@ -126,7 +126,7 @@
     "tagline": "One swing at the pin. Same course for everyone today.",
     "description": "A single swing at the pin. Read the wind, thread the one gap in the bars, and let go — there is no second ball, and everyone plays the same course today.",
     "tag": "Aim",
-    "genreTerm": "daily aim game",
+    "genreTerm": "daily golf game",
     "controls": {
       "keyboard": "Arrow keys to aim, Space to swing",
       "touch": "Pull back anywhere and release"
@@ -180,7 +180,7 @@
     "tagline": "Catch falling fuel. The dimmer your flame, the less you can see.",
     "description": "Catch falling fuel in the brazier you carry overhead. Your flame burns down on its own, the lit circle closes in as it fades, and a catch pays most when it is nearly out.",
     "tag": "Reflex",
-    "genreTerm": "catch game",
+    "genreTerm": "catch the falling objects game",
     "controls": {
       "keyboard": "Arrow keys or A and D to move",
       "touch": "Drag anywhere to move"
@@ -234,7 +234,7 @@
     "tagline": "A high-speed endless runner with power-ups and a shop.",
     "description": "Run, jump and dodge obstacles in this neon endless runner. Collect coins, unlock power-ups in the shop and push for your best distance.",
     "tag": "Runner",
-    "genreTerm": "dinosaur runner game",
+    "genreTerm": "dinosaur game",
     "controls": {
       "keyboard": "Space or Up Arrow to jump",
       "touch": "Tap anywhere to jump"
@@ -287,7 +287,7 @@
     "tagline": "Classic bullet-hell action with retro vibes.",
     "description": "Pilot a neon starfighter through waves of enemies. Dodge incoming fire, upgrade your weapons and survive as long as you can in this retro shooter.",
     "tag": "Action",
-    "genreTerm": "retro arcade shooter game",
+    "genreTerm": "arcade shooter game",
     "controls": {
       "keyboard": "Arrow keys to move, Space to fire",
       "touch": "Drag to move, auto-fire enabled"
@@ -340,7 +340,7 @@
     "tagline": "Test your survival instincts in fast obstacle avoidance.",
     "description": "Survive as long as you can in an arena filling with hazards. Read the patterns, weave through the gaps and beat your personal best time.",
     "tag": "Survival",
-    "genreTerm": "obstacle dodging survival game",
+    "genreTerm": "dodge the obstacles game",
     "controls": {
       "keyboard": "Arrow keys or WASD to move",
       "touch": "Drag to move your marker"
@@ -393,7 +393,7 @@
     "tagline": "The timeless classic reborn with a cybernetic skin.",
     "description": "Guide a growing neon snake around the grid, eat data nodes and avoid crashing into your own tail in this smooth take on the arcade classic.",
     "tag": "Classic",
-    "genreTerm": "online snake game",
+    "genreTerm": "snake game",
     "controls": {
       "keyboard": "Arrow keys or WASD to turn",
       "touch": "Swipe in the direction you want to turn"
@@ -446,7 +446,7 @@
     "tagline": "A strategic brick-breaker built on physics and precision.",
     "description": "Bounce the ball off your paddle to clear every neon brick. Angle your shots carefully, chain rebounds and clear the board without losing the ball.",
     "tag": "Puzzle",
-    "genreTerm": "brick breaker game",
+    "genreTerm": "breakout game",
     "controls": {
       "keyboard": "Left and Right arrows to move the paddle",
       "touch": "Drag left and right to move the paddle"
@@ -499,7 +499,7 @@
     "tagline": "Match holographic data fragments and build combos.",
     "description": "Flip holographic tiles to find matching pairs. Build combos for bonus points and unlock larger grids as your memory sharpens in this brain trainer.",
     "tag": "Brain",
-    "genreTerm": "matching pairs memory game",
+    "genreTerm": "memory matching game",
     "controls": {
       "keyboard": "Not required",
       "touch": "Tap a tile to flip it"
@@ -552,7 +552,7 @@
     "tagline": "Solve equations to shoot lasers at falling numbers.",
     "description": "Defend the system from falling data. Solve each equation before it reaches the floor and fire your laser to destroy the numbers in this math arcade game.",
     "tag": "Math",
-    "genreTerm": "math game",
+    "genreTerm": "math practice game",
     "controls": {
       "keyboard": "Number keys to answer, Enter to fire",
       "touch": "Tap the on-screen keypad"
@@ -605,7 +605,7 @@
     "tagline": "Follow the rhythm and repeat the light patterns.",
     "description": "Watch the grid light up, then repeat the sequence in order. Each round adds a step in this musical memory challenge that tests focus and timing.",
     "tag": "Focus",
-    "genreTerm": "memory sequence game",
+    "genreTerm": "simon says game",
     "controls": {
       "keyboard": "Not required",
       "touch": "Tap the tiles in the order they lit up"
@@ -658,7 +658,7 @@
     "tagline": "Climb through the clouds in a procedural platformer.",
     "description": "Jump from platform to platform and climb as high as you can. Every run generates a new tower, so no two climbs are the same in this endless platformer.",
     "tag": "Endless",
-    "genreTerm": "endless jumping platformer",
+    "genreTerm": "doodle jump style game",
     "controls": {
       "keyboard": "Left and Right arrows to steer",
       "touch": "Tilt or drag to steer while jumping"
@@ -711,7 +711,7 @@
     "tagline": "Drag falling data shards into the matching channel before the core overflows.",
     "description": "Shards pile up in a spinning core. Drag each one out to the channel matching its colour and shape. Every sort buys time, and the core fills faster the longer you last.",
     "tag": "Puzzle",
-    "genreTerm": "colour sorting puzzle game",
+    "genreTerm": "sorting game",
     "controls": {
       "keyboard": "Not required",
       "touch": "Drag a shard from the core into one of the four channels"
@@ -764,7 +764,7 @@
     "tagline": "Tap matching groups before the rising stack reaches the top.",
     "description": "Rows of blocks push up from below. Tap two or more touching blocks that match and the stack collapses into the gap. Every purge buys time.",
     "tag": "Puzzle",
-    "genreTerm": "block clearing puzzle game",
+    "genreTerm": "block puzzle game",
     "controls": {
       "keyboard": "Not required",
       "touch": "Tap a group of two or more matching blocks"
@@ -817,7 +817,7 @@
     "tagline": "One button. Hit the lock the instant the pointer crosses it.",
     "description": "A pointer sweeps around a ring. Tap the moment it crosses a lit lock — dead centre pays most, and the hatched guards must be left alone.",
     "tag": "Timing",
-    "genreTerm": "timing tap game",
+    "genreTerm": "reaction timing game",
     "controls": {
       "keyboard": "Any key to strike",
       "touch": "Tap anywhere to strike"
@@ -870,7 +870,7 @@
     "tagline": "Your light is going out. Drift into the sparks and take theirs.",
     "description": "You are an ember losing its glow. Sparks drift across the arena and reaching one restores your light. Your glow is also your reach.",
     "tag": "Survival",
-    "genreTerm": "space collecting game",
+    "genreTerm": "relaxing space game",
     "controls": {
       "keyboard": "Arrow keys or WASD to thrust",
       "touch": "Drag to steer the ember"
@@ -923,7 +923,7 @@
     "tagline": "Turn the conduits to link the source to the sink before corruption spreads.",
     "description": "Rotate conduit tiles to route a signal from source to sink. Corruption spreads across the board while you think, and turning a corrupted tile purges it.",
     "tag": "Puzzle",
-    "genreTerm": "pipe connecting puzzle game",
+    "genreTerm": "pipe puzzle game",
     "controls": {
       "keyboard": "WASD to move the marker, arrow keys to turn it",
       "touch": "Tap a conduit to turn it, or drag across several"
@@ -976,7 +976,7 @@
     "tagline": "Thread each shard to its twin without crossing the threads you already wove.",
     "description": "Shards drift on the loom in pairs. Draw a thread from one to its twin, matching shape and colour, without crossing a thread already woven. Unwoven pairs fray and snap.",
     "tag": "Puzzle",
-    "genreTerm": "connect the dots puzzle game",
+    "genreTerm": "matching shapes puzzle",
     "controls": {
       "keyboard": "Not required",
       "touch": "Drag from one shard to its twin, or tap one then the other"
@@ -1029,7 +1029,7 @@
     "tagline": "Tap the falling packets before they breach your firewall — but not the sealed ones.",
     "description": "Corrupted packets fall toward your firewall. Tap one to null it before it lands. Armoured packets take more than one hit, and sealed traffic must be let through.",
     "tag": "Action",
-    "genreTerm": "tap to destroy falling blocks game",
+    "genreTerm": "falling blocks game",
     "controls": {
       "keyboard": "Not required",
       "touch": "Tap a falling packet to null it"

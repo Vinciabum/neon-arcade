@@ -26,6 +26,10 @@
             left: 0;
             width: 100%;
             height: 100%;
+            /* padding이 폭에 더해지지 않게 한다. 없으면 390px 폰에서 문서가 450px가 되고,
+               브라우저가 레이아웃 뷰포트를 450으로 벌려 게임을 13% 작게 그린다.
+               가로 스크롤이 아니라 축소로 나타나는 형태라 게이트도 놓쳤다. */
+            box-sizing: border-box;
             pointer-events: none;
             display: flex;
             flex-direction: column;
@@ -36,6 +40,7 @@
         .hud-top {
             display: flex;
             justify-content: space-between;
+            box-sizing: border-box;
             padding: 60px 20px 20px 20px;
             color: #fff;
             text-shadow: 2px 2px #000;
@@ -129,7 +134,12 @@
         .hint {
             position: absolute;
             bottom: 20px;
-            width: 100%;
+            /* 부모(#ui-layer)에 padding이 있어서 여기의 left:0는 이미 20px 안쪽이다.
+               거기에 width:100%를 주면 오른쪽으로 20px 삐져나가고, 그만큼 문서가 넓어진다.
+               좌우를 둘 다 0으로 고정하면 padding 상자에 정확히 맞는다. */
+            left: 0;
+            right: 0;
+            box-sizing: border-box;
             text-align: center;
             color: #555;
             font-size: 12px;
@@ -658,7 +668,7 @@
                     <div class="item-info">
                         <div class="item-name">${item.name}</div>
                         <div class="item-cost">${owned ? 'OWNED' : item.cost + ' Coins'}</div>
-                        <div style="font-size:10px; color:#aaa;">${item.desc}</div>
+                        <div style="font-size:12px; color:#bbb;">${item.desc}</div>
                     </div>
                     <button ${owned || playerData.coins < item.cost ? 'disabled' : ''} 
                         onclick="buyItem('${item.id}', ${item.cost})">

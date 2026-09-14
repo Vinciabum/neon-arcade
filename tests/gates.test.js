@@ -617,3 +617,21 @@ test('수집기가 매핑을 자기 안에서 다시 하지 않는다 — 그 �
   assert.ok(!/=== 'single-shot' \? 'single-shot' : 'run'/.test(src),
     '납작하게 누르는 삼항식이 돌아왔다');
 });
+
+/* 넘침이 가로 스크롤이 아니라 '축소'로 나타나는 경우가 있다. width:100% + padding에
+   box-sizing이 빠지면 문서가 뷰포트보다 넓어지는데, 브라우저는 스크롤을 만드는 대신
+   레이아웃 뷰포트를 그 폭으로 벌린다. 그러면 scrollWidth === innerWidth라서 기존 검사가
+   그대로 통과한다 — dino-jump가 390px 폰에서 450px로 벌어진 채 초록불이었다. */
+test('레이아웃 뷰포트가 폰보다 넓어지면 잡는다 — scrollWidth 검사가 놓치는 자리다', () => {
+  const r = okTech();
+  r.mobile = { scrollWidth: 450, innerWidth: 450 };
+  const { errors } = checkTech(r);
+  assert.ok(errors.some(e => e.includes('layout viewport widened to 450px')),
+    `잡지 못했다: ${JSON.stringify(errors)}`);
+});
+
+test('폰 폭 그대로면 통과한다', () => {
+  const r = okTech();
+  r.mobile = { scrollWidth: 390, innerWidth: 390 };
+  assert.deepEqual(checkTech(r).errors, []);
+});

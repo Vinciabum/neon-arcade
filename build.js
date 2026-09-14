@@ -37,6 +37,29 @@ const HOME_COPY = `    <h2>Original browser games, made here</h2>
     scores are kept in your own browser&rsquo;s local storage and never sent anywhere — the
     <a href="/privacy/">privacy page</a> spells out exactly what that means.</p>`;
 
+const HOME_FAQ = [
+  {
+    q: 'Are these games free to play?',
+    a: 'Yes. Every game on this site is free, with no account, no trial and no in-app purchases. There is advertising on the pages around the games, and none inside the games themselves.'
+  },
+  {
+    q: 'Do I need to download or install anything?',
+    a: 'No. Each game is a single web page that runs in your browser on desktop, tablet or phone. There is nothing to install and no plugin or app store involved, and most games are playable within a second of the page loading.'
+  },
+  {
+    q: 'Do these games work on a phone?',
+    a: 'Yes. Every game is built portrait-first and tested automatically at phone resolution before it can be published, including a check that the playing field keeps a phone shape even on a wide desktop window so the difficulty does not change with your screen.'
+  },
+  {
+    q: 'Who makes these games?',
+    a: 'One person, Jayden Hwang, working in vanilla JavaScript and HTML5 Canvas. Nothing here is licensed from a game feed or built on an engine, and the dev notes on this site describe how individual games were made.'
+  },
+  {
+    q: 'Is my progress saved?',
+    a: 'High scores and progress are kept in your own browser using local storage, on that device only. Nothing is sent to a server, so clearing your browser data for this site will reset it and progress does not follow you to another device.'
+  }
+];
+
 const SITE_TITLE = 'Neon Arcade — Free Original Browser Games';
 const SITE_DESC = 'Play original HTML5 arcade games free in your browser. No download, no sign-up, works on mobile and desktop.';
 const CONTACT_EMAIL = process.env.CONTACT_EMAIL ?? 'hello@just1game.com';
@@ -115,7 +138,7 @@ async function buildHome(games, templates) {
       canonical: `${SITE_ORIGIN}/`,
       ogImage: absUrl(`/${ogPath(featured.slug)}`)
     }),
-    JSONLD: JSON.stringify(homeJsonLd(games)),
+    JSONLD: JSON.stringify(homeJsonLd(games, HOME_FAQ)),
     ANALYTICS,
     ADSENSE,
     NAV,
@@ -126,6 +149,7 @@ async function buildHome(games, templates) {
     FEATURED_TAGLINE: esc(featured.tagline),
     FEATURED_URL: landingUrl(featured.slug),
     FEATURED_THUMB: thumbPath(featured.slug),
+    FAQ: faqSection({ faq: HOME_FAQ }),
     CARDS: games.map(card).join('\n'),
     GAME_LIST: games.map(g =>
       `      <li><a href="${landingUrl(g.slug)}"><strong>${esc(g.title)}</strong></a> — ${esc(g.tagline)}</li>`

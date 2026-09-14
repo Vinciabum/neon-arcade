@@ -26,7 +26,7 @@ const organization = () => ({
   description: 'An independent studio publishing original HTML5 browser games.'
 });
 
-export function homeJsonLd(games) {
+export function homeJsonLd(games, faq) {
   return {
     '@context': 'https://schema.org',
     '@graph': [
@@ -49,7 +49,16 @@ export function homeJsonLd(games) {
           name: g.title,
           url: absUrl(landingUrl(g.slug))
         }))
-      }
+      },
+      // 화면에 없는 FAQ 스키마는 구글이 무시한다. 홈이 실제로 그 질문들을 싣고 있을 때만 붙인다.
+      ...(faq?.length ? [{
+        '@type': 'FAQPage',
+        mainEntity: faq.map(({ q, a }) => ({
+          '@type': 'Question',
+          name: q,
+          acceptedAnswer: { '@type': 'Answer', text: a }
+        }))
+      }] : [])
     ]
   };
 }
@@ -112,6 +121,9 @@ export function faqSection(game) {
 
 // 세 템플릿이 같은 head를 각자 들고 있으면 한 곳만 고쳐지는 사고가 난다.
 // 한 곳에서 만들고 {{HEAD}}로 꽂는다. 값은 여기서 이스케이프하므로 호출자는 원문을 넘긴다.
+// 폰트는 여기서 부른다. 예전에는 site.css 첫 줄의 @import였는데, 그러면 브라우저가
+// CSS를 받아 파싱한 뒤에야 폰트 요청을 시작한다 — 요청 사슬이 한 칸 길어지고 그 사슬은
+// 렌더를 막는 쪽에 있다. preconnect + link는 HTML을 읽는 즉시 시작한다.
 export function headTags({ title, ogTitle, description, canonical, ogImage, ogType = 'website' }) {
   const t = esc(title);
   const ot = esc(ogTitle ?? title);
@@ -142,6 +154,9 @@ export function headTags({ title, ogTitle, description, canonical, ogImage, ogTy
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/icon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Outfit:wght@400;700;800&display=swap">
 <link rel="stylesheet" href="/assets/site.css">`;
 }
 
