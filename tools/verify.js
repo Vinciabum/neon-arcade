@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { gamePath } from './paths.js';
 import { PROBE_SOURCE } from './probe.js';
-import { checkTech, checkPlay, TECH, PLAY } from './gates.js';
+import { declaredSession, checkTech, checkPlay, TECH, PLAY } from './gates.js';
 import { diff, stddev, changedFraction } from './framediff.js';
 import { triggerStart } from './start.js';
 
@@ -276,10 +276,15 @@ async function collectPlayOn(page, target, T) {
   // 생존이 아니라 숙고라, 즉시 쏘는 자동 테스터가 재면 무조건 짧게 나온다.
   // 게임이 스스로 밝히게 한다. 규칙을 조용히 완화하면 앞으로 만드는 모든 게임이
   // 자기도 모르게 그 구멍에 들어가고, 그때는 아무도 눈치채지 못한다.
-  const session = await page.evaluate(() => {
+  // 브라우저는 게임이 뭐라고 했는지만 보고한다. 그 값을 규칙으로 옮기는 일은
+  // Node 쪽 순수 함수가 한다(gates.js: declaredSession). 이 매핑이 브라우저 안에
+  // 한 줄로 들어 있던 동안 'cozy'가 'run'으로 눌려 나갔고, 테스트가 지나지 않는
+  // 자리라서 아무도 몰랐다.
+  const rawSession = await page.evaluate(() => {
     const s = window.__GAME__ && window.__GAME__.session;
-    return s === 'single-shot' ? 'single-shot' : 'run';
+    return typeof s === 'string' ? s : null;
   });
+  const session = declaredSession(rawSession);
 
   // 플레이 밴드. 이 패스만 가로 뷰포트(900x600)에서 돌기 때문에 창이 넓을 때
   // 게임판이 세로 비율을 지키는지 여기서만 볼 수 있다. 게이트 1은 세로만 잰다.

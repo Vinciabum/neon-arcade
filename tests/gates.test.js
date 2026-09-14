@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkTech, checkPlay } from '../tools/gates.js';
+import { readFileSync } from 'node:fs';
+import { checkTech, checkPlay, declaredSession, DECLARED_SESSIONS } from '../tools/gates.js';
 
 // 게이트 1을 통과하는 기준 리포트. 각 테스트는 여기서 한 가지만 망가뜨린다.
 // mode: 'contract' — 새 게임은 game-base.html 템플릿(캔버스 기반)에서 복사되므로
@@ -588,3 +589,31 @@ test('코지가 아닌 계약 게임은 방치하면 끝나야 한다 — 기존
   assert.ok(checkPlay(r).errors.some(e => e.includes('never ends when idle')));
 });
 
+
+/* 이 네 개가 이 파일에서 제일 늦게 생긴 검사다. checkPlay에 코지 분기가 있는데도
+   코지를 선언한 게임이 아케이드 규칙으로 채점되고 있었다 — 수집기가 'single-shot'이
+   아닌 값을 전부 'run'으로 눌러 보냈기 때문이다. 위의 코지 테스트들은 리포트를 손으로
+   만들어 넣어서 2주 동안 전부 통과했다. 선언을 규칙으로 옮기는 함수를 따로 두고
+   여기서 직접 잰다. */
+test('선언한 판 모양이 그대로 넘어간다', () => {
+  assert.equal(declaredSession('cozy'), 'cozy');
+  assert.equal(declaredSession('single-shot'), 'single-shot');
+});
+
+test('선언하지 않으면 가장 엄격한 규칙으로 떨어진다', () => {
+  for (const raw of [undefined, null, '', 'run', 'idle', 'COZY', 'cozy ']) {
+    assert.equal(declaredSession(raw), 'run', `${JSON.stringify(raw)} 가 새어 나갔다`);
+  }
+});
+
+test('선언 목록에 코지와 단발이 둘 다 있다 — 하나만 배선된 적이 있다', () => {
+  assert.deepEqual([...DECLARED_SESSIONS].sort(), ['cozy', 'single-shot']);
+});
+
+test('수집기가 매핑을 자기 안에서 다시 하지 않는다 — 그 한 줄이 분기를 먹었다', () => {
+  const src = readFileSync('tools/verify.js', 'utf8');
+  assert.ok(src.includes('declaredSession(rawSession)'),
+    '수집기가 gates.js의 declaredSession을 쓰지 않는다');
+  assert.ok(!/=== 'single-shot' \? 'single-shot' : 'run'/.test(src),
+    '납작하게 누르는 삼항식이 돌아왔다');
+});

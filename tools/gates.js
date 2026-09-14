@@ -74,6 +74,22 @@ export function checkTech(r) {
   return { errors, skipped };
 }
 
+/* 게임이 스스로 밝히는 판의 모양. 기본값 'run'은 "버티는 게임"이고 생존 시간이 곧 실력이다.
+   'single-shot'은 한 번의 행동으로 판이 끝나는 게임, 'cozy'는 끝나지 않아야 하는 게임이다.
+   목록에 없는 값은 'run'으로 떨어진다 — 오타 하나로 게임이 조용히 느슨한 규칙에 들어가면
+   안 된다.
+
+   이 함수가 따로 있는 이유: 예전에는 이 매핑이 브라우저 안에서 한 줄로 처리됐고,
+   'single-shot'이 아닌 모든 값을 'run'으로 눌러 보냈다. 그래서 checkPlay에 코지 분기가
+   있는데도 코지를 선언한 게임이 아케이드 규칙으로 채점됐다 — 그 분기의 단위 테스트는
+   리포트를 손으로 만들어 넣었기 때문에 2주 동안 전부 통과했다. 순수 함수로 꺼내 두면
+   테스트가 실제 경로를 지난다. */
+export const DECLARED_SESSIONS = ['single-shot', 'cozy'];
+
+export function declaredSession(raw) {
+  return DECLARED_SESSIONS.includes(raw) ? raw : 'run';
+}
+
 export const PLAY = {
   API: 1,
   MIN_AVG_FPS: 50,          // 60fps 목표에서 프레임 드랍 여유 10. 이 밑은 조작이 눌리는 느낌이 난다
