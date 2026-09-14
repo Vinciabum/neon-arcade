@@ -712,3 +712,16 @@
 @media (max-width: 640px) {
   .main-content.landing { margin: 0; border-radius: 0; padding: 16px 16px 40px; }
 }
+
+/* 히어로에 그림이 없으면 사이트가 미완성으로 읽힌다. 대표 게임의 실제 화면을 넣는다 —
+   합성 이미지가 아니라 썸네일과 같은 캡처라, 히어로가 광고하는 화면이 실제로 나온다. */
+.hero-shot {
+  position: absolute; right: 56px; top: 50%; z-index: 2;
+  width: 196px; border-radius: var(--radius-md); overflow: hidden;
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.35);
+  transform: translateY(-50%) rotate(4deg); transition: transform .3s ease;
+  line-height: 0;
+}
+.hero-shot img { width: 100%; height: auto; display: block; }
+.hero:hover .hero-shot { transform: translateY(calc(-50% - 6px)) rotate(2deg); }
+@media (max-width: 860px) { .hero-shot { display: none; } }

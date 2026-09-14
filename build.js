@@ -125,6 +125,7 @@ async function buildHome(games, templates) {
     FEATURED_TITLE: esc(featured.title),
     FEATURED_TAGLINE: esc(featured.tagline),
     FEATURED_URL: landingUrl(featured.slug),
+    FEATURED_THUMB: thumbPath(featured.slug),
     CARDS: games.map(card).join('\n'),
     GAME_LIST: games.map(g =>
       `      <li><a href="${landingUrl(g.slug)}"><strong>${esc(g.title)}</strong></a> — ${esc(g.tagline)}</li>`
