@@ -66,6 +66,189 @@
     ]
   },
   {
+    "slug": "patchwork",
+    "title": "Patchwork",
+    "tagline": "Fill a row and it stitches away. Run out of room and the quilt is finished, not lost.",
+    "description": "Place felt patches on a quilt frame. Complete a row or column and it is stitched away; when nothing fits any more the quilt folds and a new one begins.",
+    "tag": "Cozy",
+    "genreTerm": "block fitting puzzle game",
+    "controls": {
+      "keyboard": "None. Click a patch, then click the quilt.",
+      "touch": "Drag a patch onto the quilt, or tap it and tap where it goes."
+    },
+    "howToPlay": [
+      "Three patches wait below the frame. Drag one onto the quilt, or tap it and then tap the square you want it in.",
+      "Fill a whole row or column and it gets stitched and lifted away, leaving the squares empty again.",
+      "New patches only arrive once all three are used, so the order you spend them in is the whole decision.",
+      "When none of the three will fit anywhere, the quilt is finished: it folds away and a fresh one is laid out. Nothing is lost."
+    ],
+    "tips": [
+      "Keep a clear lane along one edge. A single straight run is what lets an awkward four-long patch go somewhere.",
+      "A row and a column that cross each other can both be completed by the same patch, which is the largest thing that happens in this game.",
+      "Spending the small patches first feels safe and is usually wrong — they are the ones that fit into whatever gap is left."
+    ],
+    "mechanics": {
+      "input": "drag-object",
+      "goal": "clear-board",
+      "failure": "none",
+      "world": "fixed-grid"
+    },
+    "faq": [
+      {
+        "q": "What happens when no patch fits?",
+        "a": "The quilt is treated as finished rather than failed. It folds away with a sound, the counter in the corner goes up by one, and a fresh frame is laid out with a few patches already sewn in."
+      },
+      {
+        "q": "Is there a timer or a way to lose?",
+        "a": "No. There is no clock, no score that can go down and no failure state, so leaving the tab open and coming back an hour later costs nothing at all."
+      },
+      {
+        "q": "Can I rotate a patch?",
+        "a": "No. Rotation would make almost every patch fit almost everywhere and the decision about where to put it would stop mattering. The shapes arrive as they are."
+      },
+      {
+        "q": "Does it save?",
+        "a": "The number of quilts you have finished is kept in your browser's local storage on that device. The board itself starts fresh each visit, which is the point of a quilt that folds away."
+      }
+    ],
+    "releasedAt": "2026-09-15",
+    "status": "published",
+    "featured": false,
+    "captureFromMs": 1200,
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "The genre this borrows from ends when nothing fits, and calls that losing. Here the same moment is the quilt being finished: it folds away, a counter goes up, and a new frame is laid out. That one inversion changes what the whole game is about — you stop playing to survive and start playing to see how much you can stitch before the cloth runs out, which is a question you can walk away from mid-answer.",
+      "Tapping to place was added because dragging on a phone means your own hand covers the thing you are aiming at. Both paths run through the same function that draws the preview, so where the ghost appears is where the patch lands — the two can never disagree. Tapping also anchors the patch by its centre rather than its top-left corner and searches one square in each direction for a spot it actually fits, because a finger does not point at a single 45-pixel square.",
+      "Boards do not start empty. A blank frame gives you no reason to prefer one square over another, so each new quilt begins with five to eight patches already sewn in, and any row that happens to arrive complete has one square picked out again — otherwise the game would open by playing its own best effect at you before you had done anything."
+    ]
+  },
+  {
+    "slug": "wool-jars",
+    "title": "Wool Jars",
+    "tagline": "Pour the wool until every jar holds one colour and nothing else.",
+    "description": "A sorting puzzle in felt. Pour wool from jar to jar until each one holds a single colour. No timer, no score, and every board is built so it can be solved.",
+    "tag": "Puzzle",
+    "genreTerm": "ball sort puzzle",
+    "controls": {
+      "keyboard": "None. Click a jar to lift, click another to pour.",
+      "touch": "Tap a jar to lift the top wool, tap another to pour it in."
+    },
+    "howToPlay": [
+      "Tap a jar to lift the wool off the top of it. Tap a second jar to pour that wool in.",
+      "Wool only goes onto wool of the same colour, or into a jar with room and nothing in it.",
+      "All the matching wool on top of a jar moves at once, as far as there is room for it.",
+      "Get every jar down to a single colour and the board is solved; the next one is one colour harder."
+    ],
+    "tips": [
+      "The empty jars are the puzzle. Before pouring anything, look at what you would have to move to get one of them empty again.",
+      "Pouring onto a colour just to get it out of the way is usually how a board gets stuck — undo is free and unlimited, so it costs nothing to check.",
+      "Look for a colour that is already three deep somewhere. That jar wants one more and finishing it frees whatever was sitting on top of the fourth."
+    ],
+    "mechanics": {
+      "input": "tap-target",
+      "goal": "solve",
+      "failure": "none",
+      "world": "fixed-arena"
+    },
+    "faq": [
+      {
+        "q": "Can a board be impossible?",
+        "a": "No. Each board is built by starting from a solved arrangement and pouring wool around at random, so a path back to solved always exists. Boards generated by filling jars randomly can be unsolvable, which is why this one does not do that."
+      },
+      {
+        "q": "What if I get stuck?",
+        "a": "Undo goes back as many moves as you like, all the way to the start of the board. Getting stuck is part of a sorting puzzle; being unable to back out of it is not."
+      },
+      {
+        "q": "Why does the wool sometimes move in twos and threes?",
+        "a": "Because matching wool on top of a jar travels together. If three of the same colour are stacked and the target has room for two, two go and one stays."
+      },
+      {
+        "q": "Does it get harder?",
+        "a": "Every second board adds a colour, up to nine, while the number of spare jars stays at two. More colours with the same working space is what makes later boards demanding."
+      }
+    ],
+    "releasedAt": "2026-09-15",
+    "status": "published",
+    "featured": false,
+    "captureFromMs": 900,
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "Boards are generated backwards. Starting from a solved arrangement and making random pours guarantees that a solution exists, because the shuffle itself is a solution played in reverse. The obvious alternative — fill the jars with a random permutation and hope — produces unsolvable boards at a rate that is low enough to feel like bad luck and high enough to ruin the game, and there is no way for a player to tell one from the other.",
+      "The jars get shuffled into random positions after generation. Without that step the empty jars are always the last two in the array and therefore always in the same corner of the screen, which makes every board open with the same move and look like the same board.",
+      "Taps land on the nearest jar rather than inside a rectangle. Rectangle hit-testing leaves the gaps between jars dead, and a tap that produces no response at all is the only genuinely frustrating thing that can happen in a game with no timer and no failure. Tapping a jar you cannot pour into picks that jar up instead of doing nothing, on the same reasoning."
+    ]
+  },
+  {
+    "slug": "yarn-drop",
+    "title": "Yarn Drop",
+    "tagline": "Matching yarn winds together into something bigger. The basket never actually fills.",
+    "description": "Drop yarn into a basket and touching balls of the same size wind into one bigger ball. When the basket fills, the top row is lifted away rather than ending the run.",
+    "tag": "Merge",
+    "genreTerm": "merge puzzle game",
+    "controls": {
+      "keyboard": "None. Click the column you want to drop into.",
+      "touch": "Tap a column to drop the yarn there."
+    },
+    "howToPlay": [
+      "Tap anywhere in a column to drop the waiting ball of yarn into it.",
+      "When the ball lands touching one or more of the same number, they all wind together into a single ball one size bigger.",
+      "That bigger ball can immediately wind again with whatever it is now touching, so one drop can set off a chain.",
+      "If the basket ever fills to the top, the cat lifts the top row away and you carry on. There is no game over."
+    ],
+    "tips": [
+      "Build sideways, not upward. Three of the same number in a row wind into one ball and take a whole layer of height with them.",
+      "The preview in the corner is worth planning around — a column you would rather not use now is often exactly right for the next one.",
+      "Big balls at the bottom edges are dead weight. Keep the largest ones where something can still reach them from two sides."
+    ],
+    "mechanics": {
+      "input": "tap-target",
+      "goal": "collect",
+      "failure": "none",
+      "world": "falling-column"
+    },
+    "faq": [
+      {
+        "q": "How does the merging decide what counts as touching?",
+        "a": "Balls connected up, down, left or right by a chain of the same number all wind together at once, which means a group of four merges as one event rather than as three separate pairs."
+      },
+      {
+        "q": "What happens when the basket fills up?",
+        "a": "Nothing ends. The top ball in each column is lifted away with a soft sound and play continues, so a bad stretch costs you height rather than the whole run."
+      },
+      {
+        "q": "Why do the numbers that appear get bigger over time?",
+        "a": "The size of the yarn you are given scales with the biggest ball you have ever made. Without that, a late board would be spent winding ones together purely as bookkeeping."
+      },
+      {
+        "q": "Is there a maximum size?",
+        "a": "Eleven. Getting there takes a long chain of doublings and a lot of room made in the right order, and the sound it makes on the way is different from anything else in the game."
+      }
+    ],
+    "releasedAt": "2026-09-15",
+    "status": "published",
+    "featured": false,
+    "captureFromMs": 1400,
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "Merging cascades only from the ball that was just dropped. Scanning the whole board for equal neighbours after every move is easier to write and ruins the game: a single tap tidies the entire basket, and choosing which column to use stops meaning anything. Restricting the chain to the cell you touched is what keeps a drop a decision.",
+      "Gravity has to report back. When a group merges, the cells above fall, and the merged ball itself may fall with them — so the settle function takes the cell it is tracking and returns where that cell ended up. Without that the chain check runs on an empty square and every cascade stops after one step.",
+      "The first palette started at a colour close to the basket's own cream, which meant the two most common balls in the game were also the two hardest to see. The ladder now begins at a saturated green and each step moves in both hue and weight, so a large ball reads before you have counted anything."
+    ]
+  },
+  {
     "slug": "duck-line",
     "title": "Duck Line",
     "tagline": "Lead the ducklings home. The longer the line, the harder it steers.",

@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wool Jars</title>
+<style>
+  :root { --ink: #4a3f35; --cream: #f6efe0; --bar: #efe3cc; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #ece3d0; }
+  body { font: 13px/1.4 ui-rounded, "SF Pro Rounded", "Avenir Next", system-ui, sans-serif;
+         color: var(--ink); -webkit-user-select: none; user-select: none;
+         -webkit-tap-highlight-color: transparent; }
+  #wrap { display: flex; flex-direction: column; height: 100%; }
+  #hud { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center;
+         gap: 8px; padding: 0 12px; height: 38px; background: var(--bar);
+         border-bottom: 2px dashed #d6c6a8; letter-spacing: .08em; font-size: 11px;
+         font-weight: 700; text-transform: uppercase; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px;
+          background: var(--cream); border-radius: 999px; box-shadow: 0 1px 0 #d9caa9; }
+  .pill b { font-weight: 800; font-size: 12px; }
+  button { appearance: none; border: 0; font: inherit; letter-spacing: .08em;
+           text-transform: uppercase; font-weight: 700; color: inherit; cursor: pointer; }
+  #undoBtn { background: var(--cream); border-radius: 999px; padding: 5px 11px;
+             box-shadow: 0 1px 0 #d9caa9; }
+  #undoBtn[disabled] { opacity: .35; }
+  #muteBtn { background: transparent; padding: 4px 2px; opacity: .65; }
+  #stage { position: relative; flex: 1 1 auto; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; }
+</style>
+<meta name="robots" content="noindex,follow">
+<link rel="canonical" href="https://just1game.com/games/wool-jars/">
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="pill">JAR <b id="level">1</b></span>
+    <span style="display:flex;gap:6px;align-items:center;">
+      <button id="undoBtn" type="button">Undo</button>
+      <button id="muteBtn" type="button" aria-label="Toggle sound">Sound On</button>
+    </span>
+  </div>
+  <div id="stage"><canvas id="c"></canvas></div>
+</div>
+
+<script>
+/* ============================================================
+   Wool Jars — 색이 섞인 양모를 항아리에 나눠 담는다. 한 항아리에 한 색만 남으면 끝.
+
+   순수 논리 퍼즐이다. 시간도 점수도 실패도 없고, 방치해도 판이 사라지지 않는다 —
+   게이트에는 session:'cozy'로 선언한다.
+
+   판은 '푼 상태에서 거꾸로 섞어' 만든다. 무작위로 채우고 풀 수 있기를 바라는 방식은
+   가끔 못 푸는 판을 내놓고, 못 푸는 판은 이 장르에서 유일하게 사람을 화나게 하는 것이다.
+   그래도 사람은 막힌 자리에 스스로 들어갈 수 있으므로 되돌리기를 무제한으로 둔다.
+   ============================================================ */
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const BAND = 390 / 806;
+let W = 0, H = 0, SW = 0, OX = 0;
+
+// 양모 색. 명도와 색상을 둘 다 벌려 둔다 — 색만으로 구분하는 게임이라 비슷한 두 색이
+// 한 판에 같이 나오면 그 판은 게임이 아니라 시력 검사가 된다.
+const WOOL = [
+  '#d9736a', '#e3a45c', '#e8cf72', '#8cb87a',
+  '#77b3c4', '#8f8fd0', '#d691b8', '#a98a6d', '#6f8f7c'
+];
+const CAP = 4;                       // 항아리 하나에 네 겹
+
+let jars = [];                       // 각 항아리는 아래→위 색 인덱스 배열
+let sel = -1;                        // 들어올린 항아리
+let level = 1, pours = 0, solvedCount = 0;
+let history = [];
+let state = 'playing', tick = 0, T = 0, muted = false;
+let anim = [];                       // 날아가는 양모 한 겹
+let winGlow = 0;
+
+const SAVE = 'wooljars.v1';
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE) || '{}');
+    level = Math.max(1, s.level | 0 || 1);
+    solvedCount = s.solved | 0;
+  } catch { /* 저장이 깨졌으면 1번 항아리부터. 잃을 것이 없다 */ }
+}
+const save = () => { try { localStorage.setItem(SAVE, JSON.stringify({ level, solved: solvedCount })); } catch {} };
+
+/* ---------- 섬유 텍스처 ---------- */
+let fiber = null;
+function makeFiber() {
+  const t = document.createElement('canvas');
+  t.width = t.height = 200;
+  const g = t.getContext('2d');
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * 200, y = Math.random() * 200;
+    const a = Math.random() * Math.PI, l = 1.2 + Math.random() * 3.6;
+    g.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.20)' : 'rgba(72,56,40,0.13)';
+    g.lineWidth = 0.6 + Math.random() * 0.8; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  fiber = ctx.createPattern(t, 'repeat');
+}
+
+/* ---------- 소리 ---------- */
+const Sfx = (() => {
+  let ac = null, on = true;
+  const ready = () => {
+    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } }
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
+    return ac;
+  };
+  const thud = (freq, dur, damp, vol, when = 0) => {
+    const a = ready(); if (!a || !on) return;
+    const n = Math.max(1, Math.floor(a.sampleRate * dur));
+    const buf = a.createBuffer(1, n, a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, damp);
+    const src = a.createBufferSource(); src.buffer = buf;
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = freq;
+    const g = a.createGain(); g.gain.value = vol;
+    src.connect(lp); lp.connect(g); g.connect(a.destination);
+    src.start(a.currentTime + when);
+  };
+  const tone = (freq, dur, vol, when = 0, type = 'triangle') => {
+    const a = ready(); if (!a || !on) return;
+    const t0 = a.currentTime + when;
+    const o = a.createOscillator(); o.type = type; o.frequency.value = freq;
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+    o.connect(lp); lp.connect(g); g.connect(a.destination);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  };
+  const SCALE = [523.25, 587.33, 698.46, 783.99, 880.0, 1046.5];
+  return {
+    lift: () => tone(700, 0.13, 0.05, 0, 'sine'),
+    // 담기는 소리. 항아리가 찰수록 낮고 먹먹해진다 — 안에 든 양모가 소리를 먹는다
+    drop: (depth) => {
+      thud([1500, 1150, 880, 640][Math.min(depth, 3)], 0.14, 6, 0.36);
+      tone(SCALE[Math.min(depth, 5)], 0.28, 0.05, 0.01, 'sine');
+    },
+    deny: () => thud(190, 0.14, 8, 0.24),
+    // 항아리 하나가 한 색으로 채워졌다
+    done: () => { [0, 0.08, 0.16].forEach((t, i) => tone([659.25, 783.99, 987.77][i], 0.5, 0.07, t, 'sine')); },
+    // 판 전체 완성. 가장 드문 소리
+    solved: () => {
+      [0, 0.13, 0.26].forEach((t, i) => thud(540 - i * 45, 0.20, 4, 0.40, t));
+      [392.0, 493.88, 587.33, 783.99].forEach((f, i) => tone(f, 1.2, 0.08, 0.24 + i * 0.07, 'sine'));
+      tone(196.0, 1.7, 0.06, 0.24, 'sine');
+    },
+    toggle: () => { on = !on; if (on) ready(); return on; },
+    wake: () => { ready(); }
+  };
+})();
+
+/* ---------- 판 만들기 ----------
+   푼 상태에서 시작해 '합법적인 뒤집기'만 반복해 흐트러뜨린다. 무작위로 채우면
+   못 푸는 판이 섞여 나오고, 이 장르에서 사람을 화나게 하는 것은 그것 하나뿐이다. */
+function colorsFor(lv) { return Math.min(WOOL.length, 3 + Math.floor((lv - 1) / 2)); }
+function emptyFor(lv) { return lv < 4 ? 2 : (lv < 10 ? 2 : 2); }
+
+function topRun(jar) {
+  if (!jar.length) return 0;
+  const c = jar[jar.length - 1];
+  let n = 0;
+  for (let i = jar.length - 1; i >= 0 && jar[i] === c; i--) n++;
+  return n;
+}
+const canPour = (from, to) =>
+  from !== to && jars[from].length &&
+  jars[to].length < CAP &&
+  (!jars[to].length || jars[to][jars[to].length - 1] === jars[from][jars[from].length - 1]);
+
+function makeLevel(lv) {
+  const nC = colorsFor(lv);
+  const nJ = nC + emptyFor(lv);
+  jars = Array.from({ length: nJ }, (_, i) => (i < nC ? Array(CAP).fill(i) : []));
+  // 거꾸로 섞기: 합법적인 붓기를 무작위로 많이 해 둔다. 되돌리면 항상 원래대로 갈 수 있다.
+  const steps = 40 + lv * 14;
+  for (let k = 0; k < steps; k++) {
+    const moves = [];
+    for (let a = 0; a < nJ; a++) for (let b = 0; b < nJ; b++) {
+      if (a === b || !jars[a].length || jars[b].length >= CAP) continue;
+      // 섞는 단계에서는 색이 달라도 붓는다 — 그래야 실제로 섞인다.
+      moves.push([a, b]);
+    }
+    if (!moves.length) break;
+    // 한 색을 통째로 옮기면 섞이지 않는다. 한 겹씩만 옮긴다.
+    const [a, b] = moves[Math.floor(Math.random() * moves.length)];
+    jars[b].push(jars[a].pop());
+  }
+  // 이미 풀려 있으면 다시 섞는다
+  if (isSolved()) return makeLevel(lv);
+  /* 자리를 섞는다. 안 섞으면 빈 항아리가 언제나 마지막 인덱스라 늘 오른쪽 아래에 몰리고,
+     모든 판이 같은 모양으로 보인다. 빈 항아리의 위치가 이 퍼즐의 첫 수를 정한다. */
+  for (let i = jars.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [jars[i], jars[j]] = [jars[j], jars[i]];
+  }
+  sel = -1; history = [];
+}
+
+function isSolved() {
+  return jars.every(j => j.length === 0 || (j.length === CAP && j.every(c => c === j[0])));
+}
+function jarDone(j) { return j.length === CAP && j.every(c => c === j[0]); }
+
+/* ---------- 조작 ---------- */
+function pour(from, to) {
+  if (!canPour(from, to)) { Sfx.deny(); return false; }
+  const colour = jars[from][jars[from].length - 1];
+  const room = CAP - jars[to].length;
+  const n = Math.min(topRun(jars[from]), room);
+  history.push({ from, to, n });
+  for (let i = 0; i < n; i++) {
+    jars[from].pop();
+    jars[to].push(colour);
+    anim.push({ from, to, colour, depth: jars[to].length - 1, t: 1 - i * 0.12 });
+  }
+  pours += n;
+  Sfx.drop(jars[to].length - 1);
+  if (jarDone(jars[to])) Sfx.done();
+  if (isSolved()) {
+    solvedCount++; level++; winGlow = 1.4;
+    Sfx.solved(); save();
+    setTimeout(() => { makeLevel(level); }, 900);
+  }
+  updateUndo();
+  return true;
+}
+function undo() {
+  const m = history.pop();
+  if (!m) return;
+  const colour = jars[m.to][jars[m.to].length - 1];
+  for (let i = 0; i < m.n; i++) { jars[m.to].pop(); jars[m.from].push(colour); }
+  sel = -1;
+  Sfx.lift();
+  updateUndo();
+}
+const undoBtn = document.getElementById('undoBtn');
+function updateUndo() { undoBtn.disabled = history.length === 0; }
+undoBtn.addEventListener('click', () => { Sfx.wake(); undo(); });
+
+/* ---------- 배치 ---------- */
+let COLS = 5, JW = 0, JH = 0, LAYER = 0, GX = 0, GY = 0, GAPX = 0, GAPY = 0;
+function layout() {
+  if (!W || !H) return;
+  COLS = jars.length <= 6 ? 3 : (jars.length <= 8 ? 4 : 5);
+  const rows = Math.ceil(jars.length / COLS);
+  JW = Math.floor((W * 0.86) / COLS) - 6;
+  LAYER = Math.floor(JW * 0.52);
+  JH = LAYER * CAP + Math.floor(JW * 0.22);
+  GAPX = Math.floor((W - JW * COLS) / (COLS + 1));
+  GAPY = Math.floor(H * 0.055);
+  GX = GAPX;
+  GY = Math.round((H - (JH * rows + GAPY * (rows - 1))) / 2) + Math.round(H * 0.02);
+}
+function jarRect(i) {
+  const r = Math.floor(i / COLS), c = i % COLS;
+  const inRow = Math.min(COLS, jars.length - r * COLS);
+  const rowW = inRow * JW + (inRow - 1) * GAPX;
+  const x = Math.round((W - rowW) / 2) + c * (JW + GAPX);
+  return { x, y: GY + r * (JH + GAPY), w: JW, h: JH };
+}
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  SW = Math.max(1, Math.round(rect.width));
+  H = Math.max(1, Math.round(rect.height));
+  W = Math.min(SW, Math.round(H * BAND));
+  OX = Math.round((SW - W) / 2);
+  canvas.width = Math.round(SW * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, OX * dpr, 0);
+  layout();
+}
+window.addEventListener('resize', resize);
+
+/* ---------- 그리기 ---------- */
+function woolBand(x, y, w, h, colour, seed, top) {
+  ctx.save();
+  ctx.beginPath();
+  const r = Math.min(w, h) * 0.30;
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  ctx.fillStyle = colour; ctx.fill();
+  ctx.clip();
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, 'rgba(255,255,255,.28)');
+  g.addColorStop(0.55, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(80,60,44,.22)');
+  ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+  // 실 가닥. 양모 덩어리라는 것을 한 겹 안에서 말한다
+  ctx.strokeStyle = 'rgba(255,255,255,.22)';
+  ctx.lineWidth = Math.max(1, h * 0.06); ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const yy = y + h * (0.28 + i * 0.22) + Math.sin(seed + i) * h * 0.05;
+    ctx.moveTo(x + w * 0.16, yy);
+    ctx.quadraticCurveTo(x + w * 0.5, yy + h * 0.16, x + w * 0.84, yy);
+  }
+  ctx.stroke();
+  ctx.restore();
+  if (top) {
+    // 맨 위 겹은 보풀이 조금 나와 있다 — 어디를 집게 되는지 눈으로 알 수 있다
+    ctx.save();
+    ctx.strokeStyle = colour; ctx.globalAlpha = 0.8;
+    ctx.lineWidth = Math.max(1.4, h * 0.10); ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const px = x + w * (0.18 + i * 0.13);
+      ctx.moveTo(px, y + h * 0.1);
+      ctx.lineTo(px + Math.sin(seed + i * 2) * w * 0.03, y - h * 0.16);
+    }
+    ctx.stroke(); ctx.restore();
+  }
+}
+
+function drawJar(i) {
+  const r = jarRect(i);
+  const jar = jars[i];
+  const lifted = (sel === i);
+  const done = jarDone(jar);
+  const lip = JW * 0.10;
+
+  // 항아리. 도자기가 아니라 펠트 주머니다 — 세계가 하나로 보여야 한다
+  ctx.save();
+  ctx.globalAlpha = 0.10; ctx.fillStyle = '#4b3f31';
+  ctx.beginPath(); ctx.ellipse(r.x + r.w / 2, r.y + r.h + JW * 0.06, r.w * 0.44, JW * 0.07, 0, 0, 7); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath();
+  const rr = JW * 0.24;
+  ctx.moveTo(r.x + rr, r.y);
+  ctx.arcTo(r.x + r.w, r.y, r.x + r.w, r.y + r.h, rr);
+  ctx.arcTo(r.x + r.w, r.y + r.h, r.x, r.y + r.h, rr * 1.6);
+  ctx.arcTo(r.x, r.y + r.h, r.x, r.y, rr * 1.6);
+  ctx.arcTo(r.x, r.y, r.x + r.w, r.y, rr);
+  ctx.closePath();
+  ctx.fillStyle = done ? '#e6ddc4' : '#ded3b8';
+  ctx.fill();
+  ctx.clip();
+  const g = ctx.createLinearGradient(r.x, 0, r.x + r.w, 0);
+  g.addColorStop(0, 'rgba(80,60,44,.16)');
+  g.addColorStop(0.35, 'rgba(255,255,255,.18)');
+  g.addColorStop(1, 'rgba(80,60,44,.14)');
+  ctx.fillStyle = g; ctx.fillRect(r.x, r.y, r.w, r.h);
+  ctx.restore();
+
+  // 테두리 시침질. 다 채운 항아리는 실이 밝아진다
+  ctx.save();
+  ctx.setLineDash([5, 6]); ctx.lineWidth = 2;
+  ctx.strokeStyle = done ? 'rgba(255,255,255,.9)' : 'rgba(120,102,76,.45)';
+  ctx.beginPath();
+  ctx.moveTo(r.x + rr, r.y + 3);
+  ctx.arcTo(r.x + r.w - 3, r.y + 3, r.x + r.w - 3, r.y + r.h - 3, rr);
+  ctx.arcTo(r.x + r.w - 3, r.y + r.h - 3, r.x + 3, r.y + r.h - 3, rr * 1.4);
+  ctx.arcTo(r.x + 3, r.y + r.h - 3, r.x + 3, r.y + 3, rr * 1.4);
+  ctx.arcTo(r.x + 3, r.y + 3, r.x + r.w - 3, r.y + 3, rr);
+  ctx.stroke(); ctx.restore();
+
+  // 안에 든 양모
+  const innerX = r.x + lip, innerW = r.w - lip * 2;
+  for (let k = 0; k < jar.length; k++) {
+    const isTop = k === jar.length - 1;
+    const rise = (lifted && isTop) ? LAYER * 0.55 : 0;
+    const y = r.y + r.h - JW * 0.11 - (k + 1) * LAYER + rise;
+    woolBand(innerX, y, innerW, LAYER - 3, WOOL[jar[k]], i * 3 + k, isTop);
+  }
+}
+
+function draw(dt) {
+  ctx.clearRect(-OX, 0, SW, H);
+  ctx.fillStyle = '#ece3d0'; ctx.fillRect(-OX, 0, SW, H);
+  // 바닥 선반
+  ctx.save();
+  ctx.strokeStyle = 'rgba(120,102,76,.25)'; ctx.setLineDash([6, 7]); ctx.lineWidth = 2;
+  const rows = Math.ceil(jars.length / COLS);
+  for (let rI = 0; rI < rows; rI++) {
+    const y = GY + rI * (JH + GAPY) + JH + JW * 0.10;
+    ctx.beginPath(); ctx.moveTo(-OX, y); ctx.lineTo(SW - OX, y); ctx.stroke();
+  }
+  ctx.restore();
+
+  for (let i = 0; i < jars.length; i++) drawJar(i);
+
+  if (winGlow > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.5, winGlow * 0.4);
+    ctx.fillStyle = '#fff'; ctx.fillRect(-OX, 0, SW, H);
+    ctx.restore();
+  }
+
+  if (fiber) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.globalAlpha = 0.5; ctx.fillStyle = fiber;
+    ctx.fillRect(-OX, 0, SW, H);
+    ctx.restore();
+  }
+  if (OX > 0) {
+    ctx.save(); ctx.fillStyle = 'rgba(74,63,53,.055)';
+    ctx.fillRect(-OX, 0, OX, H); ctx.fillRect(W, 0, OX + 2, H); ctx.restore();
+  }
+}
+
+/* ---------- 입력 ---------- */
+/* 가장 가까운 항아리를 고른다. 사각형 포함으로 잡으면 항아리 사이의 틈이 죽은 자리가
+   되어 탭이 그냥 사라진다 — 손가락은 항아리 목을 정확히 짚지 않고, 빗나간 탭이 아무
+   반응도 없는 것은 이 게임에서 유일하게 답답한 순간이다. */
+function jarAt(x, y) {
+  let best = -1, bd = Infinity;
+  for (let i = 0; i < jars.length; i++) {
+    const r = jarRect(i);
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    // 세로로 더 관대하게 — 줄 사이 간격이 항아리 사이 간격보다 넓다
+    const dx = (x - cx) / (r.w * 0.5 + GAPX * 0.5);
+    const dy = (y - cy) / (r.h * 0.5 + GAPY * 0.6);
+    const d = dx * dx + dy * dy;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return bd <= 1.4 ? best : -1;
+}
+function onTap(e) {
+  if (state !== 'playing' || winGlow > 0) return;
+  Sfx.wake();
+  const rect = canvas.getBoundingClientRect();
+  const src = e.touches && e.touches[0] ? e.touches[0] : e;
+  const x = src.clientX - rect.left - OX, y = src.clientY - rect.top;
+  const i = jarAt(x, y);
+  if (i < 0) { sel = -1; return; }
+  if (sel < 0) {
+    if (!jars[i].length || jarDone(jars[i])) { Sfx.deny(); return; }
+    sel = i; Sfx.lift();
+  } else if (sel === i) {
+    sel = -1; Sfx.lift();
+  } else {
+    if (pour(sel, i)) sel = -1;
+    else { // 못 붓는 곳이면 그 항아리를 새로 집는다. 두 번 탭하게 만들 이유가 없다
+      if (jars[i].length && !jarDone(jars[i])) { sel = i; Sfx.lift(); } else sel = -1;
+    }
+  }
+}
+canvas.addEventListener('pointerdown', onTap);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onTap(e); }, { passive: false });
+
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', () => {
+  muted = !Sfx.toggle();
+  muteBtn.textContent = muted ? 'Sound Off' : 'Sound On';
+});
+
+/* ---------- 루프 ---------- */
+let last = performance.now();
+const levelEl = document.getElementById('level');
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; tick++; T += dt;
+  for (let i = anim.length - 1; i >= 0; i--) { anim[i].t -= dt * 3; if (anim[i].t <= 0) anim.splice(i, 1); }
+  if (winGlow > 0) winGlow = Math.max(0, winGlow - dt * 1.6);
+  draw(dt);
+  levelEl.textContent = String(level);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 관측 계약 ----------
+   score에는 지금까지 부은 겹 수를 싣는다. 판을 갈아도 줄지 않으므로 게이트가 진행으로 읽는다. */
+window.__GAME__ = {
+  api: 1,
+  session: 'cozy',
+  get state() { return state; },
+  get score() { return pours; },
+  get tick() { return tick; },
+  get field() { return { x: OX, w: W, h: H, screenW: SW }; },
+  start() { state = 'playing'; },
+  pause() { state = 'paused'; },
+  resume() { state = 'playing'; }
+};
+
+load();
+makeLevel(level);
+makeFiber();
+resize();
+updateUndo();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

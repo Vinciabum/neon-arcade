@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Yarn Drop</title>
+<style>
+  :root { --ink: #4a3f35; --cream: #f6efe0; --bar: #efe3cc; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #ece2ce; }
+  body { font: 13px/1.4 ui-rounded, "SF Pro Rounded", "Avenir Next", system-ui, sans-serif;
+         color: var(--ink); -webkit-user-select: none; user-select: none;
+         -webkit-tap-highlight-color: transparent; }
+  #wrap { display: flex; flex-direction: column; height: 100%; }
+  #hud { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center;
+         gap: 8px; padding: 0 12px; height: 38px; background: var(--bar);
+         border-bottom: 2px dashed #d6c6a8; letter-spacing: .08em; font-size: 11px;
+         font-weight: 700; text-transform: uppercase; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px;
+          background: var(--cream); border-radius: 999px; box-shadow: 0 1px 0 #d9caa9; }
+  .pill b { font-weight: 800; font-size: 12px; }
+  button { appearance: none; border: 0; font: inherit; letter-spacing: .08em;
+           text-transform: uppercase; font-weight: 700; color: inherit; cursor: pointer;
+           background: transparent; padding: 4px 2px; opacity: .65; }
+  #stage { position: relative; flex: 1 1 auto; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; }
+</style>
+<meta name="robots" content="noindex,follow">
+<link rel="canonical" href="https://just1game.com/games/yarn-drop/">
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="pill">BIGGEST <b id="best">1</b></span>
+    <span class="pill">MERGED <b id="merged">0</b></span>
+    <button id="muteBtn" type="button" aria-label="Toggle sound">Sound On</button>
+  </div>
+  <div id="stage"><canvas id="c"></canvas></div>
+</div>
+
+<script>
+/* ============================================================
+   Yarn Drop — 같은 실뭉치가 맞닿으면 한 단계 큰 뭉치로 감긴다.
+
+   이 장르의 관습은 "바구니가 차면 패배"다. 여기서는 가득 차면 고양이가 맨 윗줄을
+   걷어간다 — 판이 끝나지 않고, 잃는 것도 없다. 게이트에는 session:'cozy'로 선언한다.
+
+   합치기는 떨어뜨린 그 칸에서만 연쇄한다. 판 전체를 훑어 같은 값을 모두 합치면
+   한 번의 탭이 판을 통째로 정리해버려서, 놓는 자리를 고르는 일이 의미를 잃는다.
+   ============================================================ */
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const BAND = 390 / 806;
+let W = 0, H = 0, SW = 0, OX = 0;
+
+const COLS = 5, ROWS = 8;
+// 단계마다 색. 커질수록 따뜻하고 진해진다 — 큰 뭉치가 화면에서 먼저 눈에 들어와야 한다.
+// 1단계부터 바탕과 확실히 구분돼야 한다. 처음에 크림색에 가까운 색을 두었더니
+// 1과 2가 바구니 바닥과 같아 보여서, 가장 자주 보는 두 단계가 가장 안 보였다.
+const WOOL = [
+  '#9dc48a', '#7fb8cc', '#e0a95c', '#d9736a', '#9b8fd0',
+  '#d68fae', '#6fc0a4', '#e0c45c', '#c07a5a', '#6f8fb8', '#b05a7a'
+];
+const MAXV = WOOL.length - 1;
+
+let grid = [];                    // grid[r][c] = 0(빈칸) 또는 1..MAXV
+let cur = 1, next = 1;
+let merges = 0, dropped = 0, best = 1;
+let state = 'playing', tick = 0, T = 0, muted = false;
+let falling = null;               // {c, y, target, v}
+let pops = [];                    // 합쳐질 때 튀는 보풀
+let bump = 0;                     // 합쳐질 때 판이 살짝 눌린다
+
+const SAVE = 'yarndrop.v1';
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE) || '{}');
+    best = Math.max(1, s.best | 0 || 1);
+  } catch { /* 저장이 깨졌으면 처음부터. 잃을 것이 없는 게임이라 사고가 아니다 */ }
+}
+const save = () => { try { localStorage.setItem(SAVE, JSON.stringify({ best })); } catch {} };
+
+/* ---------- 섬유 텍스처 ---------- */
+let fiber = null;
+function makeFiber() {
+  const t = document.createElement('canvas');
+  t.width = t.height = 200;
+  const g = t.getContext('2d');
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * 200, y = Math.random() * 200;
+    const a = Math.random() * Math.PI, l = 1.2 + Math.random() * 3.6;
+    g.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.20)' : 'rgba(72,56,40,0.13)';
+    g.lineWidth = 0.6 + Math.random() * 0.8; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  fiber = ctx.createPattern(t, 'repeat');
+}
+
+/* ---------- 소리 ---------- */
+const Sfx = (() => {
+  let ac = null, on = true;
+  const ready = () => {
+    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } }
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
+    return ac;
+  };
+  const thud = (freq, dur, damp, vol, when = 0) => {
+    const a = ready(); if (!a || !on) return;
+    const n = Math.max(1, Math.floor(a.sampleRate * dur));
+    const buf = a.createBuffer(1, n, a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, damp);
+    const src = a.createBufferSource(); src.buffer = buf;
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = freq;
+    const g = a.createGain(); g.gain.value = vol;
+    src.connect(lp); lp.connect(g); g.connect(a.destination);
+    src.start(a.currentTime + when);
+  };
+  const tone = (freq, dur, vol, when = 0, type = 'triangle') => {
+    const a = ready(); if (!a || !on) return;
+    const t0 = a.currentTime + when;
+    const o = a.createOscillator(); o.type = type; o.frequency.value = freq;
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2800;
+    o.connect(lp); lp.connect(g); g.connect(a.destination);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  };
+  // 온음계 한 옥타브 반. 연쇄가 길어질수록 계단을 올라간다
+  const LADDER = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
+  return {
+    land: () => thud(700, 0.11, 7, 0.30),
+    // 합쳐질 때. 뭉치가 클수록 낮고 두껍다 — 큰 뭉치는 무겁다
+    merge: (v, chain) => {
+      thud(1200 - v * 80, 0.16, 5, 0.34);
+      tone(LADDER[Math.min(LADDER.length - 1, v + chain)], 0.42, 0.09, 0.01);
+    },
+    deny: () => thud(190, 0.13, 8, 0.22),
+    // 고양이가 맨 윗줄을 걷어간다
+    tidy: () => { thud(420, 0.30, 3, 0.30); tone(196.0, 0.9, 0.06, 0.05, 'sine'); },
+    // 여태 없던 크기가 처음 나왔다
+    record: () => {
+      [392.0, 493.88, 587.33, 783.99].forEach((f, i) => tone(f, 1.0, 0.08, i * 0.07, 'sine'));
+      tone(196.0, 1.5, 0.06, 0, 'sine');
+    },
+    toggle: () => { on = !on; if (on) ready(); return on; },
+    wake: () => { ready(); }
+  };
+})();
+
+/* ---------- 판 ---------- */
+function reset() {
+  grid = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  // 빈 바구니에서 시작하면 첫 다섯 수가 아무 판단도 아니다. 바닥에 두 줄 깔고 시작한다.
+  for (let r = ROWS - 2; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) grid[r][c] = 1 + Math.floor(Math.random() * 2);
+  }
+  cur = spawnValue(); next = spawnValue();
+}
+// 최고 기록이 오를수록 나오는 뭉치도 커진다. 1만 계속 나오면 후반이 노동이 된다.
+function spawnValue() {
+  const top = Math.max(1, Math.min(best - 2, 5));
+  return 1 + Math.floor(Math.random() * top);
+}
+
+const inside = (r, c) => r >= 0 && c >= 0 && r < ROWS && c < COLS;
+
+// 떨어뜨린 칸에서만 이어진 같은 값을 모은다. 판 전체를 훑지 않는 이유는 위 주석에 있다.
+function groupAt(r, c) {
+  const v = grid[r][c];
+  if (!v) return [];
+  const seen = new Set([r * COLS + c]);
+  const stack = [[r, c]], out = [[r, c]];
+  while (stack.length) {
+    const [rr, cc] = stack.pop();
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nr = rr + dr, nc = cc + dc;
+      if (!inside(nr, nc) || seen.has(nr * COLS + nc) || grid[nr][nc] !== v) continue;
+      seen.add(nr * COLS + nc);
+      stack.push([nr, nc]); out.push([nr, nc]);
+    }
+  }
+  return out;
+}
+
+// 중력. 추적하던 칸이 어디로 내려갔는지 돌려준다.
+function settle(track) {
+  let t = track;
+  for (let c = 0; c < COLS; c++) {
+    let write = ROWS - 1;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (!grid[r][c]) continue;
+      if (write !== r) {
+        grid[write][c] = grid[r][c];
+        grid[r][c] = 0;
+        if (t && t.c === c && t.r === r) t = { r: write, c };
+      }
+      write--;
+    }
+  }
+  return t;
+}
+
+function resolve(r, c) {
+  let chain = 0;
+  let at = { r, c };
+  for (;;) {
+    const group = groupAt(at.r, at.c);
+    if (group.length < 2) break;
+    const v = Math.min(MAXV, grid[at.r][at.c] + 1);
+    for (const [gr, gc] of group) {
+      if (gr === at.r && gc === at.c) continue;
+      grid[gr][gc] = 0;
+      pops.push({ r: gr, c: gc, t: 1, hue: WOOL[v - 1] });
+    }
+    grid[at.r][at.c] = v;
+    merges++;
+    bump = 0.5;
+    Sfx.merge(v, chain);
+    chain++;
+    if (v > best) { best = v; Sfx.record(); save(); }
+    at = settle(at) || at;
+  }
+  settle(null);
+}
+
+// 어느 칸에도 못 넣으면 고양이가 맨 윗줄을 걷어간다. 끝나지 않는다.
+function tidy() {
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < ROWS; r++) {
+      if (grid[r][c]) { pops.push({ r, c, t: 1, hue: WOOL[grid[r][c] - 1] }); grid[r][c] = 0; break; }
+    }
+  }
+  settle(null);
+  Sfx.tidy();
+}
+
+function dropInto(c) {
+  if (falling || state !== 'playing') return;
+  if (grid[0][c]) {
+    // 이 칸은 꽉 찼다. 전부 꽉 찼으면 정리하고, 아니면 다른 칸을 고르라고 알려준다.
+    if (grid[0].every(Boolean)) tidy(); else Sfx.deny();
+    return;
+  }
+  let r = ROWS - 1;
+  while (r >= 0 && grid[r][c]) r--;
+  falling = { c, v: cur, r, y: -1, vy: 0 };
+  dropped++;
+  cur = next; next = spawnValue();
+}
+
+/* ---------- 배치 ---------- */
+let CELL = 0, BX = 0, BY = 0, TOP = 0;
+function layout() {
+  if (!W || !H) return;
+  CELL = Math.floor((W * 0.92) / COLS);
+  BX = Math.round((W - CELL * COLS) / 2);
+  TOP = Math.round(H * 0.16);            // 다음 뭉치를 보여주는 자리
+  BY = TOP + Math.round(H * 0.02);
+  const overflow = BY + CELL * ROWS - H * 0.98;
+  if (overflow > 0) {
+    CELL = Math.floor((H * 0.98 - BY) / ROWS);
+    BX = Math.round((W - CELL * COLS) / 2);
+  }
+}
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  SW = Math.max(1, Math.round(rect.width));
+  H = Math.max(1, Math.round(rect.height));
+  W = Math.min(SW, Math.round(H * BAND));
+  OX = Math.round((SW - W) / 2);
+  canvas.width = Math.round(SW * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, OX * dpr, 0);
+  layout();
+}
+window.addEventListener('resize', resize);
+
+/* ---------- 그리기 ---------- */
+function ball(x, y, rad, v, alpha = 1) {
+  const colour = WOOL[Math.min(v - 1, WOOL.length - 1)];
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = alpha * 0.12; ctx.fillStyle = '#4b3f31';
+  ctx.beginPath(); ctx.ellipse(x, y + rad * 0.86, rad * 0.78, rad * 0.16, 0, 0, 7); ctx.fill();
+  ctx.globalAlpha = alpha;
+
+  ctx.beginPath(); ctx.arc(x, y, rad, 0, 7);
+  ctx.fillStyle = colour; ctx.fill();
+  ctx.save(); ctx.clip();
+  const g = ctx.createLinearGradient(0, y - rad, 0, y + rad);
+  g.addColorStop(0, 'rgba(255,255,255,.34)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(80,60,44,.26)');
+  ctx.fillStyle = g; ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  // 실이 감긴 결. 공이 아니라 실뭉치로 읽히게 하는 유일한 선이다
+  ctx.strokeStyle = 'rgba(255,255,255,.28)';
+  ctx.lineWidth = Math.max(1, rad * 0.10); ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI + 0.5;
+    ctx.ellipse(x, y, rad * 0.86, rad * 0.34, a, 0, Math.PI * 2);
+  }
+  ctx.stroke();
+  ctx.restore();
+  // 크기 숫자. 펠트 세계에 숫자는 어울리지 않지만, 없으면 비슷한 두 색을 눈으로 재야 한다
+  ctx.fillStyle = 'rgba(74,63,53,.62)';
+  ctx.font = `800 ${Math.round(rad * 0.62)}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(v), x, y + rad * 0.02);
+  ctx.restore();
+}
+
+function draw(dt) {
+  ctx.clearRect(-OX, 0, SW, H);
+  ctx.fillStyle = '#ece2ce'; ctx.fillRect(-OX, 0, SW, H);
+
+  // 바구니
+  const bw = CELL * COLS, bh = CELL * ROWS;
+  ctx.save();
+  ctx.fillStyle = '#ded3b8';
+  ctx.beginPath();
+  ctx.roundRect(BX - CELL * 0.14, BY - CELL * 0.10, bw + CELL * 0.28, bh + CELL * 0.22, CELL * 0.30);
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.setLineDash([5, 6]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(120,102,76,.45)';
+  ctx.beginPath();
+  ctx.roundRect(BX - CELL * 0.08, BY - CELL * 0.04, bw + CELL * 0.16, bh + CELL * 0.12, CELL * 0.26);
+  ctx.stroke(); ctx.restore();
+
+  // 칸 자국
+  ctx.save();
+  ctx.globalAlpha = 0.16; ctx.fillStyle = '#cbbf9f';
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if ((r + c) % 2) ctx.fillRect(BX + c * CELL, BY + r * CELL, CELL, CELL);
+  }
+  ctx.restore();
+
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (!grid[r][c]) continue;
+    ball(BX + (c + 0.5) * CELL, BY + (r + 0.5) * CELL, CELL * 0.42 * (1 + bump * 0.06), grid[r][c]);
+  }
+
+  if (falling) {
+    ball(BX + (falling.c + 0.5) * CELL, BY + falling.y * CELL + CELL * 0.5, CELL * 0.42, falling.v);
+  }
+
+  for (const p of pops) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.t) * 0.8;
+    ctx.fillStyle = p.hue;
+    const rad = CELL * 0.42 * (1 + (1 - p.t) * 0.7);
+    ctx.beginPath();
+    ctx.arc(BX + (p.c + 0.5) * CELL, BY + (p.r + 0.5) * CELL, rad, 0, 7);
+    ctx.fill(); ctx.restore();
+  }
+
+  // 다음에 떨어질 뭉치
+  if (!falling) {
+    ball(W * 0.5, TOP * 0.55, CELL * 0.42, cur);
+  }
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ball(W * 0.82, TOP * 0.55, CELL * 0.26, next, 0.6);
+  ctx.restore();
+  ctx.fillStyle = 'rgba(74,63,53,.45)';
+  ctx.font = `700 ${Math.round(W * 0.028)}px ui-rounded, system-ui, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('NEXT', W * 0.82, TOP * 0.55 + CELL * 0.45);
+
+  if (fiber) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.globalAlpha = 0.5; ctx.fillStyle = fiber;
+    ctx.fillRect(-OX, 0, SW, H);
+    ctx.restore();
+  }
+  if (OX > 0) {
+    ctx.save(); ctx.fillStyle = 'rgba(74,63,53,.055)';
+    ctx.fillRect(-OX, 0, OX, H); ctx.fillRect(W, 0, OX + 2, H); ctx.restore();
+  }
+}
+
+/* ---------- 입력 ---------- */
+function onTap(e) {
+  Sfx.wake();
+  const rect = canvas.getBoundingClientRect();
+  const src = e.touches && e.touches[0] ? e.touches[0] : e;
+  const x = src.clientX - rect.left - OX;
+  // 세로 위치는 보지 않는다. 열만 고르면 되는 게임에서 세로까지 맞추라고 할 이유가 없다.
+  const c = Math.max(0, Math.min(COLS - 1, Math.floor((x - BX) / CELL)));
+  dropInto(c);
+}
+canvas.addEventListener('pointerdown', onTap);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onTap(e); }, { passive: false });
+
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', () => {
+  muted = !Sfx.toggle();
+  muteBtn.textContent = muted ? 'Sound Off' : 'Sound On';
+});
+
+/* ---------- 루프 ---------- */
+let last = performance.now();
+const bestEl = document.getElementById('best');
+const mergedEl = document.getElementById('merged');
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; tick++; T += dt;
+
+  if (falling) {
+    falling.vy += 34 * dt;
+    falling.y += falling.vy * dt;
+    if (falling.y >= falling.r) {
+      const { c, r, v } = falling;
+      falling = null;
+      grid[r][c] = v;
+      Sfx.land();
+      resolve(r, c);
+    }
+  }
+  bump = Math.max(0, bump - dt * 2.6);
+  for (let i = pops.length - 1; i >= 0; i--) { pops[i].t -= dt * 2.4; if (pops[i].t <= 0) pops.splice(i, 1); }
+
+  draw(dt);
+  bestEl.textContent = String(best);
+  mergedEl.textContent = String(merges);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 관측 계약 ----------
+   score에는 합친 횟수를 싣는다. 판을 정리해도 줄지 않으므로 게이트가 진행으로 읽는다. */
+window.__GAME__ = {
+  api: 1,
+  session: 'cozy',
+  get state() { return state; },
+  get score() { return merges; },
+  get tick() { return tick; },
+  get field() { return { x: OX, w: W, h: H, screenW: SW }; },
+  start() { state = 'playing'; },
+  pause() { state = 'paused'; },
+  resume() { state = 'playing'; }
+};
+
+load();
+reset();
+makeFiber();
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

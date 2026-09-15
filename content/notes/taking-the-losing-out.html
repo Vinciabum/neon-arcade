@@ -1,0 +1,99 @@
+    <p>Three games went up on this site today, and they are all built on the same edit: take a
+    familiar puzzle genre and remove the moment where you lose.</p>
+
+    <p>That sounds like removing the game. It is not, and the interesting part is why — what a
+    losing condition is actually doing, and what has to take its place when it goes.</p>
+
+    <h2>What the loss was for</h2>
+
+    <p>In a block-placement puzzle, the run ends when none of your pieces fit. In a sorting puzzle,
+    you can pour yourself into a position with no legal move. In a merge game, the basket fills to
+    the top. In all three, that moment is doing two jobs at once.</p>
+
+    <p>The first is <strong>scoring</strong>. The end of the run is when the number stops moving, so
+    it is the number. Without an ending there is nothing to compare.</p>
+
+    <p>The second is <strong>consequence</strong>. It is what makes the placement you are considering
+    right now matter. Remove it carelessly and every move becomes equivalent, which is the real
+    failure mode of a cozy game: not that it is too easy, but that nothing you do is a decision.</p>
+
+    <p>So the rule for all three was: the ending goes, both of its jobs have to be rehoused.</p>
+
+    <h2>Patchwork: the loss becomes a completion</h2>
+
+    <p>In <a href="/games/patchwork/">Patchwork</a> you place felt patches on an eight by eight
+    quilt frame and completed rows are stitched away. When none of your three patches fits anywhere,
+    the classic version says game over.</p>
+
+    <p>Here the quilt is simply <em>finished</em>. It folds away with a sound, a counter goes up, and
+    a fresh frame is laid out with a few patches already sewn in. Nothing is taken from you and there
+    is no score to have been ruined.</p>
+
+    <p>Consequence survives because the thing you are trading is still real: every patch you place
+    badly shortens the quilt you are working on. You are not avoiding a failure, you are deciding
+    how much you can stitch before the cloth runs out. The difference between those two framings is
+    entirely in the wording and completely changes how it feels to stop playing mid-quilt.</p>
+
+    <p>Scoring moves to the quilt count, which only ever goes up and does not care how good any
+    individual quilt was. That is a weaker competitive hook and a much better reason to open the tab
+    again.</p>
+
+    <h2>Wool Jars: the loss was never necessary</h2>
+
+    <p><a href="/games/wool-jars/">Wool Jars</a> is a sorting puzzle — pour wool between jars until
+    each holds a single colour. This genre does not really have a loss so much as a dead end: you can
+    pour yourself into a position with no legal move and have to restart.</p>
+
+    <p>Unlimited undo removes it entirely, and costs nothing, because in a puzzle with no timer the
+    only thing undo takes away is the tedium of replaying moves you already knew were right.</p>
+
+    <p>The harder problem in this genre is a board that <em>cannot</em> be solved at all. Fill the
+    jars with a random permutation and a meaningful fraction of boards have no solution — and a
+    player cannot tell an unsolvable board from a hard one, so the game silently becomes unfair.
+    The fix is to generate backwards: start from a solved arrangement and pour wool around at random.
+    The shuffle is a solution played in reverse, so one always exists.</p>
+
+    <p>One more detail matters more than it looks. The generator originally left the empty jars as
+    the last entries in the array, which put them in the same corner of the screen on every board.
+    Every puzzle opened with the same move and looked like the same puzzle. Shuffling the jar
+    positions after generation fixed a variety problem that no amount of extra colours would have.</p>
+
+    <h2>Yarn Drop: the loss becomes a cost</h2>
+
+    <p><a href="/games/yarn-drop/">Yarn Drop</a> drops yarn into a basket, and touching balls of the
+    same size wind together into one bigger ball. The genre ends when the basket fills.</p>
+
+    <p>Here, filling the basket means the cat lifts the top row away and play continues. A bad
+    stretch costs you height and position — which is genuinely expensive, because the balls that get
+    removed are the ones you were building on — but it does not cost you the session.</p>
+
+    <p>Consequence is entirely intact: a badly placed large ball is dead weight in a corner for a
+    long time. What is gone is only the part where you have to start again from nothing.</p>
+
+    <h2>The thing that nearly broke it</h2>
+
+    <p>In Yarn Drop the chain of merges runs only from the ball you just dropped. Scanning the whole
+    board for equal neighbours after every move is easier to write and it destroys the game — one
+    tap tidies the entire basket, and choosing a column stops meaning anything. That is the cozy
+    failure mode in its purest form: the game becomes pleasant to watch and pointless to play.</p>
+
+    <p>It also produced the best bug of the batch. When a group merges, the cells above it fall, and
+    the merged ball itself can fall with them. The first version checked the next link of the chain
+    at the coordinates where the merge happened, which by then was an empty square — so every
+    cascade stopped after exactly one step and the game felt inexplicably flat. The fix is that the
+    gravity routine takes the cell it is tracking and returns where that cell ended up.</p>
+
+    <h2>What the automated checks said about all this</h2>
+
+    <p>Every game here has to pass a play gate before it can be published, and that gate assumes a
+    game ends when you stop playing. All three of these declare <code>session: 'cozy'</code>, which
+    inverts that rule — <a href="/notes/a-gate-that-graded-the-opposite/">there is a whole post about
+    how that mechanism came to exist</a>. What stayed strict is the requirement that something
+    advances while input arrives, which is the check that actually matters for a game with no
+    failure state.</p>
+
+    <p>That check earned its keep immediately. Wool Jars failed it: the automated tester tapped for
+    eight seconds and never once made a legal pour. Two real problems were behind it — the empty
+    jars always sitting in the same corner, and hit-testing that used rectangles so that taps landing
+    between two jars did nothing at all. A tap that produces no response is the one genuinely
+    frustrating event possible in a game with no timer, and it took a robot to notice.</p>

@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Patchwork</title>
+<style>
+  :root { --ink: #4a3f35; --cream: #f6efe0; --bar: #efe3cc; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #e7e0cd; }
+  body { font: 13px/1.4 ui-rounded, "SF Pro Rounded", "Avenir Next", system-ui, sans-serif;
+         color: var(--ink); -webkit-user-select: none; user-select: none;
+         -webkit-tap-highlight-color: transparent; }
+  #wrap { display: flex; flex-direction: column; height: 100%; }
+  #hud { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center;
+         gap: 8px; padding: 0 12px; height: 38px; background: var(--bar);
+         border-bottom: 2px dashed #d6c6a8; letter-spacing: .08em; font-size: 11px;
+         font-weight: 700; text-transform: uppercase; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px;
+          background: var(--cream); border-radius: 999px; box-shadow: 0 1px 0 #d9caa9; }
+  .pill b { font-weight: 800; font-size: 12px; }
+  button { appearance: none; border: 0; font: inherit; letter-spacing: .08em;
+           text-transform: uppercase; font-weight: 700; color: inherit; cursor: pointer;
+           background: transparent; padding: 4px 2px; opacity: .65; }
+  #stage { position: relative; flex: 1 1 auto; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+</style>
+<meta name="robots" content="noindex,follow">
+<link rel="canonical" href="https://just1game.com/games/patchwork/">
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="pill">STITCHED <b id="lines">0</b></span>
+    <span class="pill">QUILTS <b id="quilts">0</b></span>
+    <button id="muteBtn" type="button" aria-label="Toggle sound">Sound On</button>
+  </div>
+  <div id="stage"><canvas id="c"></canvas></div>
+</div>
+
+<script>
+/* ============================================================
+   Patchwork — 펠트 조각을 퀼트 틀에 놓는다. 한 줄이 다 차면 바느질되어 접혀 나간다.
+
+   이 장르(블록 배치 퍼즐)의 관습은 "더 놓을 자리가 없으면 패배"다. 여기서는 그 순간이
+   패배가 아니라 **완성**이다 — 퀼트가 접혀 나가고 새 천이 깔린다. 잃는 것이 없으므로
+   손을 놓아도 판이 사라지지 않고, 게이트에는 session:'cozy'로 그것을 선언한다.
+
+   조각은 끌어서 놓는 것이 기본이고, 탭 한 번으로도 놓인다. 손가락이 조각을 가리는
+   문제(모바일에서 끌면 보고 있는 것을 자기 손이 덮는다)를 탭 경로가 우회한다.
+   ============================================================ */
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+/* 플레이 밴드. 창이 가로로 넓어도 판은 늘 세로 비율이다.
+   게이트 2가 가로 뷰포트에서 이 비율을 재므로 공식을 바꾸면 판정이 깨진다. */
+const BAND = 390 / 806;
+let W = 0, H = 0, SW = 0, OX = 0;
+
+const P = {
+  cloth: '#e7e0cd', clothAlt: '#ded5bd',
+  frame: '#cbbf9f', ink: '#4a3f35',
+  seam: 'rgba(251,245,230,.75)'
+};
+// 조각 색. 여섯 가지면 한 화면에서 서로 구분되고, 그 이상은 죽이 된다.
+const HUES = ['#d98b7e', '#e0b083', '#9cc08b', '#a9c9d8', '#c9a9d0', '#e8c97a'];
+
+/* ---------- 섬유 텍스처 ----------
+   타일 한 장을 만들어 화면 전체에 overlay로 덮는다. 도형마다 알갱이를 찍으면
+   프레임당 수백 번을 그려야 하고, 무엇보다 조각마다 결이 따로 놀아 한 천으로 안 보인다. */
+let fiber = null;
+function makeFiber() {
+  const t = document.createElement('canvas');
+  t.width = t.height = 200;
+  const g = t.getContext('2d');
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * 200, y = Math.random() * 200;
+    const a = Math.random() * Math.PI, l = 1.2 + Math.random() * 3.6;
+    g.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.20)' : 'rgba(72,56,40,0.13)';
+    g.lineWidth = 0.6 + Math.random() * 0.8; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  fiber = ctx.createPattern(t, 'repeat');
+}
+
+/* ---------- 소리 ---------- */
+const Sfx = (() => {
+  let ac = null, on = true;
+  const ready = () => {
+    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } }
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
+    return ac;
+  };
+  const thud = (freq, dur, damp, vol, when = 0) => {
+    const a = ready(); if (!a || !on) return;
+    const n = Math.max(1, Math.floor(a.sampleRate * dur));
+    const buf = a.createBuffer(1, n, a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, damp);
+    const src = a.createBufferSource(); src.buffer = buf;
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = freq;
+    const g = a.createGain(); g.gain.value = vol;
+    src.connect(lp); lp.connect(g); g.connect(a.destination);
+    src.start(a.currentTime + when);
+  };
+  const tone = (freq, dur, vol, when = 0, type = 'triangle') => {
+    const a = ready(); if (!a || !on) return;
+    const t0 = a.currentTime + when;
+    const o = a.createOscillator(); o.type = type; o.frequency.value = freq;
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+    o.connect(lp); lp.connect(g); g.connect(a.destination);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  };
+  // 5음계. 한 번에 여러 줄이 바느질돼도 어긋난 화음이 나오지 않는다.
+  const SCALE = [523.25, 587.33, 698.46, 783.99, 880.0, 1046.5];
+  return {
+    place: () => thud(520, 0.13, 6, 0.38),
+    deny: () => thud(190, 0.16, 7, 0.28),
+    pick: () => tone(660, 0.14, 0.05, 0, 'sine'),
+    // 바느질. 줄이 여러 개면 음이 올라간다
+    stitch: (i) => { thud(300, 0.20, 4, 0.34); tone(SCALE[Math.min(i, 5)], 0.55, 0.10, 0.02); },
+    // 퀼트 완성. 이 게임에서 가장 드문 소리다
+    fold: () => {
+      [0, 0.14, 0.28].forEach((t, i) => thud(560 - i * 50, 0.20, 4, 0.42, t));
+      [392.0, 493.88, 587.33].forEach((f, i) => tone(f, 1.1, 0.09, 0.26 + i * 0.07, 'sine'));
+      tone(196.0, 1.6, 0.06, 0.26, 'sine');
+    },
+    toggle: () => { on = !on; if (on) ready(); return on; },
+    wake: () => { ready(); }
+  };
+})();
+
+/* ---------- 조각 ----------
+   1~5칸짜리 폴리오미노. 1칸과 2칸을 넉넉히 섞는다 — 큰 조각만 나오면 초반에
+   놓을 자리가 없어져 퀼트가 3수 만에 끝나고, 그러면 '완성'이 보상이 아니라 사고가 된다. */
+const SHAPES = [
+  [[0, 0]],
+  [[0, 0], [1, 0]],
+  [[0, 0], [0, 1]],
+  [[0, 0], [1, 0], [2, 0]],
+  [[0, 0], [0, 1], [0, 2]],
+  [[0, 0], [1, 0], [0, 1], [1, 1]],
+  [[0, 0], [1, 0], [2, 0], [1, 1]],
+  [[0, 0], [0, 1], [1, 1]],
+  [[1, 0], [0, 1], [1, 1]],
+  [[0, 0], [1, 0], [1, 1]],
+  [[0, 0], [1, 0], [0, 1]],
+  [[0, 0], [1, 0], [2, 0], [3, 0]],
+  [[0, 0], [0, 1], [0, 2], [0, 3]],
+  [[0, 0], [1, 0], [2, 0], [0, 1], [0, 2]],
+  [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]],
+  [[0, 0], [1, 0], [1, 1], [2, 1]],
+  [[1, 0], [2, 0], [0, 1], [1, 1]]
+];
+const WEIGHTS = [3, 4, 4, 3, 3, 3, 2, 3, 3, 3, 3, 2, 2, 1, 1, 2, 2];
+
+const N = 8;                       // 8×8. 9면 폰에서 칸이 너무 작고 7이면 줄이 너무 쉽게 찬다
+let grid = [];                     // null 또는 색 문자열
+let tray = [];                     // 3칸. 각 칸은 {cells, hue} 또는 null
+let sel = 0;                       // 탭으로 놓을 때 쓰는 선택 칸
+let drag = null;                   // {slot, x, y} 끌고 있는 조각
+let lines = 0, quilts = 0, placed = 0, best = 0;
+let state = 'playing', tick = 0, T = 0, muted = false;
+let flash = [];                    // 바느질 연출
+let fold = 0;                      // 퀼트가 접히는 중
+
+const SAVE = 'patchwork.v1';
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE) || '{}');
+    quilts = s.quilts | 0; best = s.best | 0;
+  } catch { /* 저장이 깨졌으면 처음부터. 잃을 것이 없는 게임이라 사고가 아니다 */ }
+}
+function save() {
+  try { localStorage.setItem(SAVE, JSON.stringify({ quilts, best })); } catch {}
+}
+
+function pickShape() {
+  const total = WEIGHTS.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < SHAPES.length; i++) { r -= WEIGHTS[i]; if (r <= 0) return SHAPES[i]; }
+  return SHAPES[0];
+}
+const newPiece = () => ({ cells: pickShape(), hue: HUES[Math.floor(Math.random() * HUES.length)] });
+
+function refillTray() {
+  tray = [newPiece(), newPiece(), newPiece()];
+  sel = 0;
+}
+
+function newQuilt(seedPieces) {
+  grid = Array.from({ length: N }, () => Array(N).fill(null));
+  lines = 0; placed = 0;
+  refillTray();
+  // 빈 천에서 시작하면 첫 수가 막막하다. 몇 조각을 미리 꿰매 둔 천으로 시작한다.
+  const pre = seedPieces ?? (5 + Math.floor(Math.random() * 4));
+  for (let k = 0; k < pre; k++) {
+    const p = newPiece();
+    const spots = [];
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (fits(p.cells, x, y)) spots.push([x, y]);
+    if (!spots.length) continue;
+    const [x, y] = spots[Math.floor(Math.random() * spots.length)];
+    for (const [cx, cy] of p.cells) grid[y + cy][x + cx] = p.hue;
+  }
+  // 미리 깐 조각이 이미 줄을 채워버리면 시작하자마자 연출이 터진다. 그 줄은 한 칸 비운다.
+  for (let i = 0; i < N; i++) {
+    if (grid[i].every(Boolean)) grid[i][Math.floor(Math.random() * N)] = null;
+    if (grid.every(row => row[i])) grid[Math.floor(Math.random() * N)][i] = null;
+  }
+}
+
+function fits(cells, x, y) {
+  for (const [cx, cy] of cells) {
+    const gx = x + cx, gy = y + cy;
+    if (gx < 0 || gy < 0 || gx >= N || gy >= N) return false;
+    if (grid[gy][gx]) return false;
+  }
+  return true;
+}
+function anyFits(piece) {
+  if (!piece) return false;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (fits(piece.cells, x, y)) return true;
+  return false;
+}
+
+/* ---------- 배치 ---------- */
+function place(slot, x, y) {
+  const piece = tray[slot];
+  if (!piece || !fits(piece.cells, x, y)) { Sfx.deny(); return false; }
+  for (const [cx, cy] of piece.cells) grid[y + cy][x + cx] = piece.hue;
+  placed += piece.cells.length;
+  tray[slot] = null;
+  Sfx.place();
+  stitchFullLines();
+  if (tray.every(p => !p)) refillTray();
+  // 남은 조각이 하나도 못 들어가면 이 퀼트는 다 된 것이다. 실패가 아니다.
+  if (!tray.some(anyFits)) finishQuilt();
+  sel = tray.findIndex(Boolean);
+  if (sel < 0) sel = 0;
+  save();
+  return true;
+}
+
+function stitchFullLines() {
+  const rows = [], cols = [];
+  for (let i = 0; i < N; i++) {
+    if (grid[i].every(Boolean)) rows.push(i);
+    if (grid.every(row => row[i])) cols.push(i);
+  }
+  if (!rows.length && !cols.length) return;
+  rows.forEach((r, i) => { flash.push({ kind: 'row', i: r, t: 1 }); Sfx.stitch(i); });
+  cols.forEach((c, i) => { flash.push({ kind: 'col', i: c, t: 1 }); Sfx.stitch(rows.length + i); });
+  for (const r of rows) for (let x = 0; x < N; x++) grid[r][x] = null;
+  for (const c of cols) for (let y = 0; y < N; y++) grid[y][c] = null;
+  lines += rows.length + cols.length;
+  if (lines > best) { best = lines; }
+}
+
+function finishQuilt() {
+  quilts++;
+  fold = 1.2;
+  Sfx.fold();
+  save();
+  setTimeout(() => { newQuilt(); }, 700);
+}
+
+/* ---------- 배치 계산 ---------- */
+let CELL = 0, BX = 0, BY = 0, TRAY_Y = 0, TRAY_CELL = 0, TRAY_H = 0;
+function layout() {
+  if (!W || !H) return;
+  CELL = Math.floor((W * 0.94) / N);
+  BX = Math.round((W - CELL * N) / 2);
+  TRAY_CELL = Math.max(8, Math.floor(CELL * 0.86));
+  TRAY_H = Math.round(TRAY_CELL * 4.4);
+  const gap = Math.round(H * 0.045);
+  /* 판과 트레이를 한 덩어리로 보고 세로 가운데에 놓는다. 판을 위에 붙이면
+     아래가 통째로 비고, 그 여백은 여백으로 읽히지 않고 '덜 만든 화면'으로 읽힌다. */
+  const block = CELL * N + gap + TRAY_H;
+  BY = Math.max(Math.round(H * 0.02), Math.round((H - block) / 2));
+  TRAY_Y = BY + CELL * N + gap;
+}
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  SW = Math.max(1, Math.round(rect.width));
+  H = Math.max(1, Math.round(rect.height));
+  W = Math.min(SW, Math.round(H * BAND));
+  OX = Math.round((SW - W) / 2);
+  canvas.width = Math.round(SW * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, OX * dpr, 0);
+  layout();
+}
+window.addEventListener('resize', resize);
+
+/* ---------- 그리기 ---------- */
+function feltRect(x, y, w, h, fill, seed, inset = 0) {
+  const r = Math.min(w, h) * 0.22;
+  ctx.save();
+  ctx.beginPath();
+  // 모서리를 조금씩 흔든다. 반듯한 사각형은 천이 아니라 타일로 읽힌다.
+  const j = (n) => (Math.sin(seed * 12.9898 + n * 78.233) % 1) * Math.min(w, h) * 0.05;
+  const x0 = x + inset + j(1), y0 = y + inset + j(2);
+  const x1 = x + w - inset + j(3), y1 = y + h - inset + j(4);
+  ctx.moveTo(x0 + r, y0);
+  ctx.arcTo(x1, y0, x1, y1, r); ctx.arcTo(x1, y1, x0, y1, r);
+  ctx.arcTo(x0, y1, x0, y0, r); ctx.arcTo(x0, y0, x1, y0, r);
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  // 두께. 위가 밝고 아래가 어둡다
+  ctx.clip();
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  g.addColorStop(0, 'rgba(255,255,255,.26)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(90,70,50,.20)');
+  ctx.fillStyle = g; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+  ctx.restore();
+  // 시침질
+  ctx.save();
+  ctx.setLineDash([Math.max(2, w * 0.10), Math.max(2.5, w * 0.12)]);
+  ctx.lineWidth = Math.max(1, w * 0.045);
+  ctx.strokeStyle = 'rgba(255,255,255,.45)';
+  ctx.strokeRect(x0 + w * 0.13, y0 + h * 0.13, (x1 - x0) - w * 0.26, (y1 - y0) - h * 0.26);
+  ctx.restore();
+}
+
+function drawBoard() {
+  const size = CELL * N;
+  // 퀼트 틀
+  ctx.fillStyle = P.frame;
+  ctx.fillRect(BX - CELL * 0.22, BY - CELL * 0.22, size + CELL * 0.44, size + CELL * 0.44);
+  ctx.fillStyle = P.clothAlt;
+  ctx.fillRect(BX, BY, size, size);
+  // 바탕 격자. 두 색을 번갈아 깔면 빈 칸도 천으로 읽힌다
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    if ((x + y) % 2) { ctx.fillStyle = P.cloth; ctx.fillRect(BX + x * CELL, BY + y * CELL, CELL, CELL); }
+  }
+  // 격자 시침질
+  ctx.save();
+  ctx.setLineDash([3, 5]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(120,102,76,.35)';
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    ctx.moveTo(BX + i * CELL, BY); ctx.lineTo(BX + i * CELL, BY + size);
+    ctx.moveTo(BX, BY + i * CELL); ctx.lineTo(BX + size, BY + i * CELL);
+  }
+  ctx.stroke(); ctx.restore();
+
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    if (grid[y][x]) feltRect(BX + x * CELL, BY + y * CELL, CELL, CELL, grid[y][x], x * 7 + y * 13, CELL * 0.06);
+  }
+
+  // 놓을 자리 미리보기
+  const g = hoverCell();
+  if (g && tray[dragSlot()]) {
+    const piece = tray[dragSlot()];
+    const ok = fits(piece.cells, g.x, g.y);
+    ctx.save();
+    ctx.globalAlpha = ok ? 0.55 : 0.22;
+    for (const [cx, cy] of piece.cells) {
+      const gx = g.x + cx, gy = g.y + cy;
+      if (gx < 0 || gy < 0 || gx >= N || gy >= N) continue;
+      feltRect(BX + gx * CELL, BY + gy * CELL, CELL, CELL, ok ? piece.hue : '#b9aa92', gx * 3 + gy * 5, CELL * 0.06);
+    }
+    ctx.restore();
+  }
+
+  // 바느질된 줄이 접혀 나가는 연출
+  for (const f of flash) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, f.t);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = CELL * 0.30 * f.t; ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (f.kind === 'row') { ctx.moveTo(BX, BY + (f.i + 0.5) * CELL); ctx.lineTo(BX + size, BY + (f.i + 0.5) * CELL); }
+    else { ctx.moveTo(BX + (f.i + 0.5) * CELL, BY); ctx.lineTo(BX + (f.i + 0.5) * CELL, BY + size); }
+    ctx.stroke(); ctx.restore();
+  }
+}
+
+function pieceSize(cells) {
+  let w = 0, h = 0;
+  for (const [x, y] of cells) { w = Math.max(w, x + 1); h = Math.max(h, y + 1); }
+  return { w, h };
+}
+
+function traySlotRect(i) {
+  const slotW = W / 3;
+  return { x: i * slotW, y: TRAY_Y, w: slotW, h: TRAY_H };
+}
+
+function drawTray() {
+  for (let i = 0; i < 3; i++) {
+    const r = traySlotRect(i);
+    const piece = tray[i];
+    if (!piece) continue;
+    const { w, h } = pieceSize(piece.cells);
+    const ox = r.x + (r.w - w * TRAY_CELL) / 2;
+    const oy = r.y + (r.h - h * TRAY_CELL) / 2;
+    // 고른 조각 뒤에만 옅은 천을 깐다. 칸 전체를 칠하면 조각보다 배경이 커 보인다
+    if (i === sel && !drag) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      const pad = TRAY_CELL * 0.30;
+      ctx.beginPath();
+      ctx.roundRect(ox - pad, oy - pad, w * TRAY_CELL + pad * 2, h * TRAY_CELL + pad * 2, 14);
+      ctx.fill(); ctx.restore();
+    }
+    if (drag && drag.slot === i) continue;
+    for (const [cx, cy] of piece.cells) {
+      feltRect(ox + cx * TRAY_CELL, oy + cy * TRAY_CELL, TRAY_CELL, TRAY_CELL, piece.hue, cx * 5 + cy * 11 + i, TRAY_CELL * 0.06);
+    }
+  }
+  // 끌고 있는 조각은 손가락 위쪽에 그린다 — 손이 조각을 덮으면 어디에 놓는지 보이지 않는다
+  if (drag && tray[drag.slot] && pointer) {
+    const piece = tray[drag.slot];
+    const o = ghostOrigin(piece);
+    const ox = o.x, oy = o.y;
+    ctx.save(); ctx.globalAlpha = 0.9;
+    for (const [cx, cy] of piece.cells) {
+      feltRect(ox + cx * CELL, oy + cy * CELL, CELL, CELL, piece.hue, cx * 5 + cy * 11, CELL * 0.06);
+    }
+    ctx.restore();
+  }
+}
+
+/* 같은 세계의 고양이. 장식이지만 장식만은 아니다 — Feltling과 같은 손이 만든 것이라는
+   표시가 게임마다 있어야 사이트가 목록이 아니라 한 세계로 읽힌다. 자고 있는 자세라
+   움직임이 판을 끌어당기지 않는다. */
+function drawCat(x, y, r) {
+  const breathe = Math.sin(T * 1.1) * r * 0.03;
+  ctx.save();
+  ctx.globalAlpha = 0.12; ctx.fillStyle = '#4b3f31';
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.62, r * 1.05, r * 0.20, 0, 0, 7); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(x, y + breathe);
+  // 꼬리
+  ctx.strokeStyle = '#e0b083'; ctx.lineWidth = r * 0.30; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.75, r * 0.30);
+  ctx.quadraticCurveTo(-r * 1.35, r * 0.05, -r * 0.95, -r * 0.35);
+  ctx.stroke();
+  // 몸
+  ctx.fillStyle = '#e0b083';
+  ctx.beginPath(); ctx.ellipse(0, r * 0.18, r * 1.0, r * 0.52, 0, 0, 7); ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(0, r * 0.18, r * 1.0, r * 0.52, 0, 0, 7); ctx.clip();
+  const g = ctx.createLinearGradient(0, -r * 0.34, 0, r * 0.70);
+  g.addColorStop(0, 'rgba(255,255,255,.26)');
+  g.addColorStop(1, 'rgba(90,70,50,.20)');
+  ctx.fillStyle = g; ctx.fillRect(-r, -r, r * 2, r * 2);
+  ctx.restore();
+  // 머리
+  ctx.fillStyle = '#e0b083';
+  ctx.beginPath(); ctx.ellipse(r * 0.62, -r * 0.02, r * 0.44, r * 0.40, 0, 0, 7); ctx.fill();
+  for (const sgn of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(r * 0.62 + sgn * r * 0.10, -r * 0.30);
+    ctx.lineTo(r * 0.62 + sgn * r * 0.30, -r * 0.66);
+    ctx.lineTo(r * 0.62 + sgn * r * 0.40, -r * 0.22);
+    ctx.closePath(); ctx.fill();
+  }
+  // 감은 눈 — 자고 있다
+  ctx.strokeStyle = '#4a3f35'; ctx.lineWidth = Math.max(1.2, r * 0.055); ctx.lineCap = 'round';
+  for (const sgn of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(r * 0.62 + sgn * r * 0.16, -r * 0.02, r * 0.085, Math.PI * 1.1, Math.PI * 1.9);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#d98b87';
+  ctx.beginPath(); ctx.ellipse(r * 0.62, r * 0.12, r * 0.06, r * 0.045, 0, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+function draw(dt) {
+  ctx.clearRect(-OX, 0, SW, H);
+  ctx.fillStyle = '#efe7d5'; ctx.fillRect(-OX, 0, SW, H);
+
+  ctx.save();
+  if (fold > 0) {
+    // 완성된 퀼트가 접혀 나간다
+    const k = Math.min(1, (1.2 - fold) / 1.2);
+    ctx.globalAlpha = 1 - k;
+    ctx.translate(W / 2, BY + CELL * N / 2);
+    ctx.scale(1 - k * 0.4, 1 - k * 0.9);
+    ctx.translate(-W / 2, -(BY + CELL * N / 2));
+  }
+  drawBoard();
+  ctx.restore();
+  drawTray();
+  drawCat(W * 0.17, BY - CELL * 0.62, CELL * 0.62);
+
+  if (fiber) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.globalAlpha = 0.5; ctx.fillStyle = fiber;
+    ctx.fillRect(-OX, 0, SW, H);
+    ctx.restore();
+  }
+  if (OX > 0) {
+    ctx.save(); ctx.fillStyle = 'rgba(74,63,53,.055)';
+    ctx.fillRect(-OX, 0, OX, H); ctx.fillRect(W, 0, OX + 2, H); ctx.restore();
+  }
+}
+
+/* ---------- 입력 ---------- */
+let pointer = null;
+function pointAt(e) {
+  const rect = canvas.getBoundingClientRect();
+  const src = e.touches && e.touches[0] ? e.touches[0] : e;
+  return { x: src.clientX - rect.left - OX, y: src.clientY - rect.top };
+}
+const dragSlot = () => (drag ? drag.slot : sel);
+
+/* 조각이 그려지는 왼쪽 위 좌표. 끌 때는 손가락 위로 띄우고(손이 조각을 덮으면
+   어디에 놓는지 안 보인다), 탭할 때는 손가락에 중심을 맞춘다. 미리보기와 판정이
+   같은 함수를 쓰므로 "보이는 자리"와 "놓이는 자리"가 어긋날 수 없다. */
+function ghostOrigin(piece) {
+  const { w, h } = pieceSize(piece.cells);
+  return drag
+    ? { x: pointer.x - (w * CELL) / 2, y: pointer.y - h * CELL - CELL * 0.4 }
+    : { x: pointer.x - (w * CELL) / 2, y: pointer.y - (h * CELL) / 2 };
+}
+
+/* 손가락은 칸 하나를 정확히 짚지 않는다. 가장 가까운 '들어가는' 자리를 한 칸 반경에서
+   찾아 준다 — 없으면 원래 자리를 그대로 돌려줘서 미리보기가 안 들어간다고 말한다.
+   이 보정이 없으면 큰 조각은 사실상 놓을 수 없다: 왼쪽 위 모서리를 정확히 짚어야 한다. */
+function hoverCell() {
+  if (!pointer) return null;
+  const piece = tray[dragSlot()];
+  if (!piece) return null;
+  const o = ghostOrigin(piece);
+  const gx = Math.round((o.x - BX) / CELL);
+  const gy = Math.round((o.y - BY) / CELL);
+  if (gx < -2 || gy < -2 || gx > N + 1 || gy > N + 1) return null;
+  if (fits(piece.cells, gx, gy)) return { x: gx, y: gy };
+  const ring = [[0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+  for (const [dx, dy] of ring) {
+    if (fits(piece.cells, gx + dx, gy + dy)) return { x: gx + dx, y: gy + dy };
+  }
+  return { x: gx, y: gy };
+}
+
+function onDown(e) {
+  Sfx.wake();
+  pointer = pointAt(e);
+  if (fold > 0) return;
+  // 트레이를 눌렀나
+  for (let i = 0; i < 3; i++) {
+    const r = traySlotRect(i);
+    if (tray[i] && pointer.x >= r.x && pointer.x <= r.x + r.w && pointer.y >= r.y - TRAY_CELL * 0.5) {
+      if (sel !== i) Sfx.pick();
+      sel = i; drag = { slot: i, x: pointer.x, y: pointer.y };
+      return;
+    }
+  }
+  // 판을 눌렀다 — 선택된 조각을 그 자리에 놓는다 (탭 경로)
+  const g = hoverCell();
+  if (g && tray[sel]) place(sel, g.x, g.y);
+}
+function onMove(e) {
+  if (!pointer) return;
+  pointer = pointAt(e);
+  if (drag) { drag.x = pointer.x; drag.y = pointer.y; }
+}
+function onUp() {
+  if (drag) {
+    const g = hoverCell();
+    if (g) place(drag.slot, g.x, g.y);
+    drag = null;
+  }
+  pointer = null;
+}
+canvas.addEventListener('pointerdown', onDown);
+canvas.addEventListener('pointermove', onMove);
+window.addEventListener('pointerup', onUp);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onDown(e); }, { passive: false });
+canvas.addEventListener('touchmove', (e) => { e.preventDefault(); onMove(e); }, { passive: false });
+window.addEventListener('touchend', (e) => { e.preventDefault(); onUp(); }, { passive: false });
+
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', () => {
+  muted = !Sfx.toggle();
+  muteBtn.textContent = muted ? 'Sound Off' : 'Sound On';
+});
+
+/* ---------- 루프 ---------- */
+let last = performance.now();
+const linesEl = document.getElementById('lines');
+const quiltsEl = document.getElementById('quilts');
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; tick++; T += dt;
+  for (let i = flash.length - 1; i >= 0; i--) {
+    flash[i].t -= dt * 2.2;
+    if (flash[i].t <= 0) flash.splice(i, 1);
+  }
+  if (fold > 0) fold = Math.max(0, fold - dt);
+  draw(dt);
+  linesEl.textContent = String(lines);
+  quiltsEl.textContent = String(quilts);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 관측 계약: 게이트 2가 읽는 유일한 인터페이스 ----------
+   session:'cozy'가 핵심이다. 이 게임은 방치해도 끝나지 않고, 끝나지 않는 것이 정상이다.
+   score 자리에는 점수가 아니라 진행도(지금까지 놓은 칸 수)를 싣는다 — 한 판이 끝나도
+   줄어들지 않아야 게이트가 진행을 읽을 수 있다. */
+window.__GAME__ = {
+  api: 1,
+  session: 'cozy',
+  get state() { return state; },
+  get score() { return placed; },
+  get tick() { return tick; },
+  get field() { return { x: OX, w: W, h: H, screenW: SW }; },
+  start() { state = 'playing'; },
+  pause() { state = 'paused'; },
+  resume() { state = 'playing'; }
+};
+
+load();
+newQuilt();
+makeFiber();
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

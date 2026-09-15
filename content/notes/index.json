@@ -55,5 +55,12 @@
     "date": "2026-09-14",
     "description": "A game with no progress bar, where you check how far along you are by knocking on a seal and hearing how muffled it sounds. Every sound synthesised, no audio files.",
     "summary": "Filtered noise makes a convincing knock, and moving the filter cutoff with progress turns a status readout into something you feel. The finished state is warmer, not louder."
+  },
+  {
+    "slug": "taking-the-losing-out",
+    "title": "Taking the losing out",
+    "date": "2026-09-15",
+    "description": "Three puzzle genres shipped with their failure states removed. What a losing condition is actually doing, and what has to replace it when it goes.",
+    "summary": "Remove the moment where you lose and a puzzle usually stops being a game. These three kept their teeth by rehousing the two jobs that the ending was quietly doing."
   }
 ]
