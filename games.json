@@ -1,5 +1,71 @@
 [
   {
+    "slug": "feltfoot",
+    "title": "Feltfoot",
+    "tagline": "Sew a felt creature badly, cut the thread, and watch how it walks.",
+    "description": "Sew legs, ears and eyes onto a felt body wherever you like. Snip the thread and it stands up and walks — and how it walks comes from how you built it.",
+    "tag": "Cozy",
+    "genreTerm": "creature maker game",
+    "controls": {
+      "keyboard": "None. Click the body to sew the next part on.",
+      "touch": "Tap the body to sew on whatever the tray offers."
+    },
+    "howToPlay": [
+      "One part waits under the workbench — a leg, an ear, a tail, an eye. Tap the body where you want it and it gets sewn on there.",
+      "Nothing is placed wrong. Legs on the side, both eyes in one spot, a tail on the forehead: all of it is allowed and all of it changes what happens next.",
+      "When the tray runs out the thread is snipped automatically, or hit Snip whenever you like.",
+      "Your creature stands up and walks. Uneven legs limp, side-mounted legs scuttle, no legs at all just topples over. Keep it and it goes on the shelf."
+    ],
+    "tips": [
+      "Legs low and wide make a steady walker. Legs high on the body make it lurch, which is funnier.",
+      "A long tail acts as a counterweight and genuinely changes the gait — it is the one part that is loose rather than stiff.",
+      "Putting both eyes on one side is not a mistake. Nothing about the face affects the walk, so the face is purely where your creature gets its personality."
+    ],
+    "mechanics": {
+      "input": "drag-object",
+      "goal": "make",
+      "failure": "none",
+      "world": "single-scene"
+    },
+    "faq": [
+      {
+        "q": "Can I build it wrong?",
+        "a": "There is no wrong build. Every arrangement produces a creature that does something, and the arrangements that look like mistakes generally produce the funniest walks. That is the entire design."
+      },
+      {
+        "q": "Why does my creature walk differently from the one before?",
+        "a": "The walk is simulated from the parts you actually sewed on — their length, their weight and where they attach. Nothing about the gait is pre-animated or random, so two creatures built differently can never move the same way."
+      },
+      {
+        "q": "What happens if I do not give it legs?",
+        "a": "It falls over and rolls about. That is a legitimate outcome and it is saved to the shelf like any other creature; there is no failure state anywhere in this game."
+      },
+      {
+        "q": "Are my creatures saved?",
+        "a": "The last twelve are kept in your browser's local storage on that device. Only the build is stored, not the motion — the walk is re-simulated from the build each time you tap one on the shelf, so it always moves the way that creature moves."
+      },
+      {
+        "q": "Can I share one?",
+        "a": "Tap the creature while it is walking to get a card with its name on it, which you can save or share. The card is a still image; the walk is the part you have to show someone in person."
+      }
+    ],
+    "releasedAt": "2026-09-15",
+    "status": "published",
+    "featured": true,
+    "captureFromMs": 2600,
+    "captureQuery": "show=1",
+    "portals": {
+      "gamedistribution": null,
+      "gamepix": null,
+      "crazygames": null
+    },
+    "notes": [
+      "The bet in this game is that the result should be a movement rather than a picture. Every no-failure toy that has spread widely gives the player something to show someone — a cat photo, an absurd word combination, a shared grid of squares — and the space for pictures is thoroughly occupied. A walk is not: nobody else's creature moves like yours, and it needs no explanation to be funny.",
+      "The body is three particles in a triangle, not one. A single particle has no orientation, so it cannot tilt or topple, and if it cannot tilt then uneven legs make no difference to anything — the whole premise disappears. Three particles give a local frame, every part attaches at fixed coordinates in that frame, and torque from a heavy tail or a badly placed leg travels into the body the way it should.",
+      "The walk was originally fully physical: plant the stance foot, push the body forward, let the constraints sort it out. Stiffening the legs enough to stop them folding turned that push into a launch and threw creatures off the screen with their limbs knotted. What works is a hybrid — the body is pulled gently toward a target point and height while the legs stay genuinely physical. The limp survives, because a creature whose legs cannot reach the target height spends every step failing to get there."
+    ]
+  },
+  {
     "slug": "feltling",
     "title": "Feltling",
     "tagline": "The seal has no fur. The cat is fixing that, one thread at a time.",
@@ -51,7 +117,7 @@
     ],
     "releasedAt": "2026-09-14",
     "status": "published",
-    "featured": true,
+    "featured": false,
     "captureFromMs": 2600,
     "captureQuery": "stage=3",
     "portals": {
@@ -345,7 +411,7 @@
     ],
     "releasedAt": "2026-08-07",
     "status": "published",
-    "featured": true,
+    "featured": false,
     "portals": {
       "gamedistribution": null,
       "gamepix": null,

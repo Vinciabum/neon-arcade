@@ -1,0 +1,118 @@
+    <p>Every game on this site that has no failure state produces something at the end, and until
+    today all of those things were pictures. That turns out to be the problem.</p>
+
+    <p>Look at what actually spreads among games with nothing to win: a cat photograph from Neko
+    Atsume, an absurd word combination from Infinite Craft, a grid of coloured squares from Wordle,
+    a clip of a track somebody built in Line Rider. In every case the game hands the player an
+    object, and the player shows it to someone. The object is the distribution.</p>
+
+    <p>Two properties matter and they are easy to miss. The object has to be <strong>varied</strong>
+    — yours different from mine — and it has to be <strong>legible in about three seconds</strong>.</p>
+
+    <h2>Why the seal game will not spread</h2>
+
+    <p>By that test, <a href="/games/feltling/">Feltling</a> fails, and it is worth being precise
+    about how. You spend six stages growing a coat on a bare seal. It is pleasant. At the end you
+    have a fluffy seal — and so does everybody else, pixel for pixel. There is nothing to show,
+    because your seal is not <em>yours</em> in any way a viewer could perceive.</p>
+
+    <p>Which leads to an uncomfortable second observation: the space of games whose output is a
+    picture is thoroughly occupied. Marbling, tie-dye, falling sand, paper snowflakes, pottery,
+    slime, needle felting — all of them exist as polished web toys already, several of them for
+    over a decade. Building a better one is competing on execution in a crowded field.</p>
+
+    <p>So the design question became: <strong>what can a player end up holding that is not a
+    picture?</strong></p>
+
+    <h2>A walk is not a picture</h2>
+
+    <p><a href="/games/feltfoot/">Feltfoot</a> is the answer this site is testing. You sew parts
+    onto a felt body — legs, ears, a tail, two eyes — wherever you tap. Then the thread is snipped
+    and the creature stands up and walks, and <em>how it walks is computed from where you put the
+    parts</em>.</p>
+
+    <p>Uneven legs limp. Legs mounted high on the body lurch. A long tail acts as a counterweight
+    and changes the rhythm. No legs at all and it topples and rolls, which is a legitimate outcome
+    and is saved to the shelf like any other.</p>
+
+    <p>The property that makes this worth building is that <strong>the comedy is generated, not
+    authored</strong>. There is no animator deciding that the lopsided one should waddle. The
+    physics produces something specific to each build, which means the supply of distinct outcomes
+    is effectively unlimited and none of it costs art time. It is the rare kind of code where
+    imperfection reads as charm rather than as a bug.</p>
+
+    <h2>Three particles, not one</h2>
+
+    <p>The body is a triangle of three verlet particles held rigid by distance constraints, not a
+    single point. That decision carries the whole game.</p>
+
+    <p>A single particle has no orientation. It cannot tilt, cannot topple, cannot lean into a step
+    — and if the body cannot tilt, then uneven legs produce no visible difference and the entire
+    premise evaporates. Three particles give a local coordinate frame:</p>
+
+<pre><code>function frameOf(cr) {
+  const [a, b, c] = cr.body.map(i =&gt; cr.pts[i]);
+  const cx = (a.x + b.x + c.x) / 3, cy = (a.y + b.y + c.y) / 3;
+  let ex = a.x - cx, ey = a.y - cy;
+  const L = Math.hypot(ex, ey) || 1;
+  ex /= L; ey /= L;
+  return { cx, cy, ex, ey, nx: -ey, ny: ex };
+}</code></pre>
+
+    <p>Every part records where it was attached as a coordinate pair in that frame, so the
+    attachment travels with the body as it rotates, and a heavy tail on one side transmits real
+    torque into the body rather than hanging off an abstraction.</p>
+
+    <h2>The walk was rewritten once, and the first version was the obvious one</h2>
+
+    <p>The first implementation was fully physical, which is the version anyone would write first.
+    Plant the stance foot at a fixed world position, add forward velocity to the body, let the
+    constraint solver work out the rest. That is genuinely how walking works: the body falls forward
+    over a planted foot.</p>
+
+    <p>It produced creatures that collapsed into a heap, because the legs folded at the knee under
+    the body's weight. So the knee constraint was stiffened — rest length raised to 96% of the full
+    leg with much higher stiffness, turning each leg into a strut. That fixed the collapsing and
+    immediately broke something else: the same forward push that had been absorbed by folding legs
+    now had nowhere to go, and creatures launched off the side of the screen with their limbs in a
+    knot.</p>
+
+    <p>Tuning a fully physical walker is a long road, and the failure mode at the end of it is bad:
+    when it goes wrong, it does not look like a clumsy creature, it looks like a broken program.
+    Those are completely different things to a player.</p>
+
+    <p>The version that shipped is a hybrid. The body is pulled gently toward a target point and a
+    target height; the legs stay genuinely physical.</p>
+
+<pre><code>const targetY = GROUND - cr.standH + Math.sin(gait * 2) * cr.R * 0.05;
+const dx = cr.walkX - f0.cx, dy = targetY - f0.cy;
+for (const i of cr.body) {
+  cr.pts[i].x += dx * 0.055;
+  cr.pts[i].y += dy * 0.050;
+}</code></pre>
+
+    <p>The coefficients are small on purpose. Pull the body hard and it glides along its target path
+    while the legs flail decoratively underneath — the motion stops being about the legs, which
+    means it stops being about what the player built. Pull it weakly and the legs still have to do
+    the work of getting there. A creature whose legs cannot reach the target height spends every
+    single step failing to reach it, and that failure <em>is</em> the limp.</p>
+
+    <h2>What the screenshot tool found</h2>
+
+    <p>Thumbnails here are captured automatically from the running game, and the first one for this
+    game was a picture of the share-card dialog. The capture tool clicks the centre of the screen to
+    dismiss start overlays; in this game, tapping while the creature walked opened the share card.</p>
+
+    <p>That is a bad automated screenshot and a worse design decision. Somebody watching a wobbly
+    creature toddle around wants to <em>poke it</em>. Tapping now shoves the nearest part with a
+    small impulse and a hollow felt thud, and the share card moved to a button — which is both more
+    fun and the reason the thumbnail now shows a creature walking. The capture tool has form here:
+    there is <a href="/notes/thumbnail-that-lied/">a whole post</a> about the last time it caught a
+    design problem by photographing it.</p>
+
+    <h2>Whether this works is not yet known</h2>
+
+    <p>The claim being tested is narrow and falsifiable: that people will show someone else a
+    creature they made because of how it moves. The number to watch is the share rate, not the play
+    count — if players make creatures and never save a card, the premise is wrong and no amount of
+    additional polish on the walk will fix it.</p>

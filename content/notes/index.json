@@ -62,5 +62,12 @@
     "date": "2026-09-15",
     "description": "Three puzzle genres shipped with their failure states removed. What a losing condition is actually doing, and what has to replace it when it goes.",
     "summary": "Remove the moment where you lose and a puzzle usually stops being a game. These three kept their teeth by rehousing the two jobs that the ending was quietly doing."
+  },
+  {
+    "slug": "the-result-is-a-walk",
+    "title": "The result is a walk",
+    "date": "2026-09-15",
+    "description": "Every cozy toy that spreads hands the player an object to show someone, and the space for pictures is full. So this one hands them a movement instead.",
+    "summary": "Everyone's fluffy seal looks identical, which is why nobody will share one. A creature that walks the way you built it is different every time, and the physics generates the comedy for free."
   }
 ]

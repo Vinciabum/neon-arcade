@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Feltfoot</title>
+<style>
+  :root { --ink: #4a3f35; --cream: #f6efe0; --bar: #efe3cc; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #e9e0cb; }
+  body { font: 13px/1.4 ui-rounded, "SF Pro Rounded", "Avenir Next", system-ui, sans-serif;
+         color: var(--ink); -webkit-user-select: none; user-select: none;
+         -webkit-tap-highlight-color: transparent; }
+  #wrap { display: flex; flex-direction: column; height: 100%; }
+  #hud { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center;
+         gap: 8px; padding: 0 12px; height: 38px; background: var(--bar);
+         border-bottom: 2px dashed #d6c6a8; letter-spacing: .08em; font-size: 11px;
+         font-weight: 700; text-transform: uppercase; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px;
+          background: var(--cream); border-radius: 999px; box-shadow: 0 1px 0 #d9caa9; }
+  .pill b { font-weight: 800; font-size: 12px; }
+  button { appearance: none; border: 0; font: inherit; letter-spacing: .08em;
+           text-transform: uppercase; font-weight: 700; color: inherit; cursor: pointer; }
+  .act { background: var(--cream); border-radius: 999px; padding: 5px 11px;
+         box-shadow: 0 1px 0 #d9caa9; }
+  .act[hidden] { display: none; }
+  #muteBtn { background: transparent; padding: 4px 2px; opacity: .65; }
+  #stage { position: relative; flex: 1 1 auto; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  #cardWrap { position: absolute; inset: 0; display: none; align-items: center;
+              justify-content: center; flex-direction: column; gap: 12px; padding: 16px;
+              background: rgba(74,63,53,.55); backdrop-filter: blur(3px); z-index: 5; }
+  #cardWrap.open { display: flex; }
+  #cardImg { max-width: 100%; max-height: 66%; border-radius: 14px;
+             box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+  .cardBtns { display: flex; gap: 10px; }
+  .cardBtns a, .cardBtns button { background: var(--cream); color: var(--ink);
+    border-radius: 999px; padding: 9px 16px; text-decoration: none; font-size: 12px;
+    font-weight: 800; letter-spacing: .08em; box-shadow: 0 2px 0 #b9a887; }
+</style>
+<meta name="robots" content="noindex,follow">
+<link rel="canonical" href="https://just1game.com/games/feltfoot/">
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="pill">MADE <b id="made">0</b></span>
+    <span id="hint">Sew it on</span>
+    <span style="display:flex;gap:6px;align-items:center;">
+      <button id="actBtn" class="act" type="button" hidden>Snip</button>
+      <button id="cardBtn" class="act" type="button" hidden>Card</button>
+      <button id="shelfBtn" class="act" type="button">Shelf</button>
+      <button id="muteBtn" type="button" aria-label="Toggle sound">Sound On</button>
+    </span>
+  </div>
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div id="cardWrap">
+      <img id="cardImg" alt="Your feltfoot">
+      <div class="cardBtns">
+        <button id="cardShare" type="button">Share</button>
+        <a id="cardSave" download="my-feltfoot.png">Save</a>
+        <button id="cardClose" type="button">Back</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Feltfoot — 펠트 인형을 대충 꿰매고 실을 끊으면, 그게 일어나서 걸어간다.
+
+   이 게임의 결과물은 그림이 아니라 **움직임**이다. 걸음걸이가 당신이 붙인 모양에서
+   그대로 나온다 — 다리를 짝짝이로 붙였으면 절뚝이고, 옆구리에 붙였으면 게처럼 가고,
+   하나도 안 붙였으면 데굴데굴 구른다. 전부 결과이고, 실패는 구조적으로 없다.
+
+   내가 귀엽게 그릴 필요가 없다는 것이 이 설계의 핵심이다. 우스꽝스러움은 물리가 만든다.
+   불완전할수록 좋아지는, 드문 종류의 코드다.
+
+   게이트에는 session:'cozy'로 선언한다 — 방치해도 끝나지 않는다.
+   ============================================================ */
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const BAND = 390 / 806;
+let W = 0, H = 0, SW = 0, OX = 0;
+
+const P = {
+  sky: '#f2ead6', ground: '#c9d9b8', groundDark: '#b9cca6',
+  bench: '#ded3b8', ink: '#4a3f35'
+};
+// 몸통·부품 색. 한 인형은 한 색 계열로 묶되 부품마다 조금씩 어긋나게 둔다 — 손으로 기운 티
+const HUES = ['#d98b7e', '#e0b083', '#9cc08b', '#8fb8c9', '#b9a0cc', '#e0c06e', '#c9a08a', '#8fbfae'];
+
+/* ---------- 섬유 텍스처 ---------- */
+let fiber = null;
+function makeFiber() {
+  const t = document.createElement('canvas');
+  t.width = t.height = 200;
+  const g = t.getContext('2d');
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * 200, y = Math.random() * 200;
+    const a = Math.random() * Math.PI, l = 1.2 + Math.random() * 3.6;
+    g.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.20)' : 'rgba(72,56,40,0.13)';
+    g.lineWidth = 0.6 + Math.random() * 0.8; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  fiber = ctx.createPattern(t, 'repeat');
+}
+
+/* ---------- 소리 ---------- */
+const Sfx = (() => {
+  let ac = null, on = true;
+  const ready = () => {
+    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } }
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
+    return ac;
+  };
+  const thud = (freq, dur, damp, vol, when = 0) => {
+    const a = ready(); if (!a || !on) return;
+    const n = Math.max(1, Math.floor(a.sampleRate * dur));
+    const buf = a.createBuffer(1, n, a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, damp);
+    const src = a.createBufferSource(); src.buffer = buf;
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = freq;
+    const g = a.createGain(); g.gain.value = vol;
+    src.connect(lp); lp.connect(g); g.connect(a.destination);
+    src.start(a.currentTime + when);
+  };
+  const tone = (freq, dur, vol, when = 0, type = 'triangle') => {
+    const a = ready(); if (!a || !on) return;
+    const t0 = a.currentTime + when;
+    const o = a.createOscillator(); o.type = type; o.frequency.value = freq;
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+    o.connect(lp); lp.connect(g); g.connect(a.destination);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  };
+  const SCALE = [523.25, 587.33, 698.46, 783.99, 880.0, 1046.5];
+  return {
+    // 바늘이 펠트를 통과하는 소리. 부품을 붙일 때마다 음이 올라간다
+    stitch: (i) => { thud(760, 0.10, 8, 0.30); tone(SCALE[Math.min(i, 5)], 0.26, 0.05, 0.01, 'sine'); },
+    // 가위. 이 게임에서 가장 중요한 한 순간이다
+    snip: () => {
+      thud(2600, 0.045, 16, 0.42);
+      thud(2200, 0.045, 16, 0.38, 0.075);
+    },
+    // 인형이 일어선다
+    wake: () => {
+      [0, 0.10, 0.20].forEach((t, i) => tone([392.0, 493.88, 587.33][i], 0.9, 0.08, t, 'sine'));
+      tone(196.0, 1.3, 0.05, 0, 'sine');
+    },
+    step: () => thud(320, 0.07, 9, 0.16),
+    // 선반에 올린다
+    keep: () => { thud(420, 0.18, 5, 0.26); tone(659.25, 0.4, 0.06, 0.02, 'sine'); },
+    tap: () => tone(700, 0.10, 0.04, 0, 'sine'),
+    // 찌르는 소리. 속이 빈 펠트라 낮고 짧다
+    poke: () => { thud(430, 0.10, 7, 0.26); tone(330, 0.16, 0.04, 0.01, 'sine'); },
+    toggle: () => { on = !on; if (on) ready(); return on; },
+    start: () => { ready(); }
+  };
+})();
+
+/* ---------- 인형 명세 ----------
+   저장하는 것은 이 명세뿐이다. 움직임은 저장하지 않는다 — 움직임은 결과가 아니라
+   명세의 함수여야 하고, 그래야 선반에서 다시 꺼내도 같은 인형이 같은 걸음으로 걷는다. */
+/* 길이와 두께는 **몸통 반지름 단위**다. 화면 폭 기준으로 뒀더니 팔다리가 몸통만큼
+   굵고 두 배로 길어져서, 인형이 아니라 소시지 더미로 그려졌다. 부품은 몸통에 딸린
+   것이므로 몸통을 기준으로 재야 한다. */
+const KINDS = {
+  leg:  { seg: 2, minLen: 1.00, maxLen: 1.85, w: 0.30 },
+  arm:  { seg: 2, minLen: 0.65, maxLen: 1.25, w: 0.26 },
+  ear:  { seg: 1, minLen: 0.45, maxLen: 1.05, w: 0.34 },
+  horn: { seg: 1, minLen: 0.35, maxLen: 0.75, w: 0.20 },
+  tail: { seg: 3, minLen: 0.90, maxLen: 1.70, w: 0.20 }
+};
+const NAME_A = ['Pom', 'Bib', 'Nub', 'Wol', 'Tuf', 'Mog', 'Bun', 'Sog', 'Pud', 'Fen', 'Lop', 'Dob'];
+const NAME_B = ['kin', 'let', 'bee', 'ling', 'som', 'ret', 'nut', 'per', 'wick', 'mus', 'ble', 'dle'];
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+// 쟁반이 곧 다양성이다. 구조를 생성 단계에서 흩어 놓아야 모든 인형이 달라진다.
+function makeTray() {
+  const hue = pick(HUES);
+  const legs = pick([1, 2, 2, 2, 3, 3, 4]);
+  const arms = pick([0, 0, 1, 2, 2]);
+  const ears = pick([0, 1, 2, 2]);
+  const horns = pick([0, 0, 0, 1]);
+  const tails = pick([0, 1, 1]);
+  const parts = [];
+  const add = (kind, n) => {
+    for (let i = 0; i < n; i++) {
+      const K = KINDS[kind];
+      parts.push({ kind, len: rnd(K.minLen, K.maxLen), hue: i % 2 ? hue : shade(hue, 0.92) });
+    }
+  };
+  add('leg', legs); add('arm', arms); add('ear', ears); add('horn', horns); add('tail', tails);
+  // 얼굴은 항상 마지막에 남는다 — 눈을 어디에 찍느냐가 성격을 정하고, 그게 마지막 결정이어야 한다
+  parts.push({ kind: 'eye' }, { kind: 'eye' }, { kind: 'mouth' });
+  return { hue, bodyR: rnd(0.19, 0.27), parts };
+}
+function shade(hex, k) {
+  const c = [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16));
+  return '#' + c.map(v => Math.round(Math.min(255, v * k)).toString(16).padStart(2, '0')).join('');
+}
+const makeName = () => pick(NAME_A) + pick(NAME_B);
+
+/* ---------- 상태 ---------- */
+let screen = 'make';            // make | alive | shelf
+let tray = null;                // 남은 부품
+let built = null;               // 만들고 있는 인형 명세
+let trayIdx = 0;
+let creature = null;            // 물리 인스턴스
+let shelf = [];
+let attached = 0;               // 게이트가 읽는 진행도 — 인형이 바뀌어도 줄지 않는다
+let aliveT = 0, wakeFlash = 0;
+let state = 'playing', tick = 0, T = 0, muted = false;
+
+const SAVE = 'feltfoot.v1';
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE) || '{}');
+    shelf = Array.isArray(s.shelf) ? s.shelf.slice(0, 12) : [];
+  } catch { /* 저장이 깨졌으면 빈 선반부터. 잃을 것이 없는 게임이라 사고가 아니다 */ }
+}
+const save = () => { try { localStorage.setItem(SAVE, JSON.stringify({ shelf })); } catch {} };
+
+function newCreature() {
+  tray = makeTray();
+  built = { bodyR: tray.bodyR, hue: tray.hue, parts: [], face: { eyes: [], mouth: null }, name: makeName() };
+  trayIdx = 0;
+  screen = 'make';
+  creature = null;
+  updateHud();
+}
+
+/* ---------- 배치 ---------- */
+let BODY = { x: 0, y: 0, r: 0 }, GROUND = 0, TRAY_Y = 0;
+function layout() {
+  if (!W || !H) return;
+  BODY = { x: W * 0.5, y: H * 0.40, r: W * (built ? built.bodyR : 0.18) };
+  GROUND = H * 0.80;
+  TRAY_Y = H * 0.845;
+}
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  SW = Math.max(1, Math.round(rect.width));
+  H = Math.max(1, Math.round(rect.height));
+  W = Math.min(SW, Math.round(H * BAND));
+  OX = Math.round((SW - W) / 2);
+  canvas.width = Math.round(SW * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, OX * dpr, 0);
+  layout();
+}
+window.addEventListener('resize', resize);
+
+/* ---------- 물리 ----------
+   몸통은 삼각형 세 입자다. 한 점으로 두면 회전이 없어서 기울지도 넘어지지도 못하고,
+   그러면 짝짝이 다리가 걸음에 아무 영향을 주지 못한다 — 이 게임이 통째로 사라진다. */
+const GRAV = 1900;
+const DAMP = 0.992;
+
+function buildCreature(spec) {
+  const R = W * spec.bodyR;
+  const pts = [], cons = [];
+  const addP = (x, y, inv = 1) => (pts.push({ x, y, px: x, py: y, inv }), pts.length - 1);
+  const addC = (a, b, k = 1) => cons.push({ a, b, len: Math.hypot(pts[a].x - pts[b].x, pts[a].y - pts[b].y), k });
+
+  const legLens = spec.parts.filter(p => p.kind === 'leg').map(p => R * p.len);
+  const stand = legLens.length ? Math.max(...legLens) : R * 0.9;
+  const cx = W * 0.5, cy = GROUND - (stand + R * 0.72);
+  // 몸통 삼각형
+  const body = [];
+  for (let i = 0; i < 3; i++) {
+    const a = -Math.PI / 2 + i * (Math.PI * 2 / 3);
+    body.push(addP(cx + Math.cos(a) * R * 0.62, cy + Math.sin(a) * R * 0.62));
+  }
+  addC(body[0], body[1]); addC(body[1], body[2]); addC(body[2], body[0]);
+
+  const legs = [];
+  const limbs = [];
+  for (const part of spec.parts) {
+    const K = KINDS[part.kind];
+    if (!K) continue;
+    const L = R * part.len;
+    // 부착점을 몸통 국소좌표에서 월드로
+    const ax = cx + part.u * R, ay = cy + part.v * R;
+    // 방향: 다리는 아래로, 귀·뿔은 위로, 그 밖은 부착 방향 그대로
+    let dir;
+    if (part.kind === 'leg') dir = { x: part.u * 0.25, y: 1 };
+    else if (part.kind === 'ear' || part.kind === 'horn') dir = { x: part.u * 0.4, y: -1 };
+    else dir = { x: part.u >= 0 ? 1 : -1, y: 0.25 };
+    const dl = Math.hypot(dir.x, dir.y) || 1; dir.x /= dl; dir.y /= dl;
+
+    const chain = [];
+    let prev = null;
+    for (let s = 0; s < K.seg; s++) {
+      const t = (s + 1) / K.seg;
+      const id = addP(ax + dir.x * L * t, ay + dir.y * L * t);
+      chain.push(id);
+      if (prev === null) {
+        // 뿌리를 몸통 세 점에 전부 묶는다 = 용접. 회전력이 몸통으로 전달된다
+        for (const b of body) addC(id, b, 0.9);
+      } else {
+        addC(prev, id, 1);
+      }
+      prev = id;
+    }
+    /* 무릎. 뿌리↔끝을 거의 편 길이로 묶어 다리가 버팀목이 되게 한다.
+       처음에 0.92 길이·강성 0.25로 뒀더니 다리가 그냥 접혀서 인형이 바닥에 주저앉았다 —
+       발을 땅에 고정해도 다리가 접히면 몸을 들어 올리는 것이 아무것도 없다.
+       꼬리는 반대로 헐거워야 흔들린다. */
+    if (K.seg > 1) {
+      const stiff = part.kind === 'tail' ? 0.12 : 0.55;
+      const rest = part.kind === 'tail' ? L * 0.80 : L * 0.96;
+      cons.push({ a: chain[0], b: chain[chain.length - 1], len: rest, k: stiff });
+    }
+    const limb = { kind: part.kind, chain, hue: part.hue, w: K.w, u: part.u, v: part.v, len: L };
+    limbs.push(limb);
+    if (part.kind === 'leg') legs.push(limb);
+  }
+  // 다리를 국소 x 순으로 정렬해 위상을 교대로 준다 — 이게 '걷는 것처럼' 보이게 하는 전부다
+  legs.sort((a, b) => a.u - b.u);
+  legs.forEach((l, i) => { l.phase = (i % 2) * Math.PI; l.planted = null; });
+
+  // 설 높이와 걷는 속도는 다리에서 나온다. 다리가 없으면 서지도 가지도 않는다.
+  const standH = legLens.length ? Math.max(...legLens) * 0.86 + R * 0.62 : R * 0.66;
+  const speed = legLens.length ? W * 0.145 * Math.min(1, legLens.length / 2) : 0;
+  return { spec, R, pts, cons, body, limbs, legs, born: 0, walkX: cx, standH, speed, dir: 1 };
+}
+
+function frameOf(cr) {
+  const [a, b, c] = cr.body.map(i => cr.pts[i]);
+  const cx = (a.x + b.x + c.x) / 3, cy = (a.y + b.y + c.y) / 3;
+  let ex = a.x - cx, ey = a.y - cy;
+  const L = Math.hypot(ex, ey) || 1;
+  ex /= L; ey /= L;
+  return { cx, cy, ex, ey, nx: -ey, ny: ex };
+}
+
+function stepPhysics(cr, dt) {
+  const sub = Math.min(dt, 1 / 50);
+  for (const p of cr.pts) {
+    if (!p.inv) continue;
+    let vx = (p.x - p.px) * DAMP, vy = (p.y - p.py) * DAMP;
+    // 터지지 않게 속도를 자른다. 한 번 폭발하면 인형이 아니라 오류로 보인다
+    const v = Math.hypot(vx, vy), cap = W * 0.06;
+    if (v > cap) { vx *= cap / v; vy *= cap / v; }
+    p.px = p.x; p.py = p.y;
+    p.x += vx; p.y += vy + GRAV * sub * sub;
+  }
+
+  /* 걸음.
+     처음에는 몸통에 앞으로 가는 속도를 직접 더했다. 다리를 뻣뻣하게 만들자 그 힘이
+     인형을 화면 밖으로 쏘아 보냈고, 팔다리가 엉켰다 — 물리로만 걷게 하면 튜닝해야 할
+     것이 너무 많고, 한 번 터지면 인형이 아니라 오류로 보인다.
+
+     그래서 몸통은 목표점을 향해 부드럽게 당기고(운동학), 다리는 진짜 물리로 둔다.
+     걸음의 우스꽝스러움은 여기서 나온다: 다리 길이가 다르면 몸통이 목표 높이로
+     못 올라가고 매 걸음 기울며, 다리가 한쪽에 몰려 있으면 그쪽으로 끌린다. */
+  const gait = cr.born * 4.2;
+  const f0 = frameOf(cr);
+  if (cr.legs.length) {
+    /* 화면 밖으로 나가면 볼 수가 없다. 끝에 닿으면 돌아선다 — 왔다 갔다 하는 것이
+       한 방향으로 사라지는 것보다 보기에도 낫고, 클립으로 잘라도 항상 화면 안에 있다. */
+    cr.walkX += cr.speed * cr.dir * sub;
+    if (cr.walkX > W * 0.76) { cr.walkX = W * 0.76; cr.dir = -1; }
+    if (cr.walkX < W * 0.24) { cr.walkX = W * 0.24; cr.dir = 1; }
+    const stride = cr.R * 0.55;
+    for (const leg of cr.legs) {
+      const foot = cr.pts[leg.chain[leg.chain.length - 1]];
+      const s = Math.sin(gait + leg.phase);
+      if (s < 0) {
+        if (!leg.planted) leg.planted = { x: foot.x, y: GROUND };
+        foot.x = leg.planted.x; foot.y = leg.planted.y;
+        foot.px = foot.x; foot.py = foot.y;
+      } else {
+        if (leg.planted) { leg.planted = null; if (cr.born > 0.6) Sfx.step(); }
+        const ax = f0.cx + leg.u * cr.R * f0.ex + leg.v * cr.R * f0.nx;
+        const tx = ax + stride * s;
+        const ty = GROUND - Math.sin(s * Math.PI) * leg.len * 0.30;
+        foot.x += (tx - foot.x) * 0.30;
+        foot.y += (ty - foot.y) * 0.30;
+      }
+    }
+  }
+  // 몸통을 목표로 당긴다. 약하게 — 세게 당기면 다리가 하는 말이 안 들린다
+  const targetY = GROUND - cr.standH + Math.sin(gait * 2) * cr.R * 0.05;
+  const dx = cr.walkX - f0.cx, dy = targetY - f0.cy;
+  for (const i of cr.body) {
+    cr.pts[i].x += dx * 0.055;
+    cr.pts[i].y += dy * 0.050;
+  }
+
+  for (let it = 0; it < 4; it++) {
+    for (const c of cr.cons) {
+      const a = cr.pts[c.a], b = cr.pts[c.b];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.hypot(dx, dy) || 1e-6;
+      const diff = ((d - c.len) / d) * c.k * 0.5;
+      const wa = a.inv, wb = b.inv, ws = wa + wb || 1;
+      a.x += dx * diff * (wa / ws) * 2 * (wa / (wa + wb || 1) ? 1 : 1);
+      a.y += dy * diff * (wa / ws) * 2;
+      b.x -= dx * diff * (wb / ws) * 2;
+      b.y -= dy * diff * (wb / ws) * 2;
+    }
+    for (const p of cr.pts) {
+      if (p.y > GROUND) {
+        p.y = GROUND;
+        p.px = p.x + (p.px - p.x) * 0.55;    // 마찰
+      }
+    }
+  }
+  // 화면 밖으로 나가면 반대편에서 다시 들어온다. 놓치는 것이 이 게임에서 가장 아까운 일이다
+  // 그래도 물리가 튀어 멀리 가면 데려온다. 놓치는 것이 이 게임에서 가장 아까운 일이다
+  const f = frameOf(cr);
+  if (f.cx < -cr.R || f.cx > W + cr.R) {
+    const shift = cr.walkX - f.cx;
+    for (const p of cr.pts) { p.x += shift; p.px += shift; }
+    for (const leg of cr.legs) if (leg.planted) leg.planted.x += shift;
+  }
+}
+
+/* ---------- 그리기 ---------- */
+function feltBlob(x, y, rx, ry, fill, seed, rot = 0) {
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(rot);
+  ctx.beginPath();
+  for (let a = 0; a <= Math.PI * 2 + 0.01; a += Math.PI / 14) {
+    const k = 1 + Math.sin(a * 3 + seed) * 0.05 + Math.sin(a * 7 + seed * 2) * 0.02;
+    const px = Math.cos(a) * rx * k, py = Math.sin(a) * ry * k;
+    a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.clip();
+  const g = ctx.createLinearGradient(0, -ry, 0, ry);
+  g.addColorStop(0, 'rgba(255,255,255,.30)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(85,65,48,.24)');
+  ctx.fillStyle = g; ctx.fillRect(-rx * 1.4, -ry * 1.4, rx * 2.8, ry * 2.8);
+  ctx.restore();
+}
+
+function feltLimb(x0, y0, x1, y1, w, hue) {
+  const a = Math.atan2(y1 - y0, x1 - x0);
+  const L = Math.hypot(x1 - x0, y1 - y0);
+  ctx.save();
+  ctx.translate((x0 + x1) / 2, (y0 + y1) / 2); ctx.rotate(a);
+  ctx.beginPath();
+  ctx.roundRect(-L / 2 - w * 0.2, -w / 2, L + w * 0.4, w, w * 0.5);
+  ctx.fillStyle = hue; ctx.fill();
+  ctx.clip();
+  const g = ctx.createLinearGradient(0, -w / 2, 0, w / 2);
+  g.addColorStop(0, 'rgba(255,255,255,.28)');
+  g.addColorStop(1, 'rgba(85,65,48,.24)');
+  ctx.fillStyle = g; ctx.fillRect(-L, -w, L * 2, w * 2);
+  ctx.restore();
+  // 시침질 한 줄
+  ctx.save();
+  ctx.setLineDash([Math.max(2, w * 0.3), Math.max(2.5, w * 0.36)]);
+  ctx.lineWidth = Math.max(1, w * 0.12); ctx.strokeStyle = 'rgba(255,255,255,.45)';
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  ctx.restore();
+}
+
+function drawCreature(cr, alpha = 1) {
+  ctx.save(); ctx.globalAlpha = alpha;
+  const f = frameOf(cr);
+  const rot = Math.atan2(f.ey, f.ex) + Math.PI / 2;
+
+  // 접지 그림자
+  ctx.save(); ctx.globalAlpha = alpha * 0.12; ctx.fillStyle = '#4b3f31';
+  ctx.beginPath(); ctx.ellipse(f.cx, GROUND + cr.R * 0.06, cr.R * 0.95, cr.R * 0.16, 0, 0, 7); ctx.fill();
+  ctx.restore();
+
+  // 뒤쪽 부품(꼬리·귀)을 먼저
+  for (const l of cr.limbs) {
+    if (l.kind === 'leg' || l.kind === 'arm') continue;
+    drawLimb(cr, l);
+  }
+  // 몸통
+  feltBlob(f.cx, f.cy, cr.R, cr.R * 0.92, cr.spec.hue, 3.1, rot);
+  // 앞쪽 부품
+  for (const l of cr.limbs) {
+    if (l.kind !== 'leg' && l.kind !== 'arm') continue;
+    drawLimb(cr, l);
+  }
+  drawFace(cr, f, rot);
+  ctx.restore();
+}
+function drawLimb(cr, l) {
+  const w = cr.R * l.w;
+  const f = frameOf(cr);
+  let x0 = f.cx + l.u * cr.R * f.ex + l.v * cr.R * f.nx;
+  let y0 = f.cy + l.u * cr.R * f.ey + l.v * cr.R * f.ny;
+  for (const id of l.chain) {
+    const p = cr.pts[id];
+    feltLimb(x0, y0, p.x, p.y, w, l.hue);
+    x0 = p.x; y0 = p.y;
+  }
+  if (l.kind === 'leg') {
+    const tip = cr.pts[l.chain[l.chain.length - 1]];
+    feltBlob(tip.x, tip.y, w * 0.72, w * 0.52, shade(l.hue, 0.9), 1.4);
+  }
+}
+function drawFace(cr, f, rot) {
+  const s = cr.spec;
+  const place = (u, v) => ({
+    x: f.cx + u * cr.R * f.ex + v * cr.R * f.nx,
+    y: f.cy + u * cr.R * f.ey + v * cr.R * f.ny
+  });
+  ctx.fillStyle = P.ink;
+  for (const e of s.face.eyes) {
+    const p = place(e.u, e.v);
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, cr.R * 0.125, cr.R * 0.145, rot, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(p.x + cr.R * 0.035, p.y - cr.R * 0.04, cr.R * 0.032, 0, 7); ctx.fill();
+    ctx.fillStyle = P.ink;
+  }
+  if (s.face.mouth) {
+    const p = place(s.face.mouth.u, s.face.mouth.v);
+    ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1.6, cr.R * 0.05); ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - cr.R * 0.06, cr.R * 0.13, Math.PI * 0.18 + rot, Math.PI * 0.82 + rot);
+    ctx.stroke();
+  }
+}
+
+/* ---------- 만들기 화면 ---------- */
+function trayRect(i) {
+  const n = Math.min(4, tray.parts.length - trayIdx);
+  const slotW = W / 4;
+  return { x: i * slotW, y: TRAY_Y - W * 0.11, w: slotW, h: W * 0.22 };
+}
+function drawMake() {
+  // 작업대
+  ctx.fillStyle = P.sky; ctx.fillRect(-OX, 0, SW, H);
+  ctx.fillStyle = P.bench;
+  ctx.beginPath(); ctx.roundRect(-OX, TRAY_Y - W * 0.135, SW, H, 0); ctx.fill();
+  ctx.save();
+  ctx.setLineDash([6, 7]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(120,102,76,.4)';
+  ctx.beginPath(); ctx.moveTo(-OX, TRAY_Y - W * 0.135); ctx.lineTo(SW - OX, TRAY_Y - W * 0.135); ctx.stroke();
+  ctx.restore();
+
+  // 만들고 있는 몸통
+  const R = W * built.bodyR;
+  ctx.save(); ctx.globalAlpha = 0.12; ctx.fillStyle = '#4b3f31';
+  ctx.beginPath(); ctx.ellipse(BODY.x, BODY.y + R * 1.02, R * 0.9, R * 0.16, 0, 0, 7); ctx.fill();
+  ctx.restore();
+
+  // 이미 붙인 부품 (몸통 뒤 → 몸통 → 앞)
+  const drawPart = (p) => {
+    const K = KINDS[p.kind];
+    if (!K) return;
+    const L = R * p.len, w = R * K.w;
+    let dir;
+    if (p.kind === 'leg') dir = { x: p.u * 0.25, y: 1 };
+    else if (p.kind === 'ear' || p.kind === 'horn') dir = { x: p.u * 0.4, y: -1 };
+    else dir = { x: p.u >= 0 ? 1 : -1, y: 0.25 };
+    const dl = Math.hypot(dir.x, dir.y) || 1;
+    const x0 = BODY.x + p.u * R, y0 = BODY.y + p.v * R;
+    feltLimb(x0, y0, x0 + dir.x / dl * L, y0 + dir.y / dl * L, w, p.hue);
+    if (p.kind === 'leg') feltBlob(x0 + dir.x / dl * L, y0 + dir.y / dl * L, w * 0.72, w * 0.52, shade(p.hue, 0.9), 1.4);
+  };
+  for (const p of built.parts) if (p.kind !== 'leg' && p.kind !== 'arm') drawPart(p);
+  feltBlob(BODY.x, BODY.y, R, R * 0.92, built.hue, 3.1);
+  for (const p of built.parts) if (p.kind === 'leg' || p.kind === 'arm') drawPart(p);
+
+  ctx.fillStyle = P.ink;
+  for (const e of built.face.eyes) {
+    ctx.beginPath(); ctx.ellipse(BODY.x + e.u * R, BODY.y + e.v * R, R * 0.125, R * 0.145, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(BODY.x + e.u * R + R * 0.035, BODY.y + e.v * R - R * 0.04, R * 0.032, 0, 7); ctx.fill();
+    ctx.fillStyle = P.ink;
+  }
+  if (built.face.mouth) {
+    ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1.6, R * 0.05); ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(BODY.x + built.face.mouth.u * R, BODY.y + built.face.mouth.v * R - R * 0.06, R * 0.13, Math.PI * 0.18, Math.PI * 0.82);
+    ctx.stroke();
+  }
+
+  // 아직 한 번도 안 붙였으면 몸통이 숨쉰다. 글자 없이 "여기를 눌러라"가 되는 유일한 방법이다
+  if (trayIdx === 0) {
+    const a = 0.30 + Math.sin(T * 3.2) * 0.22;
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.strokeStyle = '#fbf5e6'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(BODY.x, BODY.y, R * (1.16 + Math.sin(T * 3.2) * 0.05), R * (1.10 + Math.sin(T * 3.2) * 0.05), 0, 0, 7);
+    ctx.stroke(); ctx.restore();
+  }
+
+  // 다음에 붙일 부품 — 쟁반에서 하나씩 나온다. 고르게 하면 결정이 늘고 초캐주얼이 아니게 된다
+  const up = tray.parts[trayIdx];
+  if (up) {
+    const bob = Math.sin(T * 3) * W * 0.008;
+    const cx = W * 0.5, cy = TRAY_Y + bob;
+    ctx.save();
+    ctx.globalAlpha = 0.5; ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.roundRect(cx - W * 0.20, cy - W * 0.075, W * 0.40, W * 0.15, 18); ctx.fill();
+    ctx.restore();
+    drawTrayIcon(up, cx, cy);
+    /* 부품 이름을 적는다. 다리인지 귀인지 모르면 어디에 붙일지도 결정이 아니게 된다 —
+       이 게임의 유일한 결정이 그것이라 한 단어는 낼 값이 있다. */
+    ctx.fillStyle = 'rgba(74,63,53,.75)';
+    ctx.font = `800 ${Math.round(W * 0.036)}px ui-rounded, system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(up.kind.toUpperCase(), cx, cy + W * 0.100);
+    ctx.fillStyle = 'rgba(74,63,53,.42)';
+    ctx.font = `700 ${Math.round(W * 0.026)}px ui-rounded, system-ui, sans-serif`;
+    ctx.fillText(`${tray.parts.length - trayIdx} LEFT`, cx, cy + W * 0.140);
+  }
+}
+function drawTrayIcon(part, cx, cy) {
+  const K = KINDS[part.kind];
+  if (K) {
+    const R0 = W * (built ? built.bodyR : 0.18);
+    const w = R0 * K.w, L = R0 * Math.min(part.len, 1.5);
+    feltLimb(cx - L / 2, cy, cx + L / 2, cy, w, part.hue);
+    return;
+  }
+  if (part.kind === 'eye') {
+    ctx.fillStyle = P.ink;
+    ctx.beginPath(); ctx.ellipse(cx, cy, W * 0.022, W * 0.026, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(cx + W * 0.008, cy - W * 0.009, W * 0.007, 0, 7); ctx.fill();
+  } else {
+    ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(2, W * 0.010); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(cx, cy - W * 0.012, W * 0.030, Math.PI * 0.18, Math.PI * 0.82); ctx.stroke();
+  }
+}
+
+/* ---------- 살아난 화면 ---------- */
+function drawWorld() {
+  const g = ctx.createLinearGradient(0, 0, 0, GROUND);
+  g.addColorStop(0, P.sky); g.addColorStop(1, '#eaeedc');
+  ctx.fillStyle = g; ctx.fillRect(-OX, 0, SW, H);
+  ctx.fillStyle = P.ground;
+  ctx.fillRect(-OX, GROUND, SW, H - GROUND);
+  ctx.save();
+  ctx.setLineDash([6, 7]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(251,245,230,.7)';
+  ctx.beginPath(); ctx.moveTo(-OX, GROUND + 4); ctx.lineTo(SW - OX, GROUND + 4); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = P.groundDark;
+  for (let i = 0; i < 4; i++) {
+    const x = ((i * 137) % 100) / 100 * W;
+    feltBlob(x, GROUND + (H - GROUND) * (0.35 + (i % 2) * 0.3), W * 0.14, (H - GROUND) * 0.10, P.groundDark, i * 2);
+  }
+}
+
+/* ---------- 선반 ---------- */
+function shelfCell(i) {
+  const cols = 3, cw = W / cols, ch = cw * 1.05;
+  return { x: (i % cols) * cw, y: H * 0.06 + Math.floor(i / cols) * ch, w: cw, h: ch };
+}
+function drawShelf() {
+  ctx.fillStyle = P.sky; ctx.fillRect(-OX, 0, SW, H);
+  ctx.fillStyle = 'rgba(74,63,53,.62)';
+  ctx.font = `800 ${Math.round(W * 0.040)}px ui-rounded, system-ui, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(shelf.length ? 'YOUR SHELF' : 'NOTHING ON THE SHELF YET', W * 0.5, H * 0.032);
+  const rows = Math.ceil(shelf.length / 3);
+  for (let r = 0; r < rows; r++) {
+    const c0 = shelfCell(r * 3);
+    ctx.fillStyle = '#ded3b8';
+    ctx.fillRect(-OX, c0.y + c0.h - W * 0.03, SW, W * 0.026);
+  }
+  for (let i = 0; i < shelf.length; i++) {
+    const cell = shelfCell(i);
+    const sp = shelf[i];
+    drawStatic(sp, cell.x + cell.w / 2, cell.y + cell.h * 0.58, cell.w * 0.34);
+    ctx.fillStyle = 'rgba(74,63,53,.55)';
+    ctx.font = `700 ${Math.round(W * 0.028)}px ui-rounded, system-ui, sans-serif`;
+    ctx.fillText(sp.name, cell.x + cell.w / 2, cell.y + cell.h * 0.90);
+  }
+}
+// 선반용 정지 포즈. 물리를 돌리지 않고 명세만으로 그린다
+function drawStatic(sp, x, y, r) {
+  const drawP = (p) => {
+    const K = KINDS[p.kind]; if (!K) return;
+    const L = r * p.len, w = r * K.w;
+    let dir;
+    if (p.kind === 'leg') dir = { x: p.u * 0.25, y: 1 };
+    else if (p.kind === 'ear' || p.kind === 'horn') dir = { x: p.u * 0.4, y: -1 };
+    else dir = { x: p.u >= 0 ? 1 : -1, y: 0.25 };
+    const dl = Math.hypot(dir.x, dir.y) || 1;
+    const x0 = x + p.u * r, y0 = y + p.v * r;
+    feltLimb(x0, y0, x0 + dir.x / dl * L, y0 + dir.y / dl * L, w, p.hue);
+  };
+  ctx.save(); ctx.globalAlpha = 0.12; ctx.fillStyle = '#4b3f31';
+  ctx.beginPath(); ctx.ellipse(x, y + r * 1.4, r * 0.85, r * 0.14, 0, 0, 7); ctx.fill();
+  ctx.restore();
+  for (const p of sp.parts) if (p.kind !== 'leg' && p.kind !== 'arm') drawP(p);
+  feltBlob(x, y, r, r * 0.92, sp.hue, 3.1);
+  for (const p of sp.parts) if (p.kind === 'leg' || p.kind === 'arm') drawP(p);
+  ctx.fillStyle = P.ink;
+  for (const e of sp.face.eyes) {
+    ctx.beginPath(); ctx.ellipse(x + e.u * r, y + e.v * r, r * 0.10, r * 0.115, 0, 0, 7); ctx.fill();
+  }
+}
+
+/* ---------- 프레임 ---------- */
+function draw(dt) {
+  ctx.clearRect(-OX, 0, SW, H);
+  if (screen === 'make') drawMake();
+  else if (screen === 'alive') {
+    drawWorld();
+    if (creature) drawCreature(creature);
+    if (wakeFlash > 0) {
+      ctx.save(); ctx.globalAlpha = wakeFlash * 0.35;
+      ctx.fillStyle = '#fff'; ctx.fillRect(-OX, 0, SW, H); ctx.restore();
+    }
+    ctx.fillStyle = 'rgba(74,63,53,.5)';
+    ctx.font = `800 ${Math.round(W * 0.045)}px ui-rounded, system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(built ? built.name : '', W * 0.5, H * 0.075);
+  } else drawShelf();
+
+  if (fiber) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.globalAlpha = 0.5; ctx.fillStyle = fiber;
+    ctx.fillRect(-OX, 0, SW, H);
+    ctx.restore();
+  }
+  if (OX > 0) {
+    ctx.save(); ctx.fillStyle = 'rgba(74,63,53,.055)';
+    ctx.fillRect(-OX, 0, OX, H); ctx.fillRect(W, 0, OX + 2, H); ctx.restore();
+  }
+}
+
+/* ---------- 입력 ---------- */
+function pointAt(e) {
+  const rect = canvas.getBoundingClientRect();
+  const src = e.touches && e.touches[0] ? e.touches[0] : e;
+  return { x: src.clientX - rect.left - OX, y: src.clientY - rect.top };
+}
+function attachAt(x, y) {
+  const part = tray.parts[trayIdx];
+  if (!part) return;
+  const R = W * built.bodyR;
+  // 몸통 밖을 눌러도 가장자리로 당겨 붙인다. 못 붙이는 탭이 있으면 그게 유일한 답답함이다
+  let u = (x - BODY.x) / R, v = (y - BODY.y) / R;
+  const d = Math.hypot(u, v);
+  const lim = (part.kind === 'eye' || part.kind === 'mouth') ? 0.52 : 1.00;
+  if (d > lim) { u = u / d * lim; v = v / d * lim; }
+  if (part.kind === 'eye') built.face.eyes.push({ u, v });
+  else if (part.kind === 'mouth') built.face.mouth = { u, v };
+  else built.parts.push({ ...part, u, v });
+  trayIdx++; attached++;
+  Sfx.stitch(built.parts.length + built.face.eyes.length);
+  if (trayIdx >= tray.parts.length) snip();
+  updateHud();
+}
+function snip() {
+  if (screen !== 'make') return;
+  Sfx.snip();
+  creature = buildCreature(built);
+  screen = 'alive'; aliveT = 0; wakeFlash = 1;
+  setTimeout(() => Sfx.wake(), 220);
+  updateHud();
+}
+function keep() {
+  if (!built) return;
+  shelf.unshift({ ...built });
+  shelf = shelf.slice(0, 12);
+  save(); Sfx.keep();
+  newCreature();
+}
+/* 걷는 인형을 누르면 쿡 찔린다. 원래는 여기서 공유 카드를 띄웠는데, 뒤뚱거리는 것을
+   보고 있는 사람이 제일 하고 싶은 일은 그걸 건드려 보는 것이지 스크린샷을 저장하는 것이
+   아니다. 카드는 버튼으로 옮겼다. */
+function poke(x, y) {
+  if (!creature) return;
+  let best = null, bd = Infinity;
+  for (const p of creature.pts) {
+    const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+    if (d < bd) { bd = d; best = p; }
+  }
+  if (!best || bd > (creature.R * 2.4) ** 2) return;
+  const dx = best.x - x, dy = best.y - y;
+  const d = Math.hypot(dx, dy) || 1;
+  const k = creature.R * 0.13;
+  best.px -= dx / d * k;
+  best.py -= dy / d * k + creature.R * 0.05;
+  Sfx.poke();
+}
+
+function onDown(e) {
+  Sfx.start();
+  const { x, y } = pointAt(e);
+  if (screen === 'make') attachAt(x, y);
+  else if (screen === 'alive') poke(x, y);
+  else {
+    // 선반에서 탭하면 그 인형이 다시 걷는다
+    for (let i = 0; i < shelf.length; i++) {
+      const cell = shelfCell(i);
+      if (x >= cell.x && x <= cell.x + cell.w && y >= cell.y && y <= cell.y + cell.h) {
+        built = shelf[i];
+        creature = buildCreature(built);
+        screen = 'alive'; aliveT = 0; wakeFlash = 0.6;
+        Sfx.tap(); updateHud();
+        return;
+      }
+    }
+  }
+}
+canvas.addEventListener('pointerdown', onDown);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onDown(e); }, { passive: false });
+
+const actBtn = document.getElementById('actBtn');
+const shelfBtn = document.getElementById('shelfBtn');
+const cardBtn = document.getElementById('cardBtn');
+const hintEl = document.getElementById('hint');
+const madeEl = document.getElementById('made');
+function updateHud() {
+  madeEl.textContent = String(shelf.length);
+  if (screen === 'make') {
+    actBtn.hidden = built.parts.length + built.face.eyes.length === 0;
+    actBtn.textContent = 'Snip';
+    cardBtn.hidden = true;
+    hintEl.textContent = 'Sew it on';
+  } else if (screen === 'alive') {
+    actBtn.hidden = false; actBtn.textContent = 'Keep';
+    cardBtn.hidden = false;
+    hintEl.textContent = '';
+  } else {
+    cardBtn.hidden = true;
+    actBtn.hidden = false; actBtn.textContent = 'New';
+    hintEl.textContent = 'Tap one';
+  }
+  shelfBtn.textContent = screen === 'shelf' ? 'Back' : 'Shelf';
+}
+cardBtn.addEventListener('click', () => { Sfx.start(); openCard(); });
+actBtn.addEventListener('click', () => {
+  Sfx.start();
+  if (screen === 'make') snip();
+  else if (screen === 'alive') keep();
+  else newCreature();
+});
+shelfBtn.addEventListener('click', () => {
+  Sfx.start();
+  screen = screen === 'shelf' ? (creature ? 'alive' : 'make') : 'shelf';
+  updateHud();
+});
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', () => {
+  muted = !Sfx.toggle();
+  muteBtn.textContent = muted ? 'Sound Off' : 'Sound On';
+});
+
+/* ---------- 공유 카드 ----------
+   이 게임의 결과물은 움직임이라 정지 이미지가 절반만 전한다. 그래도 카드가 있어야 하는
+   이유는, 사람들이 실제로 올리는 것이 스크린샷이기 때문이다. 이름을 크게 싣는다. */
+const cardWrap = document.getElementById('cardWrap');
+const cardImg = document.getElementById('cardImg');
+const cardSave = document.getElementById('cardSave');
+let cardBlob = null;
+function openCard() {
+  const CW = 1080, CH = 1080;
+  const cv = document.createElement('canvas');
+  cv.width = CW; cv.height = CH;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#efe7d5'; g.fillRect(0, 0, CW, CH);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const srcW = W * dpr, srcH = Math.min(H, W) * dpr;
+  g.drawImage(canvas, OX * dpr, (H * dpr) - srcH, srcW, srcH, 0, 60, CW, CW * (srcH / srcW));
+  g.fillStyle = '#4a3f35';
+  g.font = '800 76px ui-rounded, "SF Pro Rounded", system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.fillText(built ? built.name : '', CW / 2, 118);
+  g.font = '700 30px ui-rounded, system-ui, sans-serif';
+  g.fillStyle = 'rgba(74,63,53,.6)';
+  g.fillText('just1game.com/games/feltfoot/', CW / 2, CH - 42);
+  cardImg.src = cv.toDataURL('image/png');
+  cv.toBlob((b) => {
+    cardBlob = b;
+    if (cardSave.href.startsWith('blob:')) URL.revokeObjectURL(cardSave.href);
+    cardSave.href = URL.createObjectURL(b);
+  }, 'image/png');
+  cardWrap.classList.add('open');
+}
+document.getElementById('cardClose').addEventListener('click', () => cardWrap.classList.remove('open'));
+cardWrap.addEventListener('click', (e) => { if (e.target === cardWrap) cardWrap.classList.remove('open'); });
+document.getElementById('cardShare').addEventListener('click', async () => {
+  if (!cardBlob) return;
+  const file = new File([cardBlob], 'my-feltfoot.png', { type: 'image/png' });
+  const data = { files: [file], text: `This is ${built ? built.name : 'my feltfoot'}.`,
+                 url: 'https://just1game.com/games/feltfoot/' };
+  try { if (navigator.canShare && navigator.canShare(data)) { await navigator.share(data); return; } }
+  catch { /* 사용자가 닫았거나 iframe이라 못 연다. 저장 버튼이 그대로 있다 */ }
+  cardSave.click();
+});
+
+/* ---------- 루프 ---------- */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; tick++; T += dt;
+  if (screen === 'alive' && creature) {
+    creature.born += dt;
+    aliveT += dt;
+    stepPhysics(creature, dt);
+  }
+  wakeFlash = Math.max(0, wakeFlash - dt * 2.2);
+  draw(dt);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 관측 계약 ----------
+   score에는 지금까지 꿰맨 부품 수를 싣는다. 인형이 바뀌어도 줄지 않아 진행으로 읽힌다. */
+window.__GAME__ = {
+  api: 1,
+  session: 'cozy',
+  get state() { return state; },
+  get score() { return attached; },
+  get tick() { return tick; },
+  get field() { return { x: OX, w: W, h: H, screenW: SW }; },
+  start() { state = 'playing'; },
+  pause() { state = 'paused'; },
+  resume() { state = 'playing'; }
+};
+
+/* 그럴듯하게 꿰맨 인형 하나를 자동으로 만든다. 썸네일·공유 카드를 찍을 때만 쓴다 —
+   만들다 만 화면을 찍으면 이 게임이 무엇인지 한 장도 말해주지 못한다(노트: thumbnail-that-lied).
+   실제로 게임이 만들어내는 프레임이라는 성질은 그대로다. */
+function autoBuild() {
+  const t = makeTray();
+  const spec = { bodyR: t.bodyR, hue: t.hue, parts: [], face: { eyes: [], mouth: null }, name: makeName() };
+  const legs = t.parts.filter(p => p.kind === 'leg');
+  const others = t.parts.filter(p => KINDS[p.kind] && p.kind !== 'leg');
+  legs.forEach((p, i) => {
+    const u = legs.length === 1 ? 0 : -0.55 + (1.1 * i) / (legs.length - 1);
+    spec.parts.push({ ...p, u, v: 0.62 });
+  });
+  others.forEach((p, i) => {
+    const side = i % 2 ? 1 : -1;
+    if (p.kind === 'ear' || p.kind === 'horn') spec.parts.push({ ...p, u: side * 0.34, v: -0.72 });
+    else if (p.kind === 'tail') spec.parts.push({ ...p, u: -0.92, v: 0.10 });
+    else spec.parts.push({ ...p, u: side * 0.88, v: 0.05 });
+  });
+  spec.face.eyes.push({ u: -0.26, v: -0.16 }, { u: 0.26, v: -0.16 });
+  spec.face.mouth = { u: 0, v: 0.18 };
+  return spec;
+}
+
+load();
+newCreature();
+if (new URLSearchParams(location.search).has('show')) {
+  built = autoBuild();
+  resize();
+  creature = buildCreature(built);
+  screen = 'alive';
+  updateHud();
+}
+makeFiber();
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
