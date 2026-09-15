@@ -42,11 +42,30 @@ const CHANGED_THRESHOLD = 12;
 
 // 타이틀 화면을 기준선으로 삼고, 거기서 처음으로 충분히 달라진 프레임을 고른다.
 // 게임오버는 플레이보다 뒤에 오므로 "가장 이른 변화 프레임"을 잡으면 자연히 배제된다.
+//
+// 그 규칙이 못 막는 경우가 하나 있다: 자동 테스터 손에서 1초 만에 죽는 게임. 표본을
+// 처음 뜨는 900ms에 이미 게임오버라 모든 후보가 게임오버다. 실측으로 잡았다 —
+// dino-jump 썸네일이 "GAME OVER / SCORE 9 / REPLAY"였고, neon-dodge는 "NO SIGNAL"이었다.
+//
+// 구분하는 방법은 픽셀 통계가 아니라 **움직임**이다. 플레이 중인 화면은 계속 바뀌고,
+// 게임오버 오버레이는 멈춰 있다. 후보를 하나 잡을 때마다 조금 뒤 화면과 비교해서,
+// 얼어 있으면 플레이가 아니라고 본다.
+const STILL_THRESHOLD = 1.2;   // 두 프레임 평균 절대차. 이 밑이면 화면이 멈춰 있다
+const STILL_GAP_MS = 260;
+
+async function isMoving(page, target, raw) {
+  await page.waitForTimeout(STILL_GAP_MS);
+  const later = await target.screenshot().catch(() => null);
+  if (!later) return true;                       // 못 찍었으면 판단하지 않는다
+  return (await frameDiff(raw, later)) >= STILL_THRESHOLD;
+}
+
 async function pickPlayFrame(page, target, baseline, fromMs) {
   let fallback = null;
   let fallbackDiff = -1;
   let prev = 0;
   let nudge = 0;
+  let sawStill = false;
 
   // 화면이 그대로면 시작 트리거가 먹지 않은 것이다. 표본을 뜨는 사이사이에
   // 다른 입력을 넣어 재시도한다(방향키로 움직이는 게임, 캔버스 내부 버튼 등).
@@ -64,12 +83,22 @@ async function pickPlayFrame(page, target, baseline, fromMs) {
     if (!raw) continue;
 
     const diff = await frameDiff(baseline, raw);
-    if (diff >= CHANGED_THRESHOLD) return { raw, diff, at };
+    // 어떤 프레임이든 차선책으로는 남긴다. 전부 거절해서 한 장도 못 건지면
+    // 썸네일이 통째로 없어지고 빌드가 멈춘다 — 실제로 그렇게 깨뜨렸다.
     if (diff > fallbackDiff) { fallback = raw; fallbackDiff = diff; }
+
+    if (diff >= CHANGED_THRESHOLD) {
+      if (await isMoving(page, target, raw)) return { raw, diff, at };
+      // 멈춘 화면이다 — 게임오버이거나 덮개다. 다시 시작시키고 다음 표본으로 간다.
+      sawStill = true;
+      await triggerStart(page).catch(() => {});
+      await clickStartButton(page).catch(() => {});
+      continue;
+    }
 
     if (nudge < NUDGES.length) await NUDGES[nudge++]().catch(() => {});
   }
-  return fallback ? { raw: fallback, diff: fallbackDiff, at: null } : null;
+  return fallback ? { raw: fallback, diff: fallbackDiff, at: null, sawStill } : null;
 }
 
 /* 게임이 자기를 "가장 잘 보여주는 상태"로 열 수 있게 한다. games.json 의 captureQuery 가
@@ -93,10 +122,24 @@ async function shoot(browser, slug, fromMs, query) {
 
   const out = thumbPath(slug);
   await mkdir(path.dirname(out), { recursive: true });
-  await sharp(picked.raw)
-    .resize(WIDTH, HEIGHT, { fit: 'cover', position: 'centre' })
+  /* 타일에서 읽히게 만든다.
+     홈이 138px 타일 격자로 바뀌자 어두운 게임 19개가 전부 까만 사각형으로 보였다.
+     측정해 보니 space-shooter 썸네일의 평균 밝기가 255 중 1.3이었다 — 게임은 멀쩡한데
+     손톱만 한 크기로 줄이면 아무것도 안 보인다. 어두운 것만 골라 조금 올린다.
+     내용을 바꾸지 않는다: 밝기와 채도만 움직이고, 밝은 게임은 손대지 않는다. */
+  const base = sharp(picked.raw).resize(WIDTH, HEIGHT, { fit: 'cover', position: 'centre' });
+  const stats = await base.clone().greyscale().stats();
+  const mean = stats.channels[0].mean;
+  const TILE_FLOOR = 46;
+  const lift = mean < TILE_FLOOR ? Math.min(2.2, TILE_FLOOR / Math.max(mean, 6)) : 1;
+  await base
+    .modulate(lift > 1 ? { brightness: lift, saturation: 1.12 } : {})
     .webp({ quality: 82 })
     .toFile(out);
+  if (lift > 1) console.log(`     lifted ${slug}: mean ${mean.toFixed(1)} -> x${lift.toFixed(2)}`);
+  if (picked.sawStill && picked.at === null) {
+    console.warn(`     !  ${slug}: every changed frame was frozen — this thumbnail may be a game-over screen`);
+  }
 
   await page.close();
   return { out, diff: picked.diff.toFixed(1), at: picked.at };

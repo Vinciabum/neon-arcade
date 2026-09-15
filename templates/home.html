@@ -11,22 +11,21 @@
 <main class="main-content">
 {{NAV}}
 
-  <section class="hero">
-    <div class="hero-pattern"></div>
-    <div class="hero-text">
-      <p style="color:#fff;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Newest game</p>
-      <h1>{{FEATURED_TITLE}}</h1>
-      <p>{{FEATURED_TAGLINE}}</p>
-      <a class="play-btn" href="{{FEATURED_URL}}">PLAY NOW</a>
-    </div>
-    <a class="hero-shot" href="{{FEATURED_URL}}" tabindex="-1" aria-hidden="true">
+  <h1 class="page-title">Free browser games, every one made here</h1>
+
+  <a class="feature" href="{{FEATURED_URL}}">
+    <div class="feature-shot">
       <img src="/{{FEATURED_THUMB}}" alt="" width="480" height="640" decoding="async">
-    </a>
-  </section>
+    </div>
+    <div>
+      <div class="feature-name">{{FEATURED_TITLE}}</div>
+      <p>{{FEATURED_TAGLINE}}</p>
+      <span class="play-btn">Play now</span>
+    </div>
+  </a>
 
-  <h2 class="grid-header" id="games">All games</h2>
-
-  <div class="game-grid" id="gameGrid">
+  <h2 class="grid-header" id="games">All {{GAME_COUNT}} games</h2>
+  <div class="game-grid">
 {{CARDS}}
   </div>
 
@@ -44,21 +43,5 @@
     <p><a href="/">Games</a> · <a href="/notes/">Dev notes</a> · <a href="/about/">About</a> · <a href="/credits/">Credits</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy Policy</a></p>
   </footer>
 </main>
-
-<div class="modal-overlay" id="modal">
-  <div class="player-layout">
-    <div class="game-container">
-      <div class="game-frame-wrapper">
-        <iframe id="gameFrame" src="" title="Game player" style="width:100%;height:100%;border:none;"></iframe>
-      </div>
-      <div class="game-controls">
-        <div class="game-title-bar" id="playerTitle">Game</div>
-        <button class="close-btn-player" onclick="closeModal()">EXIT GAME</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script src="/assets/app.js"></script>
 </body>
 </html>

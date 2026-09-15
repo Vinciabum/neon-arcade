@@ -114,17 +114,17 @@ async function write(outPath, html) {
 
 // 카드 전체가 링크다. onclick만 걸면 크롤러가 따라갈 링크가 없고,
 // 키보드로도 열 수 없다 — 홈에서 랜딩으로 가는 유일한 경로가 본문 목록뿐이 된다.
+/* 타일 하나. 설명 문장을 빼고 이름 한 줄로 줄였다 — 카드마다 세 줄씩 달려 있으면
+   타일이 624px가 되고, 그러면 한 화면에 게임이 서너 개밖에 안 들어간다.
+   빠진 문장은 아래 목록 절에 그대로 남아 있어 읽을 것이 줄지 않는다. */
 function card(game) {
   return `      <article class="card">
-        <a class="card-link" href="${landingUrl(game.slug)}">
-          <div class="card-thumb">
+        <a class="card-link" href="${landingUrl(game.slug)}" aria-label="Play ${esc(game.title)}">
+          <span class="card-thumb">
             <img src="/${thumbPath(game.slug)}" alt="${esc(game.title)} gameplay screenshot" width="480" height="640" loading="lazy" decoding="async">
-          </div>
-          <div class="card-content">
-            <div class="card-tag">${esc(game.tag)}</div>
-            <div class="card-title">Play ${esc(game.title)}</div>
-            <p class="card-desc">${esc(game.tagline)}</p>
-          </div>
+          </span>
+          <span class="card-name">${esc(game.title)}</span>
+          <span class="card-tag">${esc(game.tag)}</span>
         </a>
       </article>`;
 }
@@ -149,6 +149,7 @@ async function buildHome(games, templates) {
     FEATURED_TAGLINE: esc(featured.tagline),
     FEATURED_URL: landingUrl(featured.slug),
     FEATURED_THUMB: thumbPath(featured.slug),
+    GAME_COUNT: String(games.length),
     FAQ: faqSection({ faq: HOME_FAQ }),
     CARDS: games.map(card).join('\n'),
     GAME_LIST: games.map(g =>
@@ -210,7 +211,8 @@ async function buildLanding(game, games, templates) {
     CONTROLS_TOUCH: esc(game.controls.touch),
     TIPS_BLOCK: tips,
     SHARE: shareBlock(game, { daily }),
-    RELATED_CARDS: related.map(card).join('\n')
+    RELATED_CARDS: related.map(card).join('\n'),
+    GAME_COUNT: String(games.length)
   });
   await write(landingOutPath(game.slug), html);
 }

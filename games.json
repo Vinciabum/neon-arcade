@@ -421,7 +421,8 @@
       "The trajectory is never drawn. That is the entire game: showing an aim line would turn a round of reading and judging into a round of tracing a line, and the tension of having exactly one shot would go with it. What you get instead is a twelve-degree spread cone, a wind vector, and fifteen seconds on the shot clock. Everything else you have to estimate.",
       "The course is not random. A deterministic <code>mulberry32</code> generator seeded from the UTC date builds one course that every player gets on a given day, which is what makes comparing a score meaningful. Obstacle gaps are not scattered either — they are placed along the ideal trajectory to the pin, derived from the parabola with <code>xFrac = 1 - sqrt(1 - hFrac)</code>, so the bars sit exactly where a perfect shot wants to be rather than wherever a random number generator put them.",
       "Physics runs six substeps per frame. With a single step per frame a fast ball can pass straight through a thin bar between one position and the next, and in a one-shot game that bug is indistinguishable from a lucky shot. This is also the game that made the automated play gate learn about <code>session: 'single-shot'</code>: a robot tester fires immediately and therefore always scores a terrible survival time, which said nothing about the game. The gate now judges whether the round gives a person time to think instead — <a href=\"/notes/making-a-game-testable/\">that mechanism is described here</a>."
-    ]
+    ],
+    "captureFromMs": 3800
   },
   {
     "slug": "lantern-keeper",
@@ -581,7 +582,8 @@
       "Difficulty is tied to score, not to a clock. The spawn interval closes as <code>max(20, 60 - score / 500)</code> frames and enemy speed carries a <code>score * 0.001</code> term, so a player who is shooting well is the reason the game gets harder. Surviving passively keeps the pressure flat, which makes the run length a function of skill rather than patience.",
       "Firing is automatic on a fifteen frame cycle. Removing the fire button leaves exactly one thing to think about, which is where the ship is — and in a game played with a thumb on a phone, a second control would cost more than it adds.",
       "There are no image files. The ship and the UFOs are SVG documents written inline in the source and base64-encoded into data URIs at load. It keeps the game a single self-contained file with zero network requests, which is the constraint every game on this site is built under: the same file that runs here can be handed to a portal without an asset bundle."
-    ]
+    ],
+    "captureFromMs": 3000
   },
   {
     "slug": "neon-dodge",
@@ -793,7 +795,8 @@
       "There is no way to lose. Clearing the board raises the level and deals a bigger one — pairs grow as <code>min(6 + level * 2, 18)</code> and the grid widens from four columns to five above ten pairs and six above fourteen. The scoring carries the pressure instead: a match is worth 100 times the current combo, and a single mismatch resets the combo to one. The interesting decision is therefore never whether to flip, it is whether you are confident enough to flip now.",
       "The timing numbers exist to let the animation finish. A match waits 400 milliseconds before scoring and a mismatch waits 800 before flipping back, because the cards are DOM elements with a 0.6 second CSS 3D transform and releasing the input lock early lets a player flip a card that is still visibly turning. Playing this one with a stopwatch shows a game that is mostly waiting for its own animation, which is the correct trade in a memory game.",
       "It is also the only game here rendered entirely with DOM elements rather than canvas, with a separate canvas layer used solely for particle effects. That made it one of the games that taught the automated harness to run keyboard and pointer input in separate passes: its reactivity measurement was zero until taps were added, and adding taps broke a different game in the catalogue completely."
-    ]
+    ],
+    "captureFromMs": 1500
   },
   {
     "slug": "data-fall",
@@ -846,7 +849,8 @@
       "A wrong answer costs nothing. There is an error tone, the input buffer clears, and that is the end of it — a deliberate choice rather than an oversight, because the game is already applying pressure through the falling drops and punishing a mistyped digit on top of that turns a thinking game into a typing test.",
       "When a typed answer matches more than one drop, the game destroys the lowest one. Drops are sorted by vertical position before matching, so answering a number that is on screen twice always removes the more urgent of the two. Without that, the game occasionally rewards a correct answer by clearing the safe copy and letting the dangerous one keep falling.",
       "The screen is never fully cleared. Each frame paints black at 20% alpha over the previous one instead of erasing, which produces the motion trail behind every drop for free. The exception is a breach: that draws one frame of solid white with no fade at all, because a flash that eases out reads as an effect and a flash that simply happens reads as damage."
-    ]
+    ],
+    "captureFromMs": 4500
   },
   {
     "slug": "synaptic-grid",
@@ -952,7 +956,8 @@
       "The player wraps around the screen edges instead of being clamped by them. That single choice changes the whole feel of a vertical climber: the left and right walls stop being obstacles and become a shortcut, and a platform that looked out of reach on one side is reachable by leaving on the other.",
       "Score is distance rather than events. It increments by the number of pixels the world has scrolled, so the number on screen is a direct readout of height and never has to be reconciled with a separate scoring rule. Platform generation keeps pace above the highest existing one at a spacing of 100 to 150 pixels with widths between 80 and 140, which keeps the climb possible without ever laying out a fixed route.",
       "The glow that travels along each platform is positioned from <code>performance.now()</code>, with a comment in the source explaining why: an earlier version advanced it per frame and ran at double speed on a 120Hz display. It is a small effect and it was the thing that made the whole game feel subtly wrong on newer phones."
-    ]
+    ],
+    "captureFromMs": 3800
   },
   {
     "slug": "flux-sort",
@@ -1005,7 +1010,8 @@
       "The drop target is the whole quadrant of background, not a box. On a phone, a small target under your own finger is a target you cannot see, so dragging a shard anywhere into the lower-left region sorts it into that channel. The visible channel marker is a label for a region rather than the region itself.",
       "The four channels use shapes with different vertex counts — triangle, pentagon, square, hexagon — and that spread is deliberate. Shapes drift and rotate, and a rotating square is a diamond; pick two shapes with similar counts and there is an angle at which they become the same silhouette. Colour is the fast cue and shape is the reliable one, and the reliable one has to survive rotation.",
       "The run does not end on a countdown. An early version used a literal timer and every real session ended in seven to ten seconds, which scored 9 out of 20 in review — a game that is over before it is understood. What ends a run now is the core overflowing: shards accumulate faster than you sort them, and the live count exceeding its cap is the failure. The clock still exists, but it is a resource you top up by playing well rather than a fuse."
-    ]
+    ],
+    "captureFromMs": 3800
   },
   {
     "slug": "stack-purge",
@@ -1111,7 +1117,8 @@
       "Tap timing is corrected for the gap between the event and the frame. A pointer or key event carries a timestamp that is usually a few milliseconds older than the last rendered frame, so judging against the last drawn needle angle systematically reads every tap as slightly early — up to 0.034 radians at 60Hz, which at high spin speeds is the difference between a perfect hit and a miss. The game re-advances the needle to the event&rsquo;s actual timestamp before judging it.",
       "The needle angle is never wrapped to the range &minus;&pi; to &pi;. Letting it grow without bound means &ldquo;has the needle passed this segment&rdquo; is one subtraction instead of a pile of wrap-around cases, and wrap-around cases in angle maths are where timing games hide their worst bugs.",
       "Guard segments — the ones you must not hit — are marked with hatching and an X as well as colour. That is a direct correction of an earlier game on this site that encoded the same distinction in hue alone and was unreadable for anyone with a colour vision deficiency. The idle death is also engineered rather than timed: an untouched run bleeds its charge to zero in about seven seconds through the ordinary cost schedule, so the automated gate sees a game that ends when abandoned without the game ever having to count down at the player."
-    ]
+    ],
+    "captureFromMs": 3600
   },
   {
     "slug": "ember-drift",
@@ -1164,7 +1171,8 @@
       "One line contains the whole difficulty curve: pickup range is tied to the light you have left, <code>lightR = U * (0.075 + 0.165 * min(1.15, light))</code>. Losing light shrinks your reach, which makes sparks harder to catch, which loses you more light. The spiral is the game, and it is why a run that goes badly goes badly quickly.",
       "Sparks are not simply fleeing. Inside your light radius they are pulled towards you; in the shell between that radius and 2.6 times it, they are pushed away. The result is that you cannot drift up to a spark and absorb it — you have to commit to a dash that crosses the repulsion band, which is the entire feel of the game and about eight lines of code.",
       "The wind is a closed-form function rather than a stored grid: two sine terms evaluated at the position you ask about. That keeps the field identical at every screen resolution and costs no memory, where a baked grid would have to be sized against the viewport and would quietly differ between a phone and a monitor. Large ember shards are distinguished by being a four-point star at 1.45 times the radius, not by colour alone — the same accessibility rule the rest of the catalogue follows."
-    ]
+    ],
+    "captureFromMs": 4000
   },
   {
     "slug": "signal-relay",
@@ -1270,7 +1278,8 @@
       "Crossing your own thread costs integrity, so the game needs to know what counts as a crossing. A plain line-segment intersection test reports a false positive every time two threads meet at a node they legitimately share. The check trims four percent off each end of both segments before testing, which removes shared endpoints from consideration and leaves genuine crossings intact.",
       "Shapes never rotate, and that is a decision rather than an omission. A rotating square is a diamond, and a diamond is close enough to the star and spark silhouettes that the shape cue — the one that works without colour — stops being reliable. Holding rotation at zero keeps seven shapes distinguishable by outline alone.",
       "New pairs are placed by sampling six candidate positions and keeping whichever is furthest from every existing node. It is a crude maximum-minimum heuristic and it costs almost nothing, but it is the difference between a loom that stays readable for a long run and one that degenerates into overlapping shapes within a minute."
-    ]
+    ],
+    "captureFromMs": 4200
   },
   {
     "slug": "null-cascade",
@@ -1323,6 +1332,7 @@
       "Sealed packets — the ones you must let through — first appear 7.5 seconds into a run, and that number was chosen against the test harness rather than for the player. An abandoned run ends at roughly six seconds, so an idle player never encounters the do-not-tap rule and never has a chance to fail it by accident. The rule arrives only once somebody is actually playing.",
       "Targeting picks exactly one packet: the nearest inside an elliptical hit test, wider than it is tall. A tap in a lane game is horizontally imprecise and vertically meaningful, so the forgiving axis is the one where imprecision does not change your intent.",
       "Spawn decisions for armoured, sealed and heavy packets use probability accumulators rather than a random roll per frame — each frame adds the current rate to a counter and fires when it crosses one. The sequence is then completely deterministic for a given elapsed time, which makes a run reproducible and makes tuning possible at all. A sealed packet awards score but no integrity, so a passive player cannot accidentally heal their way past the point where the game is supposed to end."
-    ]
+    ],
+    "captureFromMs": 3600
   }
 ]
