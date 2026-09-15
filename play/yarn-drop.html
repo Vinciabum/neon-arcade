@@ -55,7 +55,7 @@ const ctx = canvas.getContext('2d');
 const BAND = 390 / 806;
 let W = 0, H = 0, SW = 0, OX = 0;
 
-const COLS = 5, ROWS = 8;
+const COLS = 5, ROWS = 7;   // 8줄은 위쪽 두 줄이 거의 쓰이지 않아 바구니가 늘 비어 보였다
 // 단계마다 색. 커질수록 따뜻하고 진해진다 — 큰 뭉치가 화면에서 먼저 눈에 들어와야 한다.
 // 1단계부터 바탕과 확실히 구분돼야 한다. 처음에 크림색에 가까운 색을 두었더니
 // 1과 2가 바구니 바닥과 같아 보여서, 가장 자주 보는 두 단계가 가장 안 보였다.
@@ -155,9 +155,11 @@ const Sfx = (() => {
 /* ---------- 판 ---------- */
 function reset() {
   grid = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-  // 빈 바구니에서 시작하면 첫 다섯 수가 아무 판단도 아니다. 바닥에 두 줄 깔고 시작한다.
-  for (let r = ROWS - 2; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) grid[r][c] = 1 + Math.floor(Math.random() * 2);
+  /* 빈 바구니에서 시작하면 첫 다섯 수가 아무 판단도 아니다. 바닥에 세 줄 깔고 시작한다.
+     값을 1~2로 좁게 두었더니 같은 값이 크게 뭉쳐 깔려서, 첫 탭 한 번에 바닥이 통째로
+     사라지고 다시 빈 바구니가 됐다. 1~3으로 벌리면 시작 판이 남아 있는다. */
+  for (let r = ROWS - 3; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) grid[r][c] = 1 + Math.floor(Math.random() * 3);
   }
   cur = spawnValue(); next = spawnValue();
 }
